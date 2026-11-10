@@ -1,0 +1,36 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Polaris Simple</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="app.js"></script>
+</head>
+<body data-target="monitor">
+  <div class="shell">
+    <header class="masthead">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span>POLARIS <span class="brand-light">/ SIMPLE</span></span></div>
+      <button id="refresh" type="button">Refresh</button>
+    </header>
+    <main>
+      <section class="intro">
+        <p class="eyebrow" id="eyebrow">SERVICE STATUS</p>
+        <h1 id="title">Uptime Polaris</h1>
+        <p class="description" id="description"></p>
+      </section>
+      <section id="custom-content"></section>
+      <section class="overview" aria-live="polite">
+        <div class="overview-main"><span class="signal" id="signal" aria-hidden="true"></span><div><p class="overview-label" id="overview-label">CURRENT STATUS</p><h2 id="overall">Loading status…</h2></div></div>
+        <div class="overview-meta"><span id="summary"></span><span id="updated"></span></div>
+      </section>
+      <section class="items-section" aria-labelledby="list-title">
+        <div class="section-heading"><div><p class="eyebrow" id="list-eyebrow">LIVE OVERVIEW</p><h2 id="list-title">Monitors</h2></div><span id="count" class="count"></span></div>
+        <div id="content" class="content" aria-live="polite"><p class="message">Loading…</p></div>
+      </section>
+    </main>
+    <footer><span>✦ &nbsp; POLARIS SIMPLE</span><span id="footer">Public status page</span></footer>
+  </div>
+</body>
+</html>

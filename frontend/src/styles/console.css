@@ -1,0 +1,991 @@
+html.polaris-console [data-slot='description'] { color: var(--polaris-ink-3); }
+
+/** Shared tokens and styles for public and management views. Unlayered HeroUI overrides take precedence over layered utilities. / 公开页面和管理页面共用的变量与样式；未分层的 HeroUI 覆盖规则优先于分层工具类。 */
+
+/* --------------------------------------------------------------------- tokens / 设计变量 */
+
+:root {
+  --polaris-canvas: #ffffff;
+  --polaris-panel: #ffffff;
+  --polaris-card: #ffffff;
+  --polaris-well: #fafafa;
+  --polaris-hover: rgb(0 0 0 / 0.035);
+  --polaris-active: rgb(0 0 0 / 0.055);
+  --polaris-line: rgb(0 0 0 / 0.08);
+  --polaris-line-soft: rgb(0 0 0 / 0.05);
+  --polaris-line-strong: rgb(0 0 0 / 0.14);
+
+  --polaris-ink: #18181b;
+  --polaris-ink-2: #52525b;
+  --polaris-ink-3: #71717a;
+  --polaris-ink-4: #a1a1aa;
+
+  --polaris-field: #ffffff;
+  --polaris-field-line: rgb(0 0 0 / 0.12);
+  --polaris-field-line-hover: rgb(0 0 0 / 0.22);
+  --polaris-field-focus: rgb(0 0 0 / 0.6);
+  --polaris-ring: rgb(0 0 0 / 0.06);
+  --polaris-scroll-thumb: rgb(24 24 27 / 0.2);
+  --polaris-scroll-thumb-hover: rgb(24 24 27 / 0.38);
+
+  --polaris-shadow-card: 0 1px 2px rgb(0 0 0 / 0.03);
+  --polaris-shadow-hover: 0 1px 2px rgb(0 0 0 / 0.04), 0 10px 24px -12px rgb(0 0 0 / 0.16);
+  --polaris-shadow-float: 0 0 0 1px rgb(0 0 0 / 0.06), 0 16px 40px -12px rgb(0 0 0 / 0.2), 0 2px 6px rgb(0 0 0 / 0.04);
+  --polaris-shadow-panel: 0 0 0 1px rgb(0 0 0 / 0.07), 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -16px rgb(0 0 0 / 0.08);
+
+  --polaris-grid: rgb(0 0 0 / 0.06);
+  --polaris-axis: #a1a1aa;
+  --polaris-accent: #2563eb;
+  --polaris-accent-wash: rgb(37 99 235 / 0.08);
+  --polaris-chart: #3b82f6;
+
+  --polaris-ok: #10b981;
+  --polaris-ok-ink: #047857;
+  --polaris-warn: #f59e0b;
+  --polaris-warn-ink: #b45309;
+  --polaris-pend: #f97316;
+  --polaris-pend-ink: #c2410c;
+  --polaris-down: #ef4444;
+  --polaris-down-ink: #dc2626;
+  --polaris-idle: #d4d4d8;
+  --polaris-idle-ink: #71717a;
+
+  --polaris-rail-up: #34d399;
+  --polaris-rail-empty: #ececee;
+  --polaris-island: #0b0b0c;
+  --polaris-island-ink: #fafafa;
+}
+
+.dark {
+  --polaris-scroll-thumb: rgb(244 244 245 / 0.2);
+  --polaris-scroll-thumb-hover: rgb(244 244 245 / 0.4);
+  --polaris-canvas: #0d0d0f;
+  --polaris-panel: #131315;
+  --polaris-card: #161618;
+  --polaris-well: #1a1a1d;
+  --polaris-hover: rgb(255 255 255 / 0.04);
+  --polaris-active: rgb(255 255 255 / 0.07);
+  --polaris-line: rgb(255 255 255 / 0.08);
+  --polaris-line-soft: rgb(255 255 255 / 0.05);
+  --polaris-line-strong: rgb(255 255 255 / 0.14);
+
+  --polaris-ink: #f4f4f5;
+  --polaris-ink-2: #c4c4cc;
+  --polaris-ink-3: #8f8f99;
+  --polaris-ink-4: #5f5f68;
+
+  --polaris-field: #18181b;
+  --polaris-field-line: rgb(255 255 255 / 0.1);
+  --polaris-field-line-hover: rgb(255 255 255 / 0.18);
+  --polaris-field-focus: rgb(255 255 255 / 0.5);
+  --polaris-ring: rgb(255 255 255 / 0.06);
+
+  --polaris-shadow-card: 0 1px 2px rgb(0 0 0 / 0.3);
+  --polaris-shadow-hover: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 28px -12px rgb(0 0 0 / 0.7);
+  --polaris-shadow-float: 0 0 0 1px rgb(255 255 255 / 0.08), 0 20px 48px -12px rgb(0 0 0 / 0.75);
+  --polaris-shadow-panel: 0 0 0 1px rgb(255 255 255 / 0.07), 0 8px 24px -16px rgb(0 0 0 / 0.6);
+
+  --polaris-grid: rgb(255 255 255 / 0.06);
+  --polaris-axis: #6b6b74;
+  --polaris-accent: #60a5fa;
+  --polaris-accent-wash: rgb(96 165 250 / 0.12);
+  --polaris-chart: #60a5fa;
+
+  --polaris-ok: #10b981;
+  --polaris-ok-ink: #34d399;
+  --polaris-warn: #f59e0b;
+  --polaris-warn-ink: #fbbf24;
+  --polaris-pend: #f97316;
+  --polaris-pend-ink: #fb923c;
+  --polaris-down: #ef4444;
+  --polaris-down-ink: #f87171;
+  --polaris-idle: #3f3f46;
+  --polaris-idle-ink: #8f8f99;
+
+  --polaris-rail-up: #10b981;
+  --polaris-rail-empty: #26262a;
+  --polaris-island: #1c1c1f;
+  --polaris-island-ink: #fafafa;
+}
+
+/* --------------------------------------------------------------- HeroUI theme / HeroUI 主题 */
+
+html.polaris-console {
+  --font-sans:
+    'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC', 'Noto Sans CJK SC', sans-serif;
+  --font-mono:
+    'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --heroui-background: 0 0% 100%;
+  --heroui-foreground: 240 6% 10%;
+  --heroui-content1: 0 0% 100%;
+  --heroui-content1-foreground: 240 6% 10%;
+  --heroui-content2: 240 5% 96%;
+  --heroui-content3: 240 6% 90%;
+  --heroui-content4: 240 5% 84%;
+  --heroui-focus: 217 91% 60%;
+  --heroui-divider: 0 0% 48%;
+
+  --heroui-primary: 240 6% 10%;
+  --heroui-primary-foreground: 0 0% 100%;
+  --heroui-primary-50: 0 0% 98%;
+  --heroui-primary-100: 240 5% 96%;
+  --heroui-primary-200: 240 6% 90%;
+  --heroui-primary-300: 240 5% 84%;
+  --heroui-primary-400: 240 5% 65%;
+  --heroui-primary-500: 240 4% 46%;
+  --heroui-primary-600: 240 5% 34%;
+  --heroui-primary-700: 240 5% 26%;
+  --heroui-primary-800: 240 4% 16%;
+  --heroui-primary-900: 240 6% 10%;
+
+  --heroui-success: 160 84% 39%;
+  --heroui-success-foreground: 0 0% 100%;
+  --heroui-success-50: 152 81% 96%;
+  --heroui-success-100: 149 80% 90%;
+  --heroui-success-200: 152 76% 80%;
+  --heroui-success-300: 156 72% 67%;
+  --heroui-success-400: 158 64% 52%;
+  --heroui-success-500: 160 84% 39%;
+  --heroui-success-600: 161 94% 30%;
+  --heroui-success-700: 163 94% 24%;
+  --heroui-success-800: 163 88% 20%;
+  --heroui-success-900: 164 86% 16%;
+
+  --heroui-warning: 38 92% 50%;
+  --heroui-warning-50: 48 100% 96%;
+  --heroui-warning-100: 48 96% 89%;
+  --heroui-warning-200: 48 97% 77%;
+  --heroui-warning-300: 46 97% 65%;
+  --heroui-warning-400: 43 96% 56%;
+  --heroui-warning-500: 38 92% 50%;
+  --heroui-warning-600: 32 95% 44%;
+  --heroui-warning-700: 26 90% 37%;
+  --heroui-warning-800: 23 83% 31%;
+  --heroui-warning-900: 22 78% 26%;
+
+  --heroui-danger: 0 84% 60%;
+  --heroui-danger-foreground: 0 0% 100%;
+  --heroui-danger-50: 0 86% 97%;
+  --heroui-danger-100: 0 93% 94%;
+  --heroui-danger-200: 0 96% 89%;
+  --heroui-danger-300: 0 94% 82%;
+  --heroui-danger-400: 0 91% 71%;
+  --heroui-danger-500: 0 84% 60%;
+  --heroui-danger-600: 0 72% 51%;
+  --heroui-danger-700: 0 74% 42%;
+  --heroui-danger-800: 0 70% 35%;
+  --heroui-danger-900: 0 63% 31%;
+
+  --heroui-radius-small: 6px;
+  --heroui-radius-medium: 8px;
+  --heroui-radius-large: 12px;
+  --heroui-border-width-medium: 1px;
+  --heroui-hover-opacity: 0.86;
+  --heroui-disabled-opacity: 0.45;
+
+  --heroui-font-size-tiny: 0.75rem;
+  --heroui-font-size-small: 0.8125rem;
+  --heroui-font-size-medium: 0.875rem;
+  --heroui-font-size-large: 1rem;
+  --heroui-line-height-tiny: 1rem;
+  --heroui-line-height-small: 1.25rem;
+  --heroui-line-height-medium: 1.375rem;
+  --heroui-line-height-large: 1.5rem;
+
+  --heroui-box-shadow-small: 0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.05);
+  --heroui-box-shadow-medium: 0 0 0 1px rgb(0 0 0 / 0.06), 0 10px 28px -8px rgb(0 0 0 / 0.16), 0 2px 4px rgb(0 0 0 / 0.03);
+  --heroui-box-shadow-large: 0 0 0 1px rgb(0 0 0 / 0.06), 0 24px 56px -12px rgb(0 0 0 / 0.24);
+}
+
+html.polaris-console.dark {
+  --heroui-background: 240 7% 5.5%;
+  --heroui-foreground: 240 5% 96%;
+  --heroui-content1: 240 4% 9%;
+  --heroui-content1-foreground: 240 5% 96%;
+  --heroui-content2: 240 4% 12%;
+  --heroui-content3: 240 4% 17%;
+  --heroui-content4: 240 4% 25%;
+  --heroui-focus: 213 94% 68%;
+  --heroui-divider: 0 0% 65%;
+
+  --heroui-primary: 0 0% 98%;
+  --heroui-primary-foreground: 240 6% 10%;
+  --heroui-primary-50: 240 6% 10%;
+  --heroui-primary-100: 240 4% 16%;
+  --heroui-primary-200: 240 5% 26%;
+  --heroui-primary-300: 240 5% 34%;
+  --heroui-primary-400: 240 4% 46%;
+  --heroui-primary-500: 240 5% 65%;
+  --heroui-primary-600: 240 5% 84%;
+  --heroui-primary-700: 240 6% 90%;
+  --heroui-primary-800: 240 5% 96%;
+  --heroui-primary-900: 0 0% 98%;
+
+  --heroui-success-50: 164 86% 12%;
+  --heroui-success-100: 163 88% 16%;
+  --heroui-success-200: 163 94% 22%;
+  --heroui-success-300: 161 94% 28%;
+  --heroui-success-400: 160 84% 36%;
+  --heroui-success-500: 160 84% 39%;
+  --heroui-success-600: 158 64% 52%;
+  --heroui-success-700: 156 72% 67%;
+  --heroui-success-800: 152 76% 80%;
+  --heroui-success-900: 149 80% 90%;
+
+  --heroui-warning-50: 22 78% 14%;
+  --heroui-warning-100: 23 83% 20%;
+  --heroui-warning-200: 26 90% 28%;
+  --heroui-warning-300: 32 95% 38%;
+  --heroui-warning-400: 38 92% 46%;
+  --heroui-warning-500: 38 92% 50%;
+  --heroui-warning-600: 43 96% 56%;
+  --heroui-warning-700: 46 97% 65%;
+  --heroui-warning-800: 48 97% 77%;
+  --heroui-warning-900: 48 96% 89%;
+
+  --heroui-danger-50: 0 63% 13%;
+  --heroui-danger-100: 0 63% 19%;
+  --heroui-danger-200: 0 70% 28%;
+  --heroui-danger-300: 0 74% 38%;
+  --heroui-danger-400: 0 72% 48%;
+  --heroui-danger-500: 0 84% 60%;
+  --heroui-danger-600: 0 91% 71%;
+  --heroui-danger-700: 0 94% 82%;
+  --heroui-danger-800: 0 96% 89%;
+  --heroui-danger-900: 0 93% 94%;
+
+  --heroui-box-shadow-small: 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.4);
+  --heroui-box-shadow-medium: 0 0 0 1px rgb(255 255 255 / 0.08), 0 12px 32px -8px rgb(0 0 0 / 0.7);
+  --heroui-box-shadow-large: 0 0 0 1px rgb(255 255 255 / 0.08), 0 28px 64px -12px rgb(0 0 0 / 0.8);
+}
+
+/* Per-script fallbacks, so Japanese and Korean do not borrow Chinese glyphs. / 按文字系统回退字体，避免日语和韩语使用中文字形。 */
+html.polaris-console:lang(ja) {
+  --font-sans:
+    'Geist Variable', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI',
+    Meiryo, 'Noto Sans JP', sans-serif;
+}
+html.polaris-console:lang(ko) {
+  --font-sans:
+    'Geist Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR',
+    sans-serif;
+}
+html.polaris-console:lang(zh-TW),
+html.polaris-console:lang(zh-HK) {
+  --font-sans:
+    'Geist Variable', -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Microsoft JhengHei UI', 'Microsoft JhengHei',
+    'Noto Sans TC', sans-serif;
+}
+
+html.polaris-console body {
+  font-family: var(--font-sans);
+  color: var(--polaris-ink);
+  background: var(--polaris-canvas);
+  text-rendering: optimizeLegibility;
+}
+
+/* Lucide draws at 2px; the console's icons sit beside 13px text and read better lighter. / Lucide 默认线宽为 2px；控制台图标与 13px 文字并排时，较细的线条更协调。 */
+html.polaris-console .lucide[stroke-width='2'] {
+  stroke-width: 1.75px;
+}
+
+/* ------------------------------------------------------- HeroUI form controls / HeroUI 表单控件 */
+
+/* Flat fields: white with a hairline ring, keyed on the flat variant so
+ * bordered/underlined fields keep their look. Invalid fields keep HeroUI's
+ * danger wash (`!important`) on purpose. */
+/* 扁平输入框：白底细线；无效字段保留 HeroUI 的危险色。 */
+html.polaris-console [data-slot='input-wrapper'][class*='bg-default-100'],
+html.polaris-console [data-slot='main-wrapper'] > [data-slot='trigger'][class*='bg-default-100'] {
+  background-color: var(--polaris-field);
+  box-shadow:
+    inset 0 0 0 1px var(--polaris-field-line),
+    0 1px 1px rgb(0 0 0 / 0.02);
+  transition:
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+html.polaris-console [data-slot='input-wrapper'][class*='bg-default-100'][data-hover='true'],
+html.polaris-console [data-slot='main-wrapper'] > [data-slot='trigger'][class*='bg-default-100'][data-hover='true'] {
+  background-color: var(--polaris-field);
+  box-shadow: inset 0 0 0 1px var(--polaris-field-line-hover);
+}
+html.polaris-console [data-focus='true'] [data-slot='input-wrapper'][class*='bg-default-100'],
+html.polaris-console [data-open='true'] [data-slot='trigger'][class*='bg-default-100'],
+html.polaris-console [data-slot='trigger'][class*='bg-default-100'][data-open='true'],
+html.polaris-console [data-slot='trigger'][class*='bg-default-100'][data-focus='true'] {
+  background-color: var(--polaris-field);
+  box-shadow:
+    inset 0 0 0 1px var(--polaris-field-focus),
+    0 0 0 3px var(--polaris-ring);
+}
+html.polaris-console [data-invalid='true'] [data-slot='input-wrapper'][class*='bg-default-100'],
+html.polaris-console [data-invalid='true'] [data-slot='trigger'][class*='bg-default-100'] {
+  box-shadow:
+    inset 0 0 0 1px rgb(239 68 68 / 0.55),
+    0 0 0 3px rgb(239 68 68 / 0.08);
+}
+/* A field that sits inside something already framed (the command palette). / 已有边框的容器内的输入框（命令面板）。 */
+html.polaris-console .polaris-bare [data-slot='input-wrapper'] {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html.polaris-console [data-slot='input'],
+html.polaris-console [data-slot='value'] {
+  font-size: 13px;
+}
+html.polaris-console [data-slot='input']::placeholder {
+  color: var(--polaris-ink-4);
+}
+
+/* ------------------------------------------------------------ HeroUI overlays / HeroUI 浮层 */
+
+html.polaris-console [data-slot='backdrop'][class*='bg-overlay'] {
+  background-color: rgb(10 10 12 / 0.26);
+  backdrop-filter: blur(3px);
+}
+html.polaris-console.dark [data-slot='backdrop'][class*='bg-overlay'] {
+  background-color: rgb(0 0 0 / 0.55);
+}
+html.polaris-console section[role='dialog'][data-slot='base'] {
+  box-shadow: var(--polaris-shadow-float);
+}
+
+/* ------------------------------------------------------------------- toasts / 提示消息 */
+
+/* Neutral toast with a coloured glyph, not sonner's tinted background. / 中性提示条配彩色图标，不用 sonner 的着色背景。 */
+html.polaris-console [data-sonner-toaster] [data-sonner-toast][data-styled='true'] {
+  background: var(--polaris-card);
+  border: 1px solid var(--polaris-line);
+  color: var(--polaris-ink);
+  border-radius: 12px;
+  box-shadow: var(--polaris-shadow-float);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 12px 14px;
+}
+html.polaris-console [data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-description] {
+  color: var(--polaris-ink-3);
+}
+html.polaris-console [data-sonner-toaster] [data-sonner-toast][data-type='success'] [data-icon] {
+  color: var(--polaris-ok);
+}
+html.polaris-console [data-sonner-toaster] [data-sonner-toast][data-type='error'] [data-icon] {
+  color: var(--polaris-down);
+}
+html.polaris-console [data-sonner-toaster] [data-sonner-toast][data-type='warning'] [data-icon] {
+  color: var(--polaris-warn);
+}
+html.polaris-console [data-sonner-toaster] [data-sonner-toast][data-type='info'] [data-icon] {
+  color: var(--polaris-accent);
+}
+
+/* --------------------------------------------------------- browser surfaces / 浏览器界面 */
+
+html.polaris-console ::selection {
+  background: rgb(37 99 235 / 0.16);
+}
+html.polaris-console.dark ::selection {
+  background: rgb(96 165 250 / 0.3);
+}
+html.polaris-console input,
+html.polaris-console textarea {
+  caret-color: var(--polaris-ink);
+}
+html.polaris-console,
+html.polaris-console * {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(0 0 0 / 0.16) transparent;
+}
+html.polaris-console.dark,
+html.polaris-console.dark * {
+  scrollbar-color: rgb(255 255 255 / 0.14) transparent;
+}
+.polaris a {
+  text-underline-offset: 3px;
+}
+/* Focus ring only for controls without their own; form controls and wrappers with a ring are excluded. / 只为没有自身焦点的控件绘制焦点环；排除表单控件和已有环的包装层。 */
+.polaris a:focus-visible,
+.polaris button:focus-visible,
+.polaris [tabindex]:not([tabindex='-1']):focus-visible:not(input, textarea, select, [role='combobox'], [role='switch'], [role='checkbox'], [role='radio'], [role='slider'], [role='spinbutton']),
+.polaris [role='button']:focus-visible,
+.polaris [role='menuitem']:focus-visible,
+.polaris [role='option']:focus-visible {
+  outline: 2px solid rgb(59 130 246 / 0.5);
+  outline-offset: 2px;
+}
+/* Second line of defence. The real fix is excluding form controls from the
+ * painting rule above: a selector that stops matching the element cannot
+ * clear a ring already applied by a more specific `[tabindex]` arm. Here,
+ * set only outline-color: the `outline` shorthand resets it to currentColor
+ * and HeroUI's `!important` style paints it back black. */
+/* 第二道防线；真正的修复在上方绘制规则里排除表单控件。此处只清颜色，不用简写。 */
+.polaris input:focus-visible,
+.polaris textarea:focus-visible,
+.polaris select:focus-visible,
+.polaris [role='combobox']:focus-visible,
+.polaris [role='switch']:focus-visible,
+.polaris [role='checkbox']:focus-visible,
+.polaris [role='radio']:focus-visible,
+.polaris [role='slider']:focus-visible,
+.polaris [role='spinbutton']:focus-visible,
+.polaris [data-focus='true'] :focus-visible {
+  outline-color: transparent;
+}
+
+/* ------------------------------------------------------------------ surfaces / 内容区域 */
+
+/* A framed block inside the page sheet: a hairline, no lift. / 页面内的带框区块：细边框，无浮起效果。 */
+.polaris-card {
+  background: var(--polaris-card);
+  border: 1px solid var(--polaris-line);
+  border-radius: 12px;
+  box-shadow: var(--polaris-shadow-card);
+}
+
+/* Only blocks that *do* something react to the pointer. / 只有可操作的区块响应指针。 */
+.polaris-card-press {
+  transition:
+    box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    translate 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .polaris-card-press:hover {
+    translate: 0 -2px;
+    border-color: var(--polaris-line-strong);
+    box-shadow: var(--polaris-shadow-hover);
+  }
+}
+.polaris-card-press:active {
+  translate: 0 0;
+}
+
+/* A recessed area: code, a sub-list, a settings group. / 内凹区域：代码、子列表或设置组。 */
+.polaris-well {
+  background: var(--polaris-well);
+  border: 1px solid var(--polaris-line-soft);
+  border-radius: 10px;
+}
+
+.polaris-divide > * + * {
+  border-top: 1px solid var(--polaris-line-soft);
+}
+
+/* The page sheet: the one white surface the console's content sits on. / 页面底板：承载控制台内容的白色表面。 */
+.polaris-sheet {
+  background: var(--polaris-panel);
+}
+@media (min-width: 1024px) {
+  .polaris-sheet {
+    box-shadow: var(--polaris-shadow-panel);
+  }
+}
+
+/* Small caps-free section label: 12px, tertiary ink. / 不使用小型大写字母的分区标签：12px，三级文字颜色。 */
+.polaris-label {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--polaris-ink-3);
+}
+
+.polaris-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  letter-spacing: -0.01em;
+}
+
+.polaris-kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  min-width: 18px;
+  justify-content: center;
+  padding: 0 4px;
+  border-radius: 5px;
+  border: 1px solid var(--polaris-line-strong);
+  background: var(--polaris-card);
+  box-shadow: 0 1px 0 var(--polaris-line);
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--polaris-ink-3);
+}
+
+/* A table whose rows are the content: hairlines, a quiet head, a hover wash. / 以数据行为主体的表格：细分隔线、低调表头和悬停底色。 */
+.polaris-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.polaris-table thead th {
+  height: 36px;
+  padding: 0 12px;
+  background: var(--polaris-well);
+  border-bottom: 1px solid var(--polaris-line);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--polaris-ink-3);
+  text-align: left;
+  white-space: nowrap;
+}
+.polaris-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--polaris-line-soft);
+  vertical-align: middle;
+}
+.polaris-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.polaris-table tbody tr {
+  transition: background-color 120ms ease;
+}
+.polaris-table tbody tr:hover {
+  background: var(--polaris-hover);
+}
+
+/* Row actions that wait for the pointer, but stay reachable by keyboard. / 行操作在指针悬停时显示，同时可通过键盘访问。 */
+.polaris-reveal {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+tr:hover .polaris-reveal,
+li:hover .polaris-reveal,
+.polaris-reveal-host:hover .polaris-reveal,
+.polaris-reveal:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .polaris-reveal {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------------- motion / 动效 */
+
+/* CSS owns press feedback; Motion owns geometry. / CSS 管按压反馈，Motion 管几何变化。 */
+html.polaris-console button[data-react-aria-pressable='true']:not([data-slot='trigger']):not([role]) {
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 160ms ease-out,
+    color 160ms ease-out,
+    border-color 160ms ease-out,
+    box-shadow 200ms ease-out,
+    opacity 160ms ease-out;
+}
+html.polaris-console button[data-react-aria-pressable='true'][data-pressed='true']:not([data-slot='trigger']):not([role]) {
+  transform: scale(0.975);
+  transition-duration: 90ms;
+}
+.polaris :is([role='menuitem'], [role='option']) {
+  transition: background-color 140ms ease-out, color 140ms ease-out, opacity 140ms ease-out;
+}
+html.polaris-console [data-slot='selectorIcon'] {
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+html.polaris-console [data-slot='thumb'] {
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), background-color 160ms ease-out;
+}
+.polaris-route-surface:has([data-polaris-exiting]) {
+  isolation: isolate;
+}
+.polaris-overflow-hint {
+  opacity: 1;
+  translate: 0 0;
+  transition: opacity 120ms ease-out, translate 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@starting-style {
+  .polaris-overflow-hint {
+    opacity: 0;
+    translate: 0 -3px;
+  }
+}
+
+.polaris-nav-link,
+.polaris-segmented-option {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.polaris-nav-link:active {
+  transform: scale(0.985);
+}
+
+.polaris-segmented-option:active {
+  transform: scale(0.97);
+}
+
+@keyframes polaris-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* The "live" indicator: a slow fade, so it reads as running rather than alarming. / 实时指示器缓慢淡入淡出，表示运行中而非告警。 */
+.polaris-live {
+  animation: polaris-breathe 2.4s ease-in-out infinite;
+}
+
+.polaris-mark-spin {
+  display: block;
+  flex-shrink: 0;
+  transform-origin: center;
+  backface-visibility: hidden;
+  will-change: transform;
+  transition: none;
+}
+
+@keyframes polaris-halo {
+  0% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgb(239 68 68 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0);
+  }
+}
+
+/* A failing light: one soft ring outward, so a down row is found without flashing. / 故障指示灯向外扩散柔和光环，无需闪烁也能定位故障行。 */
+.polaris-halo {
+  animation: polaris-halo 1.8s ease-out infinite;
+}
+
+/* One nudge when the fleet worsens; transform only, no reflow. / 集群恶化时轻推一下；只做 transform，不触发布局。 */
+@keyframes polaris-island-bounce {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.06);
+  }
+  70% {
+    transform: scale(0.985);
+  }
+}
+
+.polaris-island-bounce {
+  animation: polaris-island-bounce 220ms ease-out;
+}
+
+@keyframes polaris-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* A thin progress sheen for a block that is refetching without a layout change. / 重新获取数据的区块显示细微扫光，不改变布局。 */
+.polaris-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.polaris-sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--polaris-ink-3), transparent);
+  animation: polaris-sweep 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes polaris-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.polaris-rise {
+  animation: polaris-rise 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* Rail segments grow up from their baseline, one after another on first paint. / 状态条各段在首次绘制时依次从基线向上生长。 */
+@keyframes polaris-grow {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+.polaris-grow {
+  transform-origin: bottom;
+  animation: polaris-grow 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* A line or an area drawn in from the left. Clip-based, so it works for strokes and fills alike. / 线条或区域从左侧显现；使用裁剪，同时适用于描边和填充。 */
+@keyframes polaris-reveal-x {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.polaris-reveal-x {
+  animation: polaris-reveal-x 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Loading blocks: a soft sheen sweeping across grey. / 加载占位块：柔和扫光掠过灰色背景。 */
+@keyframes polaris-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+.polaris-shimmer {
+  background: linear-gradient(90deg, var(--polaris-active) 0%, var(--polaris-hover) 45%, var(--polaris-active) 90%);
+  background-size: 220% 100%;
+  animation: polaris-shimmer 1.5s ease-in-out infinite;
+}
+
+/* A row whose state just changed: a wash in the new state's tone that fades out. / 状态刚变化的行显示新状态色背景，随后淡出。 */
+@keyframes polaris-flash {
+  0%,
+  15% {
+    background-color: var(--polaris-flash, rgb(239 68 68 / 0.12));
+  }
+}
+.polaris-flash,
+.polaris-flash-row > td {
+  animation: polaris-flash 2.6s ease-out;
+}
+
+/* A light or a figure that just changed, settling into place. / 刚变化的指示灯或数字以动效归位。 */
+@keyframes polaris-pop {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.4;
+  }
+  60% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.polaris-pop {
+  animation: polaris-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes polaris-ripple {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(1.75);
+    opacity: 0;
+  }
+}
+
+/* Two slow rings out of a status light: alive without being alarming. Tone comes from `color`. / 状态灯缓慢扩散两个光环，表达运行状态而非告警；颜色取自 `color`。 */
+.polaris-ripple {
+  position: relative;
+}
+.polaris-ripple::before,
+.polaris-ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: polaris-ripple 3s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+  pointer-events: none;
+}
+.polaris-ripple::after {
+  animation-delay: 1.5s;
+}
+
+html[data-motion='reduced'].polaris-console button[data-react-aria-pressable='true']:not([data-slot='trigger']):not([role]) {
+  transition-property: color, background-color, opacity;
+}
+
+html[data-motion='reduced'].polaris-console button[data-react-aria-pressable='true'][data-pressed='true']:not([data-slot='trigger']):not([role]),
+html[data-motion='reduced'] .polaris-card-press:hover,
+html[data-motion='reduced'] .polaris-card-press:active {
+  transform: none;
+  translate: none;
+}
+
+html[data-motion='reduced'].polaris-console [data-slot='selectorIcon'],
+html[data-motion='reduced'].polaris-console [data-slot='thumb'] {
+  transition-duration: 0s;
+}
+
+html[data-motion='reduced'] .polaris-overflow-hint {
+  transition: none;
+  translate: none;
+}
+
+html[data-motion='reduced'] .polaris-nav-link:active,
+html[data-motion='reduced'] .polaris-segmented-option:active {
+  transform: none;
+}
+
+html[data-motion='reduced'] .polaris-nav-link,
+html[data-motion='reduced'] .polaris-segmented-option {
+  transition-property: color, background-color;
+}
+
+html[data-motion='reduced'] .polaris-grow,
+html[data-motion='reduced'] .polaris-reveal-x,
+html[data-motion='reduced'] .polaris-shimmer,
+html[data-motion='reduced'] .polaris-flash,
+html[data-motion='reduced'] .polaris-flash-row > td,
+html[data-motion='reduced'] .polaris-pop {
+  animation: none;
+}
+
+html[data-motion='reduced'] .polaris-ripple::before,
+html[data-motion='reduced'] .polaris-ripple::after {
+  animation: none;
+  opacity: 0;
+}
+
+html[data-motion='reduced'] .polaris-live,
+html[data-motion='reduced'] .polaris-halo,
+html[data-motion='reduced'] .polaris-island-bounce,
+html[data-motion='reduced'] .polaris-rise,
+html[data-motion='reduced'] .polaris-sweep::after {
+  animation: none;
+}
+
+html[data-motion='reduced'] .polaris-card-press,
+html[data-motion='reduced'] .polaris-reveal {
+  transition: none;
+}
+
+/* --------------------------------------------------------------- atmosphere / 背景氛围 */
+
+/* A dot field at a few percent of ink, for the sign-in page and empty states. / 低透明度点阵背景，用于登录页和空状态。 */
+.polaris-dots {
+  background-image: radial-gradient(rgb(0 0 0 / 0.08) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+.dark .polaris-dots {
+  background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
+}
+
+/* A hairline grid, for illustrative panels. / 用于图示面板的细线网格。 */
+.polaris-grid-bg {
+  background-image:
+    linear-gradient(var(--polaris-line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--polaris-line-soft) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ------------------------------------------------------------------- charts / 图表 */
+
+.polaris-chart .recharts-cartesian-axis-tick-value {
+  fill: var(--polaris-axis);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.polaris-chart .recharts-cartesian-grid line {
+  stroke: var(--polaris-grid);
+}
+html.polaris-console .polaris-chart .recharts-surface:focus:not(:focus-visible),
+html.polaris-console .polaris-chart .recharts-wrapper:focus:not(:focus-visible) {
+  outline: 0 solid transparent;
+}
+html.polaris-console .polaris-chart .recharts-surface:focus-visible,
+html.polaris-console .polaris-chart .recharts-wrapper:focus-visible {
+  outline: 2px solid var(--polaris-chart);
+  outline-offset: 3px;
+}
+html.polaris-console .polaris-chart[data-pointer-focus] :focus {
+  outline: 0 solid transparent !important;
+}
+
+/* ------------------------------------------------------------------- scroll / 滚动 */
+
+html.polaris-console .polaris-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--polaris-scroll-thumb) transparent;
+  scrollbar-gutter: stable;
+}
+html.polaris-console .polaris-scrollbar:hover {
+  scrollbar-color: var(--polaris-scroll-thumb-hover) transparent;
+}
+@supports selector(::-webkit-scrollbar) {
+  html.polaris-console .polaris-scrollbar,
+  html.polaris-console .polaris-scrollbar:hover {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+  html.polaris-console .polaris-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  html.polaris-console .polaris-scrollbar::-webkit-scrollbar-track {
+    margin-block: 12px;
+    background: transparent;
+  }
+  html.polaris-console .polaris-scrollbar::-webkit-scrollbar-thumb {
+    min-height: 40px;
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-color: var(--polaris-scroll-thumb);
+    background-clip: padding-box;
+  }
+  html.polaris-console .polaris-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--polaris-scroll-thumb-hover);
+  }
+  html.polaris-console .polaris-scrollbar::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+.polaris-mobile-nav {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+.polaris-page-content {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 1024px) {
+  .polaris-page-content {
+    padding-bottom: 3rem;
+  }
+}
+@media (forced-colors: active) {
+  html.polaris-console .polaris-scrollbar,
+  html.polaris-console .polaris-scrollbar:hover {
+    scrollbar-color: auto;
+  }
+  html.polaris-console .polaris-scrollbar::-webkit-scrollbar-thumb {
+    background-color: CanvasText;
+  }
+}
+
+/* Keep horizontal overflow discoverable in dense tables. / 让密集表格的水平溢出易于发现。 */
+.polaris-scroll-x {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(0 0 0 / 0.18) transparent;
+}
+html.polaris-console.dark .polaris-scroll-x {
+  scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+}

@@ -1,0 +1,67 @@
+node_modules/
+.wrangler/
+.cloudflare/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+!.env.example
+.secrets/
+*.log
+
+# Generated assets and local toolchains
+# 生成资源和本地工具链。
+/public/
+artifacts/
+screenshots/
+.tools/
+frontend/.vite/
+frontend/*.tsbuildinfo
+
+# Local editor and assistant state
+# 本地编辑器和助手状态。
+.ccg/
+.claude/
+.edithere/
+.stagewise/
+.impeccable/
+.agents/
+.codex/
+.aws/
+
+# Local experiments and internal references / 本地实验与内部参考文件。
+/test/auth/bench-pbkdf2.mjs
+/test/db/dev-seed.test.mjs
+/test/helpers/measure-icon.mjs
+/test/helpers/render-icon-preview.mjs
+/test/helpers/run-measure-icon.mjs
+/test/ui/brand.test.mjs
+/test/ui/public-page-width.test.mjs
+/test/ui/stagewise-browser.test.mjs
+/test/ui/fixtures/stagewise-overlays.tsx
+/CONTRIBUTING.md
+/DESIGN.md
+/PRODUCT.md
+/docs/documentation-audit.md
+/docs/release-workflows.md
+/docs/plans/
+
+# Local instructions and migration files / 本地约定与迁移副本。
+/AGENTS.md
+/migrations/
+
+# Independent Agent checkout and its local build tools / 独立 Agent 检出及其本地构建工具。
+/agent/
+/scripts/agent/
+/test/agents/agent-cli.test.mjs
+/test/agents/agent-manifest.test.mjs
+/test/agents/windows-update.test.mjs
+/test/agents/windows-restart.test.mjs
+
+# Go runtime data and local binaries / Go 运行数据和本地二进制。
+/backends/go/data/
+/backends/go/polaris
+/backends/go/polaris.exe
+/backends/go/dist/
+/polaris-data/

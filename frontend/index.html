@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Uptime Polaris</title>
+    <!-- Served by the Worker, generated from a single source of truth.
+         The tab icon is the bare mark; iOS home-screen icons need their own
+         opaque surface, so that variant gets the container.
+
+         `v` must match ICON_VERSION in frontend/src/lib/icon-proxy.ts and
+         BRAND_ICON_VERSION in src/lib/brand.ts - test/ui/brand.test.mjs asserts all
+         three agree. It is not decorative: the endpoint ships a browser
+         max-age, so without a distinct URL an already-cached tab icon would
+         never update, which is how an outdated mark survived several deploys.
+         This file is static markup, so no runtime helper can add it for us.
+         图标由 Worker 从统一来源生成；标签页使用裸标记，iOS 主屏图标需要不透明底板。
+         `v` 必须与 ICON_VERSION、BRAND_ICON_VERSION 一致，测试会检查三者；版本参数
+         避免浏览器长期缓存旧图标。静态 HTML 无法依靠运行时辅助函数添加这些引用。 -->
+    <link rel="icon" type="image/svg+xml" href="/api/public/icon?v=3" />
+    <link rel="apple-touch-icon" href="/api/public/icon?v=3&amp;size=180&amp;container=1" />
+    <meta name="theme-color" content="#006FEE" />
+    <script>
+      (function () {
+        var stored = null;
+        try { stored = localStorage.getItem('theme'); } catch {}
+        var mode = stored === 'light' || stored === 'dark' ? stored : 'system';
+        var dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', dark);
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        var motion = 'full';
+        try { motion = localStorage.getItem('uptime-polaris.motion') || 'full'; } catch {}
+        document.documentElement.dataset.motion = motion === 'reduced' || (motion === 'system' && matchMedia('(prefers-reduced-motion: reduce)').matches) ? 'reduced' : 'full';
+      })();
+    </script>
+    <script>
+      // React Fast Refresh preamble fallback - must run BEFORE any module.
+      //
+      // @vitejs/plugin-react injects `$RefreshSig$()` / `$RefreshReg$()` calls
+      // into every component during dev, and defines those globals via a
+      // preamble it adds to the HTML. Two things break that:
+      //
+      //  1. Vite's injected preamble is `type="module"`, which is deferred. A
+      //     component module can evaluate before it runs.
+      //  2. When this file is served by something other than the dev server -
+      //     the Worker serving the built bundle, or a cached response - the
+      //     preamble is absent entirely.
+      //
+      // Either way the failure is silent: modules throw "can't detect
+      // preamble", React never mounts, and the console stays empty.
+      //
+      // This is a classic (non-deferred) script in <head>, so it is guaranteed
+      // to execute before any module. Vite's own preamble still overwrites
+      // these with real implementations when present, so HMR keeps working.
+      // React Fast Refresh 的回退前导脚本必须先于模块执行。开发时插件为每个组件注入
+      // `$RefreshSig$()` / `$RefreshReg$()`，并由 HTML 前导脚本定义这些全局函数。
+      // Vite 注入的是延迟执行的模块脚本，组件可能先执行；Worker 的构建产物或缓存响应
+      // 也可能完全没有前导脚本。两种情况下模块都会抛出缺少 preamble 的错误，React 不挂载，
+      // 控制台却为空。head 中的普通脚本保证先于模块执行；Vite 前导脚本存在时会覆盖为
+      // 真正实现，热更新仍可工作。
+      (function () {
+        if (typeof window.$RefreshReg$ !== 'function') {
+          window.$RefreshReg$ = function () {};
+        }
+        if (typeof window.$RefreshSig$ !== 'function') {
+          window.$RefreshSig$ = function () {
+            return function (type) {
+              return type;
+            };
+          };
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <!-- THESIS: The public machine page speaks the console's own language: fleet strip, sticky toolbar, cards or one grouped ledger, a dotted world map, comparison and a wall display.
+         OWN-WORLD: polaris-card surfaces, hairline lines, Geist, console Meter/Ring/SparkLine/Segmented, the configured accent for charts.
+         STORY: Scan fleet health, filter or locate machines on the map, pin and compare, open a focused detail with published history.
+         FIRST VIEWPORT: Site bar with refresh, wall and shortcuts; heading; six-cell fleet strip; toolbar; pinned machines then groups.
+         FORM: Console-native canon, chosen by the user; surface seed fc94b834. -->
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

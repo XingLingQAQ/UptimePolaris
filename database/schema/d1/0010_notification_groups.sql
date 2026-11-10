@@ -1,0 +1,99 @@
+-- Which monitor groups a notification channel is scoped to.
+--
+-- Groups and tags arrived in 0009 as labels on a monitor. This is the routing
+-- half: a channel can be narrowed to one or more of those groups, so "group A
+-- alerts go to the ops chat, group B to the dev chat" is expressible without a
+-- second channel per group and without tags having to carry a meaning they were
+-- never given.
+--
+-- **The row set is a scope, and an absent row set means "every monitor".** That
+-- is the whole semantics, and it is stated here because this is the layer that
+-- cannot enforce it: the table has no row for an unscoped channel, so "no scope"
+-- and "scope matching nothing" would be the same storage state if a reader
+-- treated a missing row as an empty set. They are not the same thing. Every
+-- channel that existed before this migration has no rows here and must keep
+-- receiving every event, exactly as it did - a migration that turned "had no
+-- scope" into "is scoped to nothing" would silently stop every alert on a live
+-- deployment, which is the worst failure this project can have. So an empty
+-- `group_ids` means *all*, here, in `scopeMatches` (src/lib/notify-scope.ts) and
+-- in the API's default (src/lib/notify-routes.ts) - deliberately in three
+-- places, because each is a different layer that could get it wrong on its own.
+--
+-- **This file is entirely repeatable**, which makes it unlike 0004, 0005, 0008
+-- and 0009. Each of those carries an ordering argument, because each contains at
+-- least one `ALTER TABLE ... ADD COLUMN` and SQLite has no `ADD COLUMN IF NOT
+-- EXISTS`: a second apply dies on "duplicate column name", so the file has to be
+-- arranged such that dying early is what keeps it from being half-applied. There
+-- is no such statement here - no ALTER, no table rebuild, no data migration,
+-- nothing that overwrites a value - so there is nothing to order and no
+-- half-applied state to reach. `IF NOT EXISTS` throughout makes a repeat a
+-- no-op rather than an accident, and `db:init` run twice against the same
+-- database is fine. The cost of that choice is real and worth naming: a repeat
+-- cannot be distinguished from a first apply, so this file gets no help from the
+-- runner if it is edited after it has already run somewhere. Adding a statement
+-- that is not repeatable later means giving this file a first statement to die
+-- on, exactly as 0009 does.
+--
+-- **No FOREIGN KEY**, for the reason 0009 gives: nothing else in this schema
+-- declares one, and there is not much a key would buy here beyond what the two
+-- write paths below already guarantee. A case where one would have been worth
+-- having is the same one 0009 could not have either, since `PRAGMA
+-- foreign_keys` is off by default in D1 and cannot be relied on from a
+-- migration.
+--
+-- Two ids, two owners, and both are the API's job rather than the database's:
+--
+--   - **Deleting a channel** removes its rows here. `deleteChannel` in
+--     src/lib/notify.ts deletes from both tables in one batch, so a channel can
+--     never be gone while its scope rows remain - which would be invisible rows
+--     nothing reads, and a leak that grows with every channel created and
+--     deleted.
+--   - **Deleting a group** removes its rows here too. `deleteGroup` in
+--     src/lib/groups.ts already nulls the monitors that named the group, and
+--     this is a third statement in that same batch. This is the sharpest edge in
+--     the whole feature: a scope row left behind names a group that no longer
+--     exists, so the channel would carry an id that matches no monitor's
+--     `group_id` forever. It would still *look* scoped in the console - it holds
+--     an id, and the picker cannot draw a name it cannot find - while matching
+--     nothing for that id, and the operator's only clue would be alerts that
+--     stopped arriving.
+--
+-- Both columns are NOT NULL, and the pair is the primary key, following
+-- `monitor_tags` in 0009: making the pair the key turns a double insert into a
+-- constraint error rather than a second identical scope entry, and a row with a
+-- NULL half can never be matched by the join that reads it.
+--
+-- 通知渠道按监控分组限定范围：0009 定义分组与标签，此处负责路由，使 A 组
+-- 告警发往运维群、B 组发往开发群，无需每组复制渠道，也不赋予标签原本没有的含义。
+-- 关联行集合是范围；无关联行表示所有监控项，而不是匹配不到任何项。迁移前已有
+-- 渠道均没有关联行，必须继续接收所有事件，否则会静默停止线上全部告警。空 group_ids
+-- 表示全部的规则分别存在于此处、scopeMatches 和 API 默认值中，因为三层均可能出错。
+-- 此文件与 0004、0005、0008、0009 不同，可整体重复执行：没有不可重复的 ALTER、
+-- 表重建、数据迁移或覆盖，IF NOT EXISTS 使重复执行为无操作，也没有半完成顺序问题。
+-- 代价是无法区分重复执行与首次执行；若部署后修改此文件，执行器不会提醒。将来若
+-- 加入不可重复语句，必须像 0009 一样放置能在重复应用时先失败的第一条语句。
+-- 不设外键：其他表也未声明，现有两条 API 写入路径已保证关联；D1 默认关闭
+-- PRAGMA foreign_keys，迁移无法依赖它。删除渠道时 deleteChannel 同批删除其关联行，
+-- 防止不可见记录持续泄漏；删除分组时 deleteGroup 在清空监控项分组的同一批次删除
+-- 关联行。若遗留分组 ID，渠道看起来仍有限定范围，但该 ID 永远匹配不到监控项，
+-- 操作人员只能从告警停止发现。两列均 NOT NULL，联合主键仿照 monitor_tags；
+-- 重复插入产生约束错误，含 NULL 的半行无法被查询匹配。
+CREATE TABLE IF NOT EXISTS notification_groups (
+  notification_id TEXT NOT NULL,
+  group_id        TEXT NOT NULL,
+  PRIMARY KEY (notification_id, group_id)
+);
+
+-- The reverse direction, needed by exactly one statement: deleting a group has
+-- to find its scope rows, and `notification_id` being the leading key column
+-- does not help with `WHERE group_id = ?`. The same index, for the same reason,
+-- `idx_monitor_tags_tag` gets in 0009.
+--
+-- No index on `notification_id`: the primary key already covers it as its
+-- leading column, which is the direction the only other read goes
+-- (`WHERE notification_id IN (...)`).
+--
+-- 反向索引供删除分组查找范围行：notification_id 是主键首列，无法帮助按 group_id
+-- 查询，与 0009 的 idx_monitor_tags_tag 原因相同。notification_id 不单独建索引，
+-- 因为主键首列已覆盖另一种按 notification_id 读取的查询。
+CREATE INDEX IF NOT EXISTS idx_notification_groups_group ON notification_groups(group_id);

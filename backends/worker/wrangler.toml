@@ -1,0 +1,73 @@
+name = "uptime-polaris"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+# postgres 驱动需要 nodejs_compat；连接只在请求/任务作用域内建立。
+# The Postgres driver requires nodejs_compat; connections live only within request or task scopes.
+compatibility_flags = ["nodejs_compat"]
+
+# npm run build 输出 public/；公开页 /，管理页 /admin。
+# npm run build writes public/; the public page is / and the console is /admin.
+[assets]
+directory = "../../public"
+binding = "ASSETS"
+# 公开深链接选择主题；管理、登录与初始化使用内置 SPA。
+# Public deep links select themes; management, login, and setup use the built-in SPA.
+run_worker_first = true
+not_found_handling = "single-page-application"
+html_handling = "auto-trailing-slash"
+
+[[d1_databases]]
+# 部署前核对实际账号的数据库 UUID。
+# Verify the database UUID for the target account before deployment.
+binding = "DB"
+database_name = "uptime"
+database_id = "00000000-0000-4000-8000-000000000000"
+migrations_dir = "../../database/schema/d1"
+
+# 可选：仅主题资产使用 R2；只用内置 UI 可移除此块。
+# 本地由 Wrangler 模拟，部署前需建立并核对真实 bucket。
+# Optional: R2 stores theme assets only; remove this block when using only the built-in UI.
+# Wrangler emulates it locally; create and verify the actual bucket before deployment.
+[[r2_buckets]]
+binding = "THEMES"
+bucket_name = "uptime-themes"
+
+# 可选 AE：官方保留三个月；软件明细/SQL 回填窗口为近 90 天。
+# https://developers.cloudflare.com/analytics/analytics-engine/limits/
+# 缺绑定或查询凭据时 SQL 回填 disabled，本地可用率统计继续运行。
+# 不使用 AE 可移除此块；声明时需先在账号中开通。
+# Optional Analytics Engine: official retention is three months; software detail and SQL backfill cover 90 days.
+# Without the binding or query credentials, SQL backfill is disabled while local availability statistics continue.
+# Remove this block if AE is unused; enable it in the account before declaring it.
+[[analytics_engine_datasets]]
+binding = "UPTIME"
+dataset = "uptime_heartbeats"
+
+[triggers]
+# 每分钟检查；UTC 00:10 回填/清理，最多三天桶、两天重叠、持久游标补漏。
+# Check every minute; backfill and cleanup at 00:10 UTC, with at most three day buckets,
+# a two-day overlap, and a persistent cursor to fill gaps.
+crons = ["* * * * *", "10 0 * * *"]
+
+[observability]
+enabled = true
+
+# 安装凭据：wrangler secret put ADMIN_TOKEN。
+# /login 的首次设置选择自己的账号；ADMIN_TOKEN 也供管理 API 使用。
+# AE SQL 回填另需 CF_ACCOUNT_ID / CF_API_TOKEN（Account Analytics Read）。
+# Installation credential: wrangler secret put ADMIN_TOKEN.
+# First-time setup at /login creates the operator's own account; ADMIN_TOKEN also authorizes the management API.
+# AE SQL backfill also requires CF_ACCOUNT_ID and CF_API_TOKEN with Account Analytics Read.
+[vars]
+# 允许 1–100000，默认 3000；旧哈希自带成本，本地计时不证明生产 CPU。
+# Allowed range: 1–100000, default 3000; existing hashes carry their own cost, and local timing does not prove production CPU usage.
+PBKDF2_ITERATIONS = "3000"
+
+# d1 使用 DB；postgres 使用 DATABASE_URL secret，可移除 D1 绑定。
+# D1 迁移按 ledger 应用；PG 发现 database/schema/postgres/*.postgres.sql 全部文件。
+# 迁移/部署由操作者执行，见 docs/operations.md。
+# D1 uses DB; Postgres uses the DATABASE_URL secret and permits removing the D1 binding.
+# D1 applies migrations by ledger; PG discovers all database/schema/postgres/*.postgres.sql files.
+# Operators run migrations and deployments; see docs/operations.md.
+DATABASE_TYPE = "d1"
+# DATABASE_TYPE = "postgres"

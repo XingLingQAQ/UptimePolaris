@@ -1,0 +1,45 @@
+@import 'tailwindcss';
+@config "../../tailwind.config.js";
+@custom-variant motion-reduce (&:where([data-motion="reduced"], [data-motion="reduced"] *));
+@custom-variant motion-safe (&:where([data-motion="full"], [data-motion="full"] *));
+
+html[data-motion='reduced'] *,
+html[data-motion='reduced'] *::before,
+html[data-motion='reduced'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (max-width: 1024px) {
+  .hide-ping-stats {
+    display: none;
+  }
+}
+
+@keyframes fade-in-soft {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-soft {
+  animation: fade-in-soft 0.22s ease-out both;
+}
+
+/* Tab scroll list: hide scrollbar while keeping scroll behaviour / 标签滚动列表：隐藏滚动条并保留滚动行为 */
+.tab-scroll-list {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 11 */
+}
+
+.tab-scroll-list::-webkit-scrollbar {
+  display: none; /* Chrome / Safari / Edge */
+}

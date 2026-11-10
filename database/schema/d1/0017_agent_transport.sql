@@ -1,0 +1,27 @@
+-- The transport an agent is currently using: `ws` or `http`.
+-- Agent 当前使用的传输方式：`ws` 或 `http`。
+--
+-- Why this is stored rather than derived: once a frame is parsed, a WebSocket
+-- upgrade and an HTTP POST are indistinguishable on the server. Only the agent
+-- knows which one it came up on, so it says so in `basicReport`.
+-- 解析帧后，服务器无法区分 WebSocket 升级与 HTTP POST；只有 Agent 知道实际使用的
+-- 方式，因此在 `basicReport` 中上报并保存，而不是由服务器推断。
+--
+-- The operational question it answers: when a monitor reads "no agent
+-- connected" behind a corporate proxy, the first thing to check is whether the
+-- fleet is on the WebSocket path (which that proxy probably refuses) or the
+-- HTTP fallback (which it probably allows). Without this column that answer
+-- means reading the agent's logs on the host.
+-- 例如企业代理后的监控显示“没有 Agent 连接”时，可先查看集群使用 WebSocket
+-- （代理可能拒绝）还是 HTTP 回退（代理可能允许），而不必登录主机读取日志。
+--
+-- NULL for agents built before the HTTP transport existed; the detail page
+-- renders that as "unknown" rather than guessing.
+-- HTTP 传输出现之前构建的 Agent 此字段为 NULL；详情页显示“未知”，不作猜测。
+--
+-- Same non-repeatable caveat as the rest of the SQLite chain: `ADD COLUMN` has
+-- no `IF NOT EXISTS` on SQLite, so a second apply dies on the duplicate column
+-- and that is loud on purpose.
+-- 与其他 SQLite 迁移一样不可重复执行：SQLite 的 `ADD COLUMN` 没有 `IF NOT EXISTS`，
+-- 第二次执行会因重复列而明确失败。
+ALTER TABLE machine_live ADD COLUMN transport TEXT;

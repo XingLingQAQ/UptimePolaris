@@ -1,0 +1,70 @@
+{
+  "schema": 2,
+  "id": "polaris-simple",
+  "short": "polaris-simple",
+  "name": "Polaris Simple",
+  "version": "0.1.0",
+  "description": "A minimal status and machine dashboard.",
+  "themes": [
+    {
+      "id": "monitor",
+      "name": "Polaris Simple · Monitor",
+      "target": "monitor",
+      "entry": "monitor.html",
+      "capabilities": [
+        "public.config",
+        "public.status"
+      ],
+      "options": [
+        {
+          "key": "accent",
+          "label": "Accent color / 强调色",
+          "type": "color",
+          "default": "#386be8"
+        },
+        {
+          "key": "headline",
+          "label": "Headline / 标题",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "key": "description",
+          "label": "Description / 简介",
+          "type": "textarea",
+          "default": ""
+        }
+      ]
+    },
+    {
+      "id": "agent",
+      "name": "Polaris Simple · Machines",
+      "target": "agent",
+      "entry": "agent.html",
+      "capabilities": [
+        "public.config",
+        "public.servers"
+      ],
+      "options": [
+        {
+          "key": "accent",
+          "label": "Accent color / 强调色",
+          "type": "color",
+          "default": "#386be8"
+        },
+        {
+          "key": "headline",
+          "label": "Headline / 标题",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "key": "description",
+          "label": "Description / 简介",
+          "type": "textarea",
+          "default": ""
+        }
+      ]
+    }
+  ]
+}

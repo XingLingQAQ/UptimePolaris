@@ -1,0 +1,14 @@
+{
+  "blue": "#006FEE",
+  "path": "M24.93 12.75A9.5 9.5 0 1 1 19.25 7.07",
+  "ring": {
+    "size": 32,
+    "center": 16,
+    "radius": 9.5,
+    "strokeWidth": 4,
+    "containerRadius": 8,
+    "arcStartAngle": 70,
+    "arcEndAngle": 20
+  },
+  "tightViewBox": "4 4 24 24"
+}

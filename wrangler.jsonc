@@ -1,0 +1,17 @@
+{
+  "name": "uptime-polaris",
+  "main": "backends/worker/src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application",
+    "html_handling": "auto-trailing-slash"
+  },
+  "d1_databases": [{ "binding": "DB", "database_name": "uptime-polaris-db", "database_id": "00000000-0000-4000-8000-000000000000", "migrations_dir": "database/schema/d1" }],
+  "triggers": { "crons": ["* * * * *", "10 0 * * *"] },
+  "observability": { "enabled": true },
+  "vars": { "PBKDF2_ITERATIONS": "3000", "DATABASE_TYPE": "d1" }
+}

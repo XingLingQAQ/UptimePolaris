@@ -1,0 +1,407 @@
+/* Public machine page: only what utilities cannot express. Tokens and surfaces come from console.css. / 公开机器页：仅包含工具类无法表达的样式，变量与表面样式来自 console.css。 */
+
+/* Cards follow the configured column count, never narrower than a readable card. / 卡片遵循配置列数，但不小于可读宽度。 */
+.server-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(272px, calc((100% - (var(--server-columns, 3) - 1) * 16px) / var(--server-columns, 3)))), 1fr));
+}
+.server-table-scroll { position: relative; overscroll-behavior-x: contain; }
+.server-table-scroll:focus-visible { outline: 2px solid var(--polaris-accent); outline-offset: 3px; }
+.server-table .server-group-row th { padding: 4px 12px; border-bottom: 1px solid var(--polaris-line-soft); background: var(--polaris-well); text-align: left; }
+.server-compare { table-layout: fixed; }
+.server-compare .server-compare-label { position: sticky; left: 0; z-index: 1; width: 140px; background: var(--polaris-card); white-space: normal; overflow-wrap: anywhere; }
+.server-compare thead .server-compare-label { z-index: 2; background: var(--polaris-well); }
+.server-compare .server-compare-name { white-space: normal; overflow-wrap: anywhere; }
+.server-compare td { overflow-wrap: anywhere; }
+
+.server-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.server-fleet-strip {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+}
+.server-fleet-cell { padding: 18px 16px; }
+.server-fleet-sub { white-space: normal; line-height: 1.5; }
+.server-fleet-visual { margin-top: auto; padding-top: 12px; height: 40px; }
+.server-fleet-value > span:first-child { font-size: clamp(21px, 3.8cqi, 26px); white-space: nowrap; }
+.server-overview-map { display: flex; flex-direction: column; min-width: 0; padding: 18px; }
+.server-map-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.server-map-heading h2 { display: flex; align-items: center; gap: 7px; color: var(--polaris-ink); font-size: 13px; font-weight: 600; }
+.server-map-heading h2 svg { color: var(--polaris-ink-3); }
+.server-map-heading p { margin-top: 3px; font-size: 12px; color: var(--polaris-ink-3); }
+.server-map-reset { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 6px; font-size: 12px; color: var(--polaris-ink-2); }
+.server-map-reset:hover { background: var(--polaris-hover); }
+.server-country-map { position: relative; display: flex; align-items: center; flex: 1; min-height: 176px; margin: 12px 0 8px; }
+.server-country-svg { display: block; width: 100%; height: 100%; max-height: 234px; overflow: visible; }
+.server-country-base path { fill: color-mix(in srgb, var(--polaris-ink) 9%, var(--polaris-card)); stroke: var(--polaris-card); stroke-width: .7; }
+.server-country { cursor: pointer; stroke: var(--polaris-card); stroke-width: .9; fill: var(--region-color); transition: opacity 150ms ease, fill 150ms ease, stroke 150ms ease; }
+.server-country[data-tone='up'], .server-region-chip[data-tone='up'] { --region-color: var(--polaris-ok); }
+.server-country[data-tone='warn'], .server-region-chip[data-tone='warn'] { --region-color: var(--polaris-warn); }
+.server-country[data-tone='down'], .server-region-chip[data-tone='down'] { --region-color: var(--polaris-down); }
+.server-country[data-tone='idle'], .server-region-chip[data-tone='idle'] { --region-color: var(--polaris-idle-ink); }
+.server-country.is-dimmed { opacity: .4; }
+.server-country:hover, .server-country.is-hovered, .server-country:focus-visible, .server-country.is-active { opacity: 1; fill: color-mix(in srgb, var(--region-color) 80%, var(--polaris-ink)); stroke: var(--polaris-ink); stroke-width: 1.3; outline: none; }
+.server-country-tooltip { position: absolute; bottom: 2px; left: 50%; z-index: 2; width: 264px; max-width: calc(100% - 16px); transform: translateX(-50%); padding: 12px; border: 1px solid var(--polaris-line); border-radius: 10px; background: var(--polaris-card); color: var(--polaris-ink-2); font-size: 12px; box-shadow: var(--polaris-shadow-float); pointer-events: none; }
+.server-country-tooltip-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.server-country-tooltip-heading > .polaris-num { margin-left: auto; color: var(--polaris-ink-3); }
+.server-country-tooltip strong { font-weight: 500; color: var(--polaris-ink); }
+.server-region-states { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.server-region-states > div[data-state='online'] { --state-color: var(--polaris-ok); --state-ink: var(--polaris-ok-ink); }
+.server-region-states > div[data-state='offline'] { --state-color: var(--polaris-down); --state-ink: var(--polaris-down-ink); }
+.server-region-states > div[data-state='unknown'] { --state-color: var(--polaris-idle-ink); --state-ink: var(--polaris-idle-ink); }
+.server-region-states dt { display: flex; align-items: center; gap: 5px; color: var(--polaris-ink-2); font-size: 12px; }
+.server-region-states dt > i { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--state-color); }
+.server-region-states dd { margin-top: 4px; color: var(--state-ink); font-size: 16px; line-height: 1.3; font-weight: 600; }
+.server-map-empty { margin-bottom: 12px; text-align: center; font-size: 12px; color: var(--polaris-ink-3); }
+.server-map-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-bottom: 12px; font-size: 11px; color: var(--polaris-ink-3); }
+.server-map-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.server-map-legend i { width: 7px; height: 7px; border-radius: 2px; }
+.server-region-chips { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--polaris-line-soft); padding-top: 12px; max-height: 96px; overflow-y: auto; }
+.server-region-chip { display: inline-flex; max-width: 100%; align-items: center; gap: 6px; min-height: 28px; border: 1px solid var(--polaris-line); border-radius: 6px; padding: 4px 7px; color: var(--polaris-ink-2); font-size: 11.5px; transition: background-color 150ms ease, border-color 150ms ease; }
+.server-region-chip:hover, .server-region-chip.is-active { background: var(--polaris-hover); border-color: var(--polaris-line-strong); color: var(--polaris-ink); }
+.server-region-chip.is-active { box-shadow: inset 0 0 0 1px var(--polaris-line-strong); }
+.server-region-chip > i { width: 5px; height: 5px; border-radius: 50%; background: var(--region-color); }
+.server-region-chip > .polaris-num { color: var(--polaris-ink-3); }
+.server-region-browser { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 340px); align-items: stretch; gap: 16px; }
+.server-explore-map .server-country-map { min-height: 300px; }
+.server-explore-map .server-country-svg { max-height: 400px; }
+.server-explore-map .server-map-legend { margin-bottom: 0; }
+.server-explore-map .server-region-chips { margin-top: 12px; }
+.server-map-sidebar { display: flex; flex-direction: column; }
+.server-map-sidebar > .server-region-states { padding: 14px 16px; border-bottom: 1px solid var(--polaris-line-soft); }
+.server-region-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--polaris-line); padding: 12px 16px; font-size: 12px; color: var(--polaris-ink-3); }
+.server-region-heading h2 { font-size: 13px; font-weight: 600; color: var(--polaris-ink); }
+.server-region-list, .server-region-machines { max-height: 420px; overflow-y: auto; padding: 4px 0; }
+.server-region-row { display: flex; align-items: center; width: 100%; min-height: 56px; gap: 10px; padding: 8px 16px; color: var(--polaris-ink-2); font-size: 13px; text-align: left; }
+.server-region-row:hover, .server-region-row.is-active { background: var(--polaris-hover); color: var(--polaris-ink); }
+.server-region-row-count { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 0; max-width: 50%; }
+.server-region-row-count > strong { font-size: 13px; font-weight: 600; color: var(--polaris-ink); }
+.server-region-row-count > span { font-size: 11px; color: var(--polaris-ink-3); text-align: right; }
+.server-region-bar { display: flex; width: 48px; height: 5px; gap: 2px; overflow: hidden; border-radius: 4px; }
+.server-region-bar i { height: 100%; }
+.server-region-machine { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 16px; }
+.server-region-machine:hover { background: var(--polaris-hover); }
+.server-region-machine-readings { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-basis: 100%; }
+.server-region-recency { margin-left: auto; min-width: 0; white-space: normal; }
+.server-toolbar { background-color: var(--polaris-canvas); }
+.server-search-row { display: contents; }
+.server-mobile-filter-toggle { display: none; }
+.server-filter-fields { display: flex; min-width: 0; flex: 1; flex-wrap: wrap; align-items: center; gap: 8px; }
+.server-sort-filter { margin-left: auto; }
+.server-refresh-timer { display: none; }
+.server-map-disclosure { min-width: 0; }
+.server-map-disclosure > summary { padding: 12px 14px; list-style: none; cursor: pointer; border-radius: inherit; }
+.server-map-disclosure > summary::-webkit-details-marker { display: none; }
+.server-map-disclosure > summary:focus-visible { outline: 2px solid var(--polaris-accent); outline-offset: 3px; }
+.server-map-disclosure-chevron { margin-top: 4px; flex-shrink: 0; color: var(--polaris-ink-3); }
+.server-map-disclosure[open] .server-map-disclosure-chevron { transform: rotate(180deg); }
+.server-map-disclosure-body { padding: 0 14px 14px; }
+
+.server-filter-trigger {
+  display: inline-flex;
+  min-width: 0;
+  max-width: min(100%, 16rem);
+  height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--polaris-line-strong);
+  border-radius: 8px;
+  background: var(--polaris-card);
+  padding: 0 10px;
+  color: var(--polaris-ink);
+  font-size: 12.5px;
+  text-align: left;
+  box-shadow: 0 1px 1px rgb(0 0 0 / 3%);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.server-filter-trigger:hover { border-color: var(--polaris-field-line-hover); background: var(--polaris-hover); }
+.polaris button.server-filter-trigger:focus-visible, .server-region-chip:focus-visible, .server-map-reset:focus-visible, .server-region-row:focus-visible { outline: 2px solid var(--polaris-accent); outline-offset: 3px; }
+.server-filter-chevron { flex-shrink: 0; color: var(--polaris-ink-3); transition: transform 150ms ease; }
+.server-filter-chevron.is-open { transform: rotate(180deg); }
+.server-filter-menu { z-index: 100; width: max-content; overflow-y: auto; border: 1px solid var(--polaris-line); border-radius: 10px; background: var(--polaris-card); padding: 4px; box-shadow: var(--polaris-shadow-float); }
+html.polaris-console .server-filter-menu.polaris-scrollbar { scrollbar-gutter: auto; }
+.server-filter-option { display: flex; width: 100%; align-items: center; gap: 10px; min-height: 36px; border-radius: 6px; padding: 8px; color: var(--polaris-ink-2); font-size: 13px; cursor: pointer; }
+.server-filter-option.is-active { background: var(--polaris-hover); color: var(--polaris-ink); }
+.server-filter-option.is-selected { font-weight: 500; color: var(--polaris-ink); }
+.server-filter-option.is-selected > svg { color: var(--polaris-accent); }
+.server-refresh-select { border-color: transparent; background: transparent; box-shadow: none; color: var(--polaris-ink-3); }
+.server-refresh-select .polaris-live { flex-shrink: 0; }
+
+@media (max-width: 1023px) {
+  .server-overview-grid { grid-template-columns: 1fr; }
+  .server-overview-map { order: 0; }
+  .server-country-svg { max-height: 260px; }
+}
+@media (max-width: 899px) {
+  .server-region-browser { grid-template-columns: 1fr; }
+  .server-explore-map .server-country-map { min-height: 220px; }
+}
+@media (max-width: 639px) {
+  .server-overview-map { padding: 16px 12px; }
+}
+@media (max-width: 767px) {
+  .server-page { --server-mobile-inset: 16px; }
+  .server-site-header { background-color: var(--polaris-canvas); backdrop-filter: none; }
+  .server-header-inner { gap: 4px; padding-inline: var(--server-mobile-inset); }
+  .server-site-brand { flex: 1; gap: 8px; }
+  .server-site-brand > span { font-size: 14px; }
+  .server-site-brand > img, .server-site-brand > svg { width: 22px; height: 22px; }
+  .server-header-actions { flex-shrink: 0; gap: 0; }
+  .server-header-actions nav { gap: 0; }
+  .server-header-actions nav > button,
+  .server-refresh-control > button,
+  .server-header-actions .server-refresh-select { display: inline-flex; width: 44px; height: 44px; min-width: 44px; padding: 0; justify-content: center; }
+  .server-refresh-control { gap: 0; }
+  .server-refresh-timer { display: block; }
+  .server-refresh-select .server-filter-value,
+  .server-refresh-select .server-filter-chevron { display: none; }
+  .server-refresh-select { position: relative; }
+  .server-refresh-select .server-refresh-dot { position: absolute; top: 9px; right: 9px; width: 5px; height: 5px; }
+  .server-header-actions nav > .server-desktop-only { display: none; }
+  .server-main { padding: 18px var(--server-mobile-inset) max(104px, env(safe-area-inset-bottom)); }
+  .server-page-heading { position: relative; display: block; margin-bottom: 16px; }
+  .server-page-heading > div { padding-right: 116px; }
+  .server-page-heading > p { position: absolute; top: 8px; right: 0; margin-left: 0; color: var(--polaris-ink-3); font-size: 11px; }
+  .server-page-heading h1 { font-size: 24px; line-height: 30px; }
+  .server-page-heading > div > p { margin-top: 3px; font-size: 13px; }
+  .server-overview-grid { gap: 12px; }
+  .server-fleet-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .server-fleet-cell { min-height: 96px; padding: 12px; gap: 0; }
+  .server-fleet-cell > span:first-of-type { font-size: 12px; color: var(--polaris-ink-2); }
+  .server-fleet-value { margin-top: 6px; }
+  .server-fleet-value > span:first-child { font-size: 24px; }
+  .server-fleet-visual { display: none; }
+  .server-fleet-attention .server-fleet-visual { display: block; height: auto; margin-top: 6px; padding-top: 0; }
+  .server-fleet-attention .server-fleet-visual > span { display: flex; flex-direction: row; align-items: center; gap: 4px; }
+  .server-fleet-attention .server-fleet-visual a { height: 28px; }
+  .server-fleet-attention .server-fleet-visual > span > span { padding-bottom: 0; }
+  .server-fleet-sub { margin-top: 6px; font-size: 11px; line-height: 1.45; }
+  .server-fleet-sub > span { flex-wrap: wrap; gap: 2px 8px; }
+  .server-fleet-cell > span.absolute { inset-inline: 12px; }
+  .server-map-heading h2 { font-size: 13px; }
+  .server-map-heading p { font-size: 12px; }
+  .server-map-disclosure .server-country-map { min-height: 0; aspect-ratio: 1000 / 430; }
+  .server-map-disclosure .server-country-svg { height: auto; }
+  .server-map-legend { gap: 8px 12px; font-size: 12px; }
+  .server-region-chip { min-height: 40px; font-size: 12px; padding-inline: 9px; }
+  .server-region-chips { max-height: 144px; }
+  .server-map-reset { min-height: 44px; padding-inline: 8px; }
+  .server-map-heading > .server-map-reset { align-self: center; }
+  .server-toolbar { position: static; margin: 16px 0 12px; padding: 0; backdrop-filter: none; }
+  .server-toolbar-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 8px; }
+  .server-search-row { display: flex; width: 100%; min-width: 0; align-items: center; gap: 8px; }
+  .server-search { width: auto; height: 44px; flex: 1; padding-inline: 12px; }
+  .server-search input { width: 0; font-size: 16px; }
+  .server-search button { display: inline-flex; min-height: 36px; min-width: 28px; align-items: center; justify-content: center; }
+  .server-search kbd { display: none; }
+  .server-mobile-filter-toggle { position: relative; display: inline-flex; width: 44px; height: 44px; flex-shrink: 0; align-items: center; justify-content: center; border: 1px solid var(--polaris-line-strong); border-radius: 8px; background: var(--polaris-card); color: var(--polaris-ink-2); }
+  .server-mobile-filter-toggle.is-active { border-color: var(--polaris-accent); color: var(--polaris-accent); background: var(--polaris-accent-wash); }
+  .server-mobile-filter-toggle > span { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 3px; border-radius: 9px; background: var(--polaris-ink); color: var(--polaris-canvas); font-size: 10px; line-height: 17px; }
+  .server-status-filter { scrollbar-width: thin; }
+  .server-status-segments { display: flex; width: 100%; }
+  .server-toolbar .polaris-segmented-option { flex: 1; min-width: 0; height: 38px; padding-inline: 8px; font-size: 12px; }
+  .server-toolbar .polaris-segmented-option > span { gap: 5px; }
+  .server-filter-fields { display: none; }
+  .server-filter-fields.is-open { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding-block: 4px; }
+  .server-filter-fields .server-filter-trigger { width: 100%; min-height: 44px; max-width: 100%; font-size: 13px; }
+  .server-sort-filter { margin-left: 0; }
+  .server-view-controls { display: block; width: 100%; margin: 0; }
+  .server-view-controls > [role='group'] { display: flex; width: 100%; }
+  .server-view-controls .polaris-segmented-option { height: 38px; white-space: normal; line-height: 16px; }
+  .server-view-controls .polaris-segmented-option > span { justify-content: center; }
+  .server-results { flex-wrap: wrap; min-height: 28px; margin-bottom: 10px; font-size: 12px; }
+  .server-results button { min-height: 36px; margin-left: auto; }
+  .server-region-browser { gap: 12px; }
+  .server-explore-map { padding: 14px; }
+  .server-explore-map .server-country-map { min-height: 0; aspect-ratio: 1000 / 430; margin-block: 10px 12px; }
+  .server-explore-map .server-country-svg { height: auto; }
+  .server-region-list, .server-region-machines { max-height: none; overflow-y: visible; }
+  .server-region-row { min-height: 60px; padding: 10px 14px; }
+  .server-region-row-count > span { font-size: 12px; }
+  .server-region-machine { padding: 14px; }
+  .server-region-machine-readings { flex-wrap: wrap; gap: 6px 12px; }
+  .server-region-recency { font-size: 12px; }
+  .server-map-sidebar > .server-region-states { padding: 14px; }
+  .server-country-tooltip { position: static; width: 100%; max-width: 100%; transform: none; margin-top: 10px; box-shadow: none; }
+  .server-country-map:has(.server-country-tooltip) { flex-direction: column; aspect-ratio: auto; }
+  .server-country-tooltip-heading { flex-wrap: wrap; }
+  .server-filter-option { min-height: 44px; padding: 10px; font-size: 14px; }
+  .server-filter-menu { overscroll-behavior: contain; }
+  .server-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .server-table { min-width: 1060px; }
+  .server-table .server-table-secondary { display: table-cell; }
+  .server-table .server-table-identity { min-width: 192px; max-width: 224px; }
+  .server-table-identity > div > div { min-width: 0; }
+  .server-table th > button { min-height: 44px; }
+  .server-table td > button { width: 44px; height: 44px; }
+  .server-comparison-heading > a, .server-compare-remove { min-width: 44px; min-height: 44px; }
+  .server-compare-history { padding: 14px; }
+  .server-compare-history-heading { gap: 12px; }
+  .server-compare-legend { flex-basis: 100%; gap: 8px 12px; }
+  .server-compare-history-heading > [role='group'] { width: 100%; margin-left: 0; }
+  .server-compare-history-heading .polaris-segmented-option { flex: 1; height: 44px; }
+  .server-card { padding: 14px; gap: 14px; }
+  .server-card-header { flex-wrap: wrap; gap: 8px; }
+  .server-card-identity { flex-basis: 170px; }
+  .server-card-identity > div { min-width: 0; flex: 1; }
+  .server-card-identity h3 { font-size: 15px; }
+  .server-card-identity p { font-size: 12px; }
+  .server-card-tags-row { flex-wrap: wrap; gap: 4px; }
+  .server-card-tags-row > span:first-child { flex: 1; }
+  .server-card-tags-row > span:first-child button { min-height: 32px; height: auto; max-width: 100%; font-size: 12px; }
+  .server-card-actions { flex-shrink: 0; }
+  .server-card-actions button { width: 40px; height: 40px; opacity: 1; }
+  .server-card footer { gap: 8px 12px; }
+  .server-card footer > span:first-child { flex-basis: 100%; justify-content: space-between; }
+  .server-card footer time { white-space: normal; }
+  .server-compare-tray { bottom: max(12px, env(safe-area-inset-bottom)); gap: 8px; }
+  .server-compare-tray > .server-compare-picks { order: 4; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .server-compare-picks > span { flex-shrink: 0; height: 36px; }
+  .server-compare-picks > span > button { width: 28px; height: 32px; }
+  .server-compare-tray > button { height: 40px; }
+  .server-compare-tray > button:first-of-type { margin-left: auto; }
+  .server-detail-nav > span:first-child { flex-basis: 100%; min-height: 32px; }
+  .server-detail-actions { width: 100%; margin-left: 0; gap: 8px; }
+  .server-detail-actions > button, .server-detail-actions > a { min-width: 44px; height: 44px; }
+  .server-detail-actions > button:first-child { flex: 1; justify-content: center; font-size: 13px; }
+  .server-detail-heading { padding: 16px; }
+  .server-detail-heading > div { flex-basis: 100%; }
+  .server-detail-heading h1 { white-space: normal; overflow-wrap: anywhere; font-size: 21px; }
+  .server-detail-heading h1 > span.truncate { white-space: normal; }
+  .server-detail-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 12px; padding-top: 14px; border-top: 1px solid var(--polaris-line-soft); text-align: left; }
+  .server-detail-facts > div:last-child { grid-column: 1 / -1; }
+  .server-detail-facts dd { white-space: normal; }
+  .server-detail-facts dt { font-size: 12px; color: var(--polaris-ink-3); }
+  .server-detail-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .server-detail-gauge { gap: 8px; padding: 12px; flex-direction: column; align-items: flex-start; }
+  .server-detail-gauge > :first-child { width: 40px !important; height: 40px !important; flex-shrink: 0; }
+  .server-detail-gauge > :first-child > svg { width: 40px; height: 40px; }
+  .server-detail-gauge > div:last-child { width: 100%; }
+  .server-detail-gauge p:last-child { white-space: normal; font-size: 11px; }
+  .server-detail-network { padding: 12px; gap: 6px; }
+  .server-detail-network > span:nth-child(2) { flex-wrap: wrap; font-size: 13px; row-gap: 4px; }
+  .server-detail-system, .server-detail-history { padding: 14px; }
+  .server-detail-system dd { white-space: normal; overflow-wrap: anywhere; }
+  .server-history-heading > span:last-child { width: 100%; margin-left: 0; justify-content: space-between; }
+  .server-history-heading .polaris-segmented-option { height: 38px; padding-inline: 10px; }
+  .server-history-heading button { min-height: 38px; }
+}
+@media (max-width: 359px) {
+  .server-page { --server-mobile-inset: 12px; }
+  .server-card { padding: 12px; }
+  .server-fleet-value > span:first-child { font-size: 22px; }
+  .server-status-segments { width: max-content; min-width: 100%; }
+  .server-status-segments .polaris-segmented-option { min-width: 62px; }
+}
+html[data-motion='reduced'] .server-country,
+html[data-motion='reduced'] .server-region-chip,
+html[data-motion='reduced'] .server-filter-trigger,
+html[data-motion='reduced'] .server-filter-chevron { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='full']) .server-country,
+  html:not([data-motion='full']) .server-region-chip,
+  html:not([data-motion='full']) .server-filter-trigger,
+  html:not([data-motion='full']) .server-filter-chevron { transition: none; }
+}
+
+/* The name link covers its card, so the whole card opens the detail. / 名称链接覆盖整张卡片，点击卡片任意位置打开详情。 */
+.server-card .server-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.server-card { border-radius: 12px; }
+.server-card .server-link:focus-visible { outline: none; }
+.server-card:has(.server-link:focus-visible) {
+  outline: 2px solid rgb(59 130 246 / 0.5);
+  outline-offset: 2px;
+}
+.server-card.is-selected {
+  border-color: color-mix(in srgb, var(--polaris-ink) 45%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--polaris-ink) 45%, transparent), var(--polaris-shadow-card);
+}
+.server-link { text-decoration: none; }
+.server-link:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--polaris-line-strong); }
+
+/* Pin and compare wait for the pointer, stay reachable by keyboard, and always show on touch. / 收藏与对比按钮在指针悬停时显示，可通过键盘访问，触屏设备始终显示。 */
+.server-reveal { opacity: 0; transition: opacity 150ms ease; }
+.server-card:hover .server-reveal,
+.server-card:focus-within .server-reveal,
+.server-reveal:focus-visible { opacity: 1; }
+@media (hover: none) { .server-reveal { opacity: 1; } }
+
+.server-table tbody tr.is-selected { background: var(--polaris-hover); }
+.server-table tbody tr:has(.server-link:focus-visible) { background: var(--polaris-active); }
+.server-table .server-link:focus-visible { outline-offset: 3px; border-radius: 4px; }
+.server-table tbody tr.is-offline td { color: var(--polaris-ink-3); }
+
+/* The highest reading in a comparison row. / 对比行中的最高读数。 */
+.server-compare td.server-compare-top { background: var(--polaris-hover); font-weight: 600; }
+.server-compare tbody th { border-bottom: 1px solid var(--polaris-line-soft); padding: 10px 12px; text-align: left; white-space: nowrap; }
+.server-compare tbody tr:last-child th { border-bottom: 0; }
+
+/* A live line still filling: a dashed baseline with its note, not an empty gap. / 仍在采集的实时走势：显示虚线基线和说明，而不是空白。 */
+.server-collecting {
+  display: block;
+  padding-bottom: 3px;
+  border-bottom: 1px dashed var(--polaris-line-strong);
+  line-height: 1.2;
+}
+
+.server-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--polaris-line-strong);
+  border-radius: 8px;
+  background: var(--polaris-card);
+  color: var(--polaris-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.server-button:hover { background: var(--polaris-hover); }
+
+.server-dialog::backdrop { background: rgb(10 10 12 / 0.26); backdrop-filter: blur(3px); }
+.dark .server-dialog::backdrop { background: rgb(0 0 0 / 0.55); }
+.server-dialog[open] { animation: server-dialog-in 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes server-dialog-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+
+.server-wall-progress { width: 0; animation-name: server-wall-progress; animation-timing-function: linear; animation-fill-mode: forwards; }
+.server-wall-progress.is-static { animation: none; width: 100%; opacity: 0.2; }
+@keyframes server-wall-progress { to { width: 100%; } }
+
+html[data-motion='reduced'] .server-dialog[open] { animation: none; }
+html[data-motion='reduced'] .server-reveal { transition: none; }
+
+/* Machine map: land in faint ink, markers that lift on hover and show their label. / 机器地图：陆地使用淡墨色，标记悬停时抬起并显示标签。 */
+.server-map-land { stroke: var(--polaris-ink); stroke-opacity: 0.16; }
+.dark .server-map-land { stroke-opacity: 0.2; }
+.server-map-marker { z-index: 1; transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease; }
+.server-map-marker:hover,
+.server-map-marker:focus-visible { z-index: 3; transform: scale(1.15); }
+.server-map-marker.is-active { z-index: 2; }
+.server-map-marker.is-active > span:nth-last-child(2) { box-shadow: 0 0 0 4px color-mix(in srgb, var(--polaris-ink) 70%, transparent); }
+.server-map-marker.is-dimmed { opacity: 0.35; }
+.server-map-marker.is-dimmed:hover,
+.server-map-marker.is-dimmed:focus-visible { opacity: 1; }
+.server-map-tip { opacity: 0; transform: translateY(4px); transition: opacity 150ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1); }
+.server-map-marker:hover .server-map-tip,
+.server-map-marker:focus-visible .server-map-tip { opacity: 1; transform: none; }
+.server-map-ping { animation: server-map-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
+@keyframes server-map-ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }
+html[data-motion='reduced'] .server-map-ping { animation: none; opacity: 0; }
+html[data-motion='reduced'] .server-map-marker,
+html[data-motion='reduced'] .server-map-tip { transition: none; }
+html[data-motion='reduced'] .server-map-marker:hover,
+html[data-motion='reduced'] .server-map-marker:focus-visible { transform: none; }

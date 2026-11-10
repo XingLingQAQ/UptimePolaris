@@ -1,0 +1,63 @@
+name: Go release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: go-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backends/go/go.mod
+          cache-dependency-path: backends/go/go.sum
+      - name: Validate tag and product versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo 'Expected a stable tag such as v0.1.0' >&2; exit 1; }
+          version="${GITHUB_REF_NAME#v}"
+          for file in package.json frontend/package.json; do
+            actual=$(node -p "require('./$file').version")
+            [[ "$actual" == "$version" ]] || { echo "$file version $actual does not match $GITHUB_REF_NAME" >&2; exit 1; }
+          done
+      - run: npm --prefix frontend ci
+      - name: Build frontend once
+        run: node scripts/build-go.mjs --assets-only
+      - run: npm run test:go-release
+      - name: Build release binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          version="${GITHUB_REF_NAME#v}"
+          for target in linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darwin/arm64; do
+            os="${target%/*}"; arch="${target#*/}"; ext=''
+            [[ "$os" != windows ]] || ext='.exe'
+            GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go -C backends/go build -tags release -trimpath -o "$GITHUB_WORKSPACE/release/polaris-${version}-${os}-${arch}${ext}" ./cmd/polaris
+          done
+          (cd release && sha256sum polaris-* > SHA256SUMS.txt)
+      - name: Create and publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" --verify-tag --draft --generate-notes release/*
+          gh release edit "$GITHUB_REF_NAME" --draft=false

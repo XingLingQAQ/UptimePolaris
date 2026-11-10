@@ -1,0 +1,10 @@
+/* Geist is self-hosted; CJK text falls back to installed system fonts. / Geist 使用自托管字体；中日韩文本回退到系统已安装字体。 */
+:root {
+  --font-sans:
+    'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC',
+    'Noto Sans CJK SC', sans-serif;
+  --font-mono:
+    'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, Consolas,
+    'Liberation Mono', monospace;
+}

@@ -1,0 +1,266 @@
+# 部署指南
+
+[English](#english)
+
+本文说明怎么部署一套新的 Uptime Polaris。已有环境要保留原来的数据库、密钥和主题存储，不要重复创建资源。
+
+Cloudflare 步骤针对 Worker。自有服务器可选 [Go 后端](backends.md#部署)，两种后端共用内置界面。
+
+## 目录
+
+- [准备环境](#准备环境)
+- [通过 Cloudflare 按钮部署](#通过-cloudflare-按钮部署)
+- [手动部署到 Cloudflare](#手动部署到-cloudflare)
+- [准备 Cloudflare 资源](#准备-cloudflare-资源)
+- [配置部署](#配置部署)
+- [Agent 下载](#agent-下载)
+- [上传与初始化](#上传与初始化)
+- [域名与代理](#域名与代理)
+- [使用 PostgreSQL](#使用-postgresql)
+- [从 D1 迁移到 PostgreSQL](#从-d1-迁移到-postgresql)
+- [上线检查](#上线检查)
+
+## 准备环境
+
+按钮部署需要一个有 Workers 和 D1 权限的 Cloudflare 账号，以及一个 GitHub 账号。手动部署还需要 Node.js 24 和 npm。
+
+```sh
+npm ci
+npm --prefix frontend ci
+```
+
+## 通过 Cloudflare 按钮部署
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris)
+
+按钮使用 GitHub 上的公开仓库版本，先确认仓库里有你需要的版本。
+
+1. 点击按钮，登录 Cloudflare 并连接 GitHub，按页面提示创建自己的仓库和 Worker。
+2. 在 Cloudflare 配置页面核对目标账号、仓库名、Worker 名和 D1 数据库名。Worker 和数据库都要用和现有资源不同的名字，免得更新了已有 Worker 或连上已有数据库。
+3. 页面提供构建和部署命令设置时，确认分别是 `npm run build` 和 `npm run deploy`；需要调整就在可编辑的位置改。
+4. 生成一个长随机值，把 `ADMIN_TOKEN` 设为 Worker Secret。部署页面没有输入项时，先到 Worker 的 Variables & Secrets 里设置，再做初始化。不要把密钥提交到仓库。
+5. 页面显示数据库绑定时，确认它指向新数据库。检查 fork 后的 `wrangler.jsonc`，确认 `DB` 的 `database_id` 和 Cloudflare 控制台里的目标数据库 ID 一致。
+6. 部署成功后打开站点的 `/setup`，输入 `ADMIN_TOKEN`，创建登录账号。完整要求见[完成初始化](#完成初始化)。
+
+如果部署提示数据库 ID 未配置，先在 Cloudflare 控制台确认账号和目标 D1 数据库；数据库还没创建就先建一个。打开 fork 后的仓库，用控制台里的数据库 ID 替换 `wrangler.jsonc` 中 `database_id` 的占位值 `00000000-0000-4000-8000-000000000000`，提交修改后重试。同时核对 Worker 名、数据库名和账号；配置指向已有数据库时，先确认目标再继续。
+
+按钮模板只配置 D1、静态资产和调度，不包含 R2 主题存储或 Analytics Engine。需要时先创建相应资源，再给按钮部署的配置加绑定。Agent 安装需要访问 GitHub 下载服务，要求见 [Agent 下载](#agent-下载)。
+
+## 手动部署到 Cloudflare
+
+下面这些步骤用于手动配置 CF CLI 的部署。已有环境的资源和密钥要保留，动手前先核对账号与绑定。
+
+## 准备 Cloudflare 资源
+
+登录 CF CLI：
+
+```sh
+npx cf auth login
+```
+
+为**新部署**创建数据库；使用主题时再创建 R2 桶：
+
+```sh
+npx cf d1 create --name uptime-polaris
+npx cf r2 buckets create --name uptime-polaris-themes
+```
+
+记下数据库返回的 ID。已有资源可直接复用，不用因为产品改名就重建。
+
+| 资源 | 绑定名 | 用途 |
+| --- | --- | --- |
+| D1 | `DB` | 默认业务数据库 |
+| 静态资产 | `ASSETS` | 前端资源 |
+| R2（可选） | `THEMES` | 第三方主题 ZIP 解包后的版本资产 |
+| Analytics Engine（可选） | `UPTIME` | 原始观测与 SQL 回填 |
+
+不用第三方主题，可从两份配置里删掉 `THEMES`。不用 Analytics Engine，可删掉 `UPTIME`，当前状态、数据库中的近期历史和可用率照常工作。声明 Analytics Engine 之前，先在账号里启用该服务，否则 Cloudflare 可能拒绝部署。
+
+## 配置部署
+
+手动部署时两份配置都要核对：
+
+| 文件 | 使用方 | 需要核对 |
+| --- | --- | --- |
+| `backends/worker/cloudflare.config.ts` | CF CLI 部署 | Worker 名称、D1 名称与 ID、R2 名称、AE 数据集、变量与调度 |
+| `backends/worker/wrangler.toml` | 迁移与数据库工具 | 同一套资源绑定和数据库后端 |
+
+根目录的 `wrangler.jsonc` 是按钮部署模板，和上面的手动配置互不相干。两种格式同时存在时，直接运行 `npx wrangler` 默认读 JSONC。数据库 npm 脚本默认显式使用 `backends/worker/wrangler.toml`；直接用 Wrangler 操作原有环境时，加上 `--config backends/worker/wrangler.toml`，并在操作前确认目标账号、数据库名称和 ID。按钮部署的数据库操作要用 fork 后仓库里的 `wrangler.jsonc`，先核对目标绑定。
+
+绑定名 `DB`、`ASSETS`、`THEMES`、`UPTIME` 保持不变；资源名称可自行命名。D1 工具通过 `DB` 绑定选择数据库。
+
+静态资源目录是 `public/`。保留 SPA 回退和 `runWorkerFirst` / `run_worker_first` 里的业务路径，尤其是 `/api/*`、`/install.sh`、`/install.ps1`。
+
+### 密钥
+
+在已忽略的 `.secrets/` 目录创建 `production.json`：
+
+```json
+{
+  "ADMIN_TOKEN": "replace-with-a-long-random-secret"
+}
+```
+
+用密码管理器或随机生成器生成实际密钥。这个密钥既用于首次初始化，也用于调用管理 API。不要把它换成 Agent Token 或登录密码。
+
+启用 AE SQL 回填时，另外配置 `CF_ACCOUNT_ID` 和有账号 Analytics Read 权限的 `CF_API_TOKEN`。数据库选 PostgreSQL 时配置 `DATABASE_URL`。变量完整说明见[配置参考](configuration.md)。
+
+## Agent 下载
+
+安装器下载所选平台的最新稳定版本，并校验文件完整性。目标平台没有可用版本，或者 GitHub 访问不了，安装会失败。
+
+安装和更新需要目标机器能访问 GitHub API 和 Release 下载地址。
+
+## 上传与初始化
+
+手动部署执行：
+
+```sh
+npm run deploy -- --secrets-file .secrets/production.json
+```
+
+手动部署用 CF CLI；按钮部署用根目录的 `wrangler.jsonc` 和 Wrangler。两条路径的账号认证和资源配置要分别核对。
+
+空 D1 会在首次请求时建表。已有迁移记录的 D1，Worker 请求也可能自动应用还没记录的迁移。升级前先备份，在隔离环境审阅并验证迁移；确认目标后，可在部署新 Worker 之前先跑迁移：
+
+```sh
+npx wrangler login
+npm run db:init
+```
+
+Wrangler 要能访问 `backends/worker/wrangler.toml` 指向的同一个账号和数据库。迁移不会创建默认账号。
+
+按钮部署如果要手动应用迁移，先在 fork 后的仓库里核对 `wrangler.jsonc` 指向的账号和数据库，再执行：
+
+```sh
+npx wrangler d1 migrations apply DB --remote --config wrangler.jsonc
+```
+
+### 完成初始化
+
+打开部署地址，进入 `/setup`：
+
+1. 输入刚配置的 `ADMIN_TOKEN` 作为安装凭据。
+2. 设置用户名和密码。
+3. 初始化完成后进入控制台，之后从 `/login` 登录。
+
+用户名为 2–32 个字母、数字或 `._-`，会统一转成小写；密码至少 8 位。没有公开注册入口，初始化完成后不能再用初始化接口创建账号。安装凭据没配置时，页面会提示缺少配置。
+
+初始化时，Worker 可选 D1 或 PostgreSQL，Go 可选 SQLite 或 PostgreSQL。新选 PostgreSQL 要填连接 URL；只有已部署的连接对应当前 PostgreSQL 时才能留空复用。不做选择就沿用当前后端配置。Worker 要在页面填新的 PostgreSQL URL，必须保留 D1 绑定：D1 保存引导选择和加密 URL，业务数据在 PostgreSQL。没有 D1 的纯 PostgreSQL 部署必须预设 `DATABASE_TYPE=postgres` 和 `DATABASE_URL`，初始化复用这个连接，页面不能换 URL。成功后管理员和会话建在目标库，后续请求和重启继续用它。不要把连接 URL 放进截图或公开日志。字段和错误码见 [API 初始化契约](api.md#初始化数据库契约)。
+
+## 域名与代理
+
+在 Cloudflare Worker 的域名设置里绑定准备长期使用的自定义域名。应用按站点根路径运行，前端构建基址是 `/`。
+
+安装命令会用当前访问的 origin，包含协议、域名和端口。代理要正确转发 Host，并为 `/api/public/agent/*` 放行 WebSocket。安装入口和 API 不要套用返回 HTML 的 SPA 重写。
+
+换域名之前，先验证新入口的 API、脚本和 WebSocket，再更新现有机器 `config.json` 里的 `endpoint` 并重启 Agent。已有 Agent 不会因为网页换了域名就自动改地址。
+
+## 使用 PostgreSQL
+
+1. 准备 Worker 能连接的 PostgreSQL 数据库和访问凭据。
+2. 在两份配置里设置 `DATABASE_TYPE` 为 `postgres`，保留 `nodejs_compat`。
+3. 把 `DATABASE_URL` 放进密钥。
+4. 首次初始化空 PostgreSQL 时，打开 `/setup` 创建管理员；初始化会自动建表。已有数据库缺迁移时，在能连接目标库的终端里设置同一个 `DATABASE_URL`，执行迁移：
+
+```sh
+npm run db:migrate:postgres
+```
+
+迁移工具读取 `database/schema/postgres/`，逐文件按事务执行并记录结果；没有迁移记录的已有表结构，它不会去猜。后台数据迁移功能也可初始化空的 PostgreSQL 目标库，步骤见[从 D1 迁移到 PostgreSQL](#从-d1-迁移到-postgresql)。
+
+预先配置 `DATABASE_TYPE=postgres` 和 `DATABASE_URL` 的纯 PostgreSQL 部署可不绑 D1；这时初始化只能复用部署连接，不能在页面输入新 URL。要用页面指定的新 PostgreSQL 连接，必须保留 D1 控制绑定。`db:init`、`user:create` 等 D1 工具仍然只针对 D1，不能用于 PostgreSQL。
+
+## 从 D1 迁移到 PostgreSQL
+
+后台的“设置 → 迁移到 PostgreSQL”可将当前 D1 的表数据复制到远程 PostgreSQL。复制完成后应用仍然用 D1，数据库配置要另外切换。
+
+1. 备份当前 D1 数据库和 PostgreSQL 目标库。准备一个专供本次迁移的 PostgreSQL 数据库，连接地址要包含用户名、密码和数据库名，并支持通过 TLS 验证证书。目标 schema 应为空；也可用已按当前版本初始化、但没有业务数据的库。迁移期间目标库必须独占，不允许其他进程写入或创建对象。
+2. 暂停所有写 D1 的操作：定时检查、Push、Agent 上报、管理修改都算。管理员仍要能访问设置页。从开始迁移到切换完成，源库一直保持停写。页面检测不到所有源数据变化，复制完成后的写入也不会同步。
+3. 进入后台“设置 → 迁移到 PostgreSQL”，填目标连接地址，点“检查数据库”。页面会显示各表行数，并说明目标库是否需要初始化。全空目标库会在执行复制时初始化；有其他对象或已有业务数据的目标库会被拒绝。
+4. 确认停写、目标库也准备好了，勾选确认并开始迁移。建表和数据复制在目标库的事务里执行；迁移不会覆盖目标库已有的业务数据。
+5. 核对迁移结果、目标库和所需资源，源库继续保持停写。使用默认 D1 初始化且没有活动覆盖记录时，按[使用 PostgreSQL](#使用-postgresql)配置 `DATABASE_TYPE` 和 `DATABASE_URL`，部署更新并验证目标后，再恢复流量和写入。
+6. 如果从预配 PostgreSQL 的部署里显式选过 D1，活动覆盖记录优先于部署变量。由有数据库权限的运维人员在停写、备份和复制确认后，核对正确的 D1 账号、数据库和目标 PostgreSQL 配置；把 `DATABASE_TYPE=postgres` 和目标 `DATABASE_URL` 的部署、控制记录切换放在同一个停写窗口里。先只读确认记录，再只删除匹配的活动 D1 记录：
+
+   ```sql
+   SELECT id, type, phase FROM _polaris_database WHERE id = 1;
+   DELETE FROM _polaris_database WHERE id = 1 AND phase = 'active' AND type = 'd1';
+   ```
+
+   查询结果不匹配就不删。绝不能删 `pending` 记录，也不要清空整表或数据库。切换后确认服务真的在用目标 PostgreSQL，再恢复流量和写入；回退前停写，用受保护的 D1 控制数据和数据库备份恢复原配置。
+
+这个功能只复制 D1 表里的数据，不复制 R2 主题文件或 Analytics Engine 数据，也不会持续同步。需要的外部资源要单独保留或迁移。当前每张表最多 5,000 行，合计最多 10,000 行，数据大小按保守值估算；超过限制要另定迁移方案。
+
+页面报错时，先检查目标地址、证书、权限和数据库状态。断线或超时的时候，事务可能已经提交；重试前必须检查目标库的表和数据，确认结果后再决定。不要直接清空已有数据重试。
+
+## 上线检查
+
+- `/api/public/health` 返回 JSON，首页、`/login` 和 `/admin` 深链接能正常打开。
+- 完成初始化，重新登录有效，站点语言和图标正常。
+- 新建 HTTP 监控，过完一个调度周期后能看到真实检查时间和结果。
+- Push POST 生效，GET 不产生心跳。
+- `/install.sh` 和 `/install.ps1` 返回脚本，目标平台的清单和二进制能下载。
+- Agent 首次上报可见；通知测试成功，分组范围符合预期。
+- 启用主题时，上传、预览和激活可用；启用 AE 时，回填状态和凭据一致。
+
+服务没有数据时，先查调度和请求结果，见[常见问题](troubleshooting.md)。
+
+## English
+
+This guide covers a new installation. For an existing deployment, keep its database, secrets and theme storage. Worker deployment is described below; for a server or container, see [Go backend options](backends.md#english) and the [Go guide](../backends/go/README.md).
+
+### Prerequisites
+
+Button deployment requires GitHub and a Cloudflare account with Workers and D1 permissions. Manual deployment also needs Node.js 24 and npm. Install the site dependencies with `npm ci` and `npm --prefix frontend ci`.
+
+### Deploy with the Cloudflare button
+
+Use the [Deploy to Cloudflare button](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris). It uses the public GitHub repository version. Connect GitHub and choose a new Worker and D1 database; verify the account, Worker name, database name and ID before deployment. The build and deploy commands are `npm run build` and `npm run deploy`.
+
+Set a long random `ADMIN_TOKEN` as a Worker Secret before opening `/setup`. Confirm the forked repository's `wrangler.jsonc` has the new database ID, not the placeholder. If it still contains `00000000-0000-4000-8000-000000000000`, create or select the intended D1 database, replace the placeholder with its ID, commit the change and retry. Never put secrets in the repository.
+
+The button template binds D1, static assets and schedules, but not R2 or Analytics Engine. Add those bindings only after creating the resources. Agent installation requires access to GitHub downloads. See [Agent downloads](#agent-downloads).
+
+### Manual Cloudflare deployment
+
+Authenticate the CF CLI with `npx cf auth login`. For a new installation create a D1 database with `npx cf d1 create --name uptime-polaris`; if using third-party themes, create an R2 bucket with `npx cf r2 buckets create --name uptime-polaris-themes`. Existing resources need not be recreated. Enable Analytics Engine in the account before declaring its optional binding.
+
+Keep `backends/worker/cloudflare.config.ts` (CF CLI deployment) and `backends/worker/wrangler.toml` (database tools) aligned on the intended resources, variables and schedules. Keep bindings `DB`, `ASSETS`, `THEMES` and `UPTIME` unchanged where used. `ASSETS` serves `public/`; R2 stores third-party theme files, while Analytics Engine provides raw observations and SQL backfill. Without the optional bindings, the built-in UI and database-backed status and availability still work.
+
+The root `wrangler.jsonc` is independent and belongs to button deployment. Direct Wrangler commands prefer it when both formats exist. For the manual environment, explicitly use `--config backends/worker/wrangler.toml` with direct database commands and check the account, database name and ID. For button deployments, use the forked repository's `wrangler.jsonc` and verify its target instead. Preserve SPA fallback and the configured worker-first routes, including `/api/*` and the installers.
+
+Create an ignored `.secrets/production.json` containing a long random `ADMIN_TOKEN`; add `DATABASE_URL` for PostgreSQL and the Analytics Engine query credentials when needed. See [configuration](configuration.md#english). Then deploy:
+
+```sh
+npm run deploy -- --secrets-file .secrets/production.json
+```
+
+Manual deployment uses CF CLI; button deployment uses the root JSONC and Wrangler. Verify authentication and resources separately for each path.
+
+### Agent downloads
+
+The installer downloads the latest stable version for the selected platform and verifies file integrity. Installation fails if the release or platform asset is missing or GitHub is unreachable.
+
+Installation and updates require the target machine to reach the GitHub API and release download addresses.
+
+### Database setup and initialization
+
+An empty D1 can establish its schema on the first request. A Worker request can also apply pending migrations to a D1 with a migration ledger. Before upgrading, back up and review migrations in an isolated environment. To apply them before deploying to the manual target, authenticate Wrangler and run `npm run db:init` after confirming the TOML account and database. For a button target, confirm its forked JSONC and run `npx wrangler d1 migrations apply DB --remote --config wrangler.jsonc`. Migrations do not create an account.
+
+Open `/setup`, enter `ADMIN_TOKEN`, and create a username and password. The username is 2–32 letters, digits or `._-` and is normalized to lowercase; the password has at least 8 characters. Later logins use `/login`. Setup cannot create another account after initialization.
+
+Worker setup offers D1 or PostgreSQL; Go offers SQLite or PostgreSQL. A new PostgreSQL selection requires its URL. A blank URL reuses the deployed connection only if it corresponds to the current PostgreSQL database. Omitting the selection keeps the current configuration. To enter a new PostgreSQL URL in Worker setup, retain the D1 binding: D1 stores the bootstrap selection and encrypted URL, while business data remains in PostgreSQL. A PostgreSQL-only Worker without D1 must be deployed with `DATABASE_TYPE=postgres` and `DATABASE_URL`; setup reuses that connection and cannot replace the URL. Successful setup creates the administrator and session in the target, which remains active for later requests and restarts. Keep connection URLs out of screenshots and public logs. See the [setup API contract](api.md#setup-database-contract).
+
+For Worker PostgreSQL, set `DATABASE_TYPE=postgres` in both manual configuration files, retain `nodejs_compat`, and provide `DATABASE_URL` as a secret. Initial setup of an empty PostgreSQL database creates its schema automatically. For an existing database with outstanding migrations, run `npm run db:migrate:postgres` from a terminal with access to the target and the same URL. The tool executes the PostgreSQL schema files transactionally and records them; it does not infer an existing untracked schema. D1-only tools such as `db:init` and `user:create` do not operate on PostgreSQL. A PostgreSQL-only Worker with a preconfigured URL can omit D1 and reuse that connection in setup; retain D1 for a URL entered through the page.
+
+To copy D1 data to PostgreSQL, use Settings → Migrate to PostgreSQL. Back up both databases first. The target must be empty or initialized to this version without business data, and exclusively owned by the migration. Stop all source writes, including scheduled checks, Push, Agent reports and administration, from the start of migration until cutover. Preview, confirm and copy, then inspect the result while keeping the source stopped. With default D1 setup and no active override, configure `DATABASE_TYPE` and `DATABASE_URL`, deploy and validate the target before resuming traffic and writes.
+
+If setup explicitly selected D1 against a PostgreSQL deployment configuration, an active control record takes precedence. During the same stopped-write window, after backup and verified copy, an operator with database privileges must confirm the D1 account, database, target PostgreSQL configuration and record with the `SELECT` in the Chinese procedure above. Coordinate deploying `DATABASE_TYPE=postgres` and the target `DATABASE_URL` with deleting only the matching record using `DELETE FROM _polaris_database WHERE id = 1 AND phase = 'active' AND type = 'd1';`. Do not run the deletion if the record does not match, delete a pending record, or clear a table or database. Verify the service uses the PostgreSQL target before resuming traffic and writes. For rollback, stop writes and restore the original configuration with protected D1 control and database backups.
+
+Copying does not switch the application or synchronize later writes; it excludes R2 and Analytics Engine. Limits are 5,000 rows per table and 10,000 total, with a conservative size estimate. After a disconnect or timeout, inspect the target before retrying: the transaction may already have committed. Do not clear existing data as a shortcut.
+
+### Domain and release checks
+
+Bind the long-term domain to the Worker. The application runs at the origin root. A reverse proxy must preserve Host, support WebSocket for `/api/public/agent/*`, and avoid rewriting API or installer requests to HTML. Before changing domains, check the new API, installers and WebSocket, then update each Agent's `endpoint` and restart it; existing Agents do not change automatically.
+
+After deployment, check `/api/public/health`, the homepage, `/login` and the `/admin` deep link. Confirm setup and login, run an HTTP monitor, check Push POST and Agent reporting, and send a notification test. If enabled, check theme upload and activation and the Analytics Engine backfill state. Confirm the Agent can be installed on each intended platform. See [troubleshooting](troubleshooting.md#troubleshooting-guide) if data is missing.

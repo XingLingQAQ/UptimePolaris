@@ -1,0 +1,242 @@
+name: Backend and UI checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  go-backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backends/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backends/go/go.mod
+          cache-dependency-path: backends/go/go.sum
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build ./cmd/polaris
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm --prefix frontend ci
+        working-directory: .
+      - run: npm run build:go
+        working-directory: .
+      - run: npm run test:go-release
+        working-directory: .
+
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - run: npm ci
+      - run: npm --prefix frontend ci
+      - run: node backends/go/tools/sync-contracts.mjs --check
+      - run: npm run typecheck
+      # Before `build`, which regenerates the file: run afterwards this would
+      # always pass, because the build it just ran would have fixed the drift.
+      # 必须先于 build 检查；build 会重新生成文件，使后续检查无法发现偏差。
+      - run: npm run schema:check
+      - run: npm run build
+      - name: Core and public data
+        run: |
+          set -euo pipefail
+          npm run test:unit
+          npm run test:ssl-ct
+          npm run test:admin
+          npm run test:frontend-recovery
+          npm run test:public-cache
+          npm run test:i18n
+          npm run test:i18n-messages
+          npm run test:overflow-tooltip
+          npm run test:ui-prefetch
+      - name: Auth and setup
+        run: |
+          set -euo pipefail
+          npm run test:auth
+          npm run test:avatar
+          npm run test:auth-setup
+      - name: Controlled Worker checks
+        run: |
+          set -euo pipefail
+          npm run test:e2e
+          npm run test:api-errors
+          npm run test:checks
+          npm run test:monitor-check
+          npm run test:addons
+          npm run test:pending
+          npm run test:notify
+          npm run test:types
+          npm run test:groups
+          npm run test:presentation
+          npm run test:management
+          npm run test:settings
+          npm run test:settings-wiring
+          npm run test:site-icon
+          npm run test:public-maintenance
+          npm run test:scope
+          node test/monitors/cron-lease.test.mjs
+          node test/monitors/budget-capacity.test.mjs
+          node test/monitors/sync-recovery.test.mjs
+      - name: Agent and theme contracts
+        run: |
+          set -euo pipefail
+          npm run test:agent
+          npm run test:agent-credentials
+          npm run test:agent-probes
+          npm run test:agent-command
+          npm run test:agent-commands
+          npm run test:agent-runtime-config
+          npm run test:agent-config-edit
+          npm run test:agent-report-recovery
+          npm run test:agent-network
+          npm run test:agent-transport-recovery
+          npm run test:installer
+          npm run test:theme
+          npm run test:theme-cache
+      - name: DB scope, migrations and rolling availability
+        run: |
+          set -euo pipefail
+          node test/helpers/build.mjs test/db/db-lifecycle.test.mjs artifacts/tmp/db-lifecycle.mjs
+          node artifacts/tmp/db-lifecycle.mjs
+          npm run test:schema-bootstrap
+          npm run test:availability-metrics
+          npm run test:database-migration-ui
+          npm run test:database-migration-cli
+          node scripts/deploy-preflight.mjs --validate-only
+          npm run test:deploy-button
+      - name: Required and optional deployment bindings
+        run: |
+          node <<'JS'
+          const assert = require('node:assert/strict');
+          (async () => {
+            const { validateConfigBindings } = await import('./scripts/deploy-preflight.mjs');
+            const common = 'name="fixture"\nmain="src/index.ts"\n[assets]\nbinding="ASSETS"\ndirectory="../../public"\n';
+            const d1 = '[[d1_databases]]\nbinding="DB"\ndatabase_name="fixture"\ndatabase_id="00000000-0000-4000-8000-000000000001"\n';
+            const postgres = common + '[vars]\nDATABASE_TYPE="postgres"\n';
+            assert.deepEqual(validateConfigBindings(postgres).errors, []);
+            assert.deepEqual(validateConfigBindings(common + d1).errors, []);
+            assert(validateConfigBindings(common).errors.some((error) => error.includes('requires')));
+            assert(validateConfigBindings(postgres.replace('binding="ASSETS"', 'binding="OTHER"')).errors.length);
+            assert(validateConfigBindings(postgres + '[[r2_buckets]]\nbinding="THEMES"\n').errors.length);
+            assert(validateConfigBindings(postgres + '[[analytics_engine_datasets]]\nbinding="UPTIME"\n').errors.length);
+            const optional = validateConfigBindings(postgres + '[[r2_buckets]]\nbinding="THEMES"\nbucket_name="fixture"\n[[analytics_engine_datasets]]\nbinding="UPTIME"\ndataset="fixture"\n');
+            assert.deepEqual(optional.errors, []);
+            assert.equal(optional.themes, true);
+            assert.equal(optional.analytics, true);
+            assert.equal(validateConfigBindings(postgres).analytics, false);
+            assert(validateConfigBindings(postgres.replace('postgres', 'unknown')).errors.length);
+            console.log('PASS backend requirements and optional R2/AE config fixtures');
+          })().catch((error) => { console.error(error); process.exitCode = 1; });
+          JS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: built-spa
+          path: public/
+          if-no-files-found: error
+
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backends/go/go.mod
+          cache-dependency-path: backends/go/go.sum
+      - run: npm ci
+      - name: Locate installed PostgreSQL tools
+        run: |
+          set -euo pipefail
+          pg_bin="$(pg_config --bindir)"
+          test -x "$pg_bin/initdb"
+          test -x "$pg_bin/pg_ctl"
+          echo "$pg_bin" >> "$GITHUB_PATH"
+      - run: npm run test:pg-dialect
+      - run: npm run test:pg-real
+      - run: npm run test:worker-postgres-setup
+      - run: npm run test:go-postgres
+
+  browser:
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      UPTIME_BROWSER_REQUIRED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix frontend ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: built-spa
+          path: public
+      - name: Require installed Chrome
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v chromium)"
+          test -x "$chrome"
+          echo "CHROME_BIN=$chrome" >> "$GITHUB_ENV"
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-screenshots
+          path: artifacts/tmp/*.png
+          if-no-files-found: warn
+
+  windows-browser:
+    needs: checks
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      UPTIME_BROWSER_REQUIRED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - run: npm ci
+      - run: npm --prefix frontend ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: built-spa
+          path: public
+      - name: Require Chrome
+        shell: pwsh
+        run: |
+          $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+          if (!(Test-Path -LiteralPath $chrome -PathType Leaf)) { throw 'Chrome is required' }
+          "CHROME_BIN=$chrome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - run: npm run test:agent-controls-browser
