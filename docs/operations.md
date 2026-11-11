@@ -183,7 +183,7 @@ Fork and button deployments keep no database ID in `wrangler.jsonc`; confirm whi
 
 ### Database migration and retention
 
-For a new installation, choose the database at `/setup`: Worker supports D1 or PostgreSQL, and Go supports SQLite or PostgreSQL. Enter a connection URL for PostgreSQL. Setup creates the administrator and session in the selected database, which also serves subsequent business requests. This initial choice is not a migration path for an existing installation.
+For a new installation, choose the database at `/setup`: Worker supports D1 or PostgreSQL, and Go supports SQLite or PostgreSQL. Enter a connection URL for PostgreSQL, for example `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`. The Worker shows its deployment check first; the Go backend goes straight to the setup form. Setup creates the administrator and session in the selected database, which also serves subsequent business requests. This initial choice is not a migration path for an existing installation.
 
 Worker can copy D1 to an empty PostgreSQL database from the settings page; copying does not switch the active database. Stop all source writes, including scheduler, Push, Agent and administrative writes, and keep them stopped through the switch. Back up both databases, keep the target exclusive, verify the copied data, then configure `DATABASE_TYPE=postgres` and `DATABASE_URL`. Default D1 setup leaves no active selection pointer. If setup explicitly selected D1 from a PostgreSQL deployment, also handle the active D1 selection as described in [deployment](deployment.md#database-setup-and-initialization); never delete a pending record. External R2 and Analytics Engine data are not copied.
 

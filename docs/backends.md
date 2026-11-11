@@ -47,7 +47,7 @@ Uptime Polaris has two backends: Cloudflare Worker and Go. Both serve the same f
 
 Choose Worker when you do not want to run a server. Choose Go when you need direct private-network probes, UDP, or the extra native protocols. ICMP requires raw-socket permission on the host. The interface lists only the checks the active backend or an online Agent can run.
 
-Worker setup offers D1 or PostgreSQL; Go setup offers SQLite or PostgreSQL. Omitting the choice keeps the current configuration. A new PostgreSQL selection requires a URL; a blank URL reuses the deployed connection only when it points at the current PostgreSQL database. To enter a new URL in Worker setup, keep the D1 binding: D1 stores the encrypted bootstrap configuration. A PostgreSQL-only Worker without D1 can only reuse its preconfigured `DATABASE_URL`. Setup creates the administrator and session in the target database, and later requests and restarts keep using it. See the [setup database contract](api.md#setup-database-contract).
+Worker setup offers D1 or PostgreSQL; Go setup offers SQLite or PostgreSQL. Omitting the choice keeps the current configuration. A new PostgreSQL selection requires a URL such as `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`; a blank URL reuses the deployed connection only when it points at the current PostgreSQL database. To enter a new URL in Worker setup, keep the D1 binding: D1 stores the encrypted bootstrap configuration. A PostgreSQL-only Worker without D1 can only reuse its preconfigured `DATABASE_URL`. Setup creates the administrator and session in the target database, and later requests and restarts keep using it. See the [setup database contract](api.md#setup-database-contract).
 
 ### Deployment
 

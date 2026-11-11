@@ -166,7 +166,9 @@ Protect `.env` and startup logs containing the generated key. A saved `database.
 
 ### Database selection during setup
 
-Setup offers D1 or PostgreSQL on Worker, and SQLite or PostgreSQL on Go. Omitting the selection retains the current backend configuration. A newly selected PostgreSQL database requires a connection URL; a blank URL reuses the deployed PostgreSQL connection only when it corresponds to the current database. On successful setup, the administrator and session are created in the target database, which remains active for later requests and restarts.
+On the Worker, `/setup` has two steps: it first checks the database binding and `ADMIN_TOKEN` and shows the account form only after every required item passes; the Go backend shows the setup form directly.
+
+Setup offers D1 or PostgreSQL on Worker, and SQLite or PostgreSQL on Go. Omitting the selection retains the current backend configuration. A newly selected PostgreSQL database requires a connection URL such as `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`; percent-encode special characters in the password, and keep only a supported `sslmode` in the query string. A blank URL reuses the deployed PostgreSQL connection only when it corresponds to the current database. On successful setup, the administrator and session are created in the target database, which remains active for later requests and restarts.
 
 Session status returns supported types, the default, whether PostgreSQL is configured, and whether its URL is editable; it never returns the URL. To enter a new PostgreSQL URL during Worker setup, keep the D1 binding: D1 stores the bootstrap selection and encrypted URL, while business data remains in PostgreSQL. A PostgreSQL-only Worker without D1 must be deployed with `DATABASE_TYPE=postgres` and `DATABASE_URL`; setup can reuse that connection but cannot accept a different URL. Go can accept a new URL. Keep URLs out of logs and screenshots. See the [setup database contract](api.md#setup-database-contract) for fields and errors.
 
@@ -195,7 +197,7 @@ Manual deployment uses `backends/worker/cloudflare.config.ts`; database npm scri
 | --- | --- | --- |
 | `ADMIN_TOKEN` | No default | Secret for initial setup and management API Bearer authentication |
 | `DATABASE_TYPE` | `d1`; also `postgres` | Deployed database type; an active override takes precedence |
-| `DATABASE_URL` | No default | Secret URL for deployment-configured PostgreSQL; a page-selected connection is stored separately in the D1 control record |
+| `DATABASE_URL` | No default | Secret PostgreSQL URL such as `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`; a page-selected connection is stored separately in the D1 control record |
 | `CF_ACCOUNT_ID` | No default | Account ID for Analytics Engine SQL backfill |
 | `CF_API_TOKEN` | No default | Secret with account Analytics Read access for SQL backfill |
 | `PBKDF2_ITERATIONS` | `3000`; 1–100000 | Password hash cost, configured as a string |

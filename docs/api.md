@@ -329,7 +329,18 @@ Management endpoints accept a signed-in session cookie or a bearer token: Worker
 
 ### Setup database contract
 
-`GET /api/auth/session` returns `setupDatabase` when `needsSetup` is `true`, and `null` otherwise. It never returns a database URL.
+`GET /api/auth/session` returns `setupDatabase` when `needsSetup` is `true` (`null` on a Worker with no database configured), and `null` after setup. It never returns a database URL.
+
+While `needsSetup` is `true`, the Worker also returns `setupRequirements` (an array; `null` after setup, and absent on the Go backend). Each entry is `{ key, required, ok }`:
+
+| `key` | `required` | Meaning |
+| --- | --- | --- |
+| `database` | `true` | `DB` (D1) is bound, or `DATABASE_TYPE=postgres` and `DATABASE_URL` are configured |
+| `adminToken` | `true` | `ADMIN_TOKEN` is configured |
+| `themes` | `false` | `THEMES` (R2 theme storage) is bound |
+| `analytics` | `false` | `UPTIME` (Analytics Engine) is bound |
+
+Without a configured database, the Worker serves only `/setup`, static assets, `/api/auth/session`, `/api/capabilities` and `/api/public/icon`. Other page requests redirect to `/setup`; business APIs and `POST /api/auth/setup` return 503 `deployment_incomplete`.
 
 | `setupDatabase` field | Type | Meaning |
 | --- | --- | --- |
@@ -338,7 +349,7 @@ Management endpoints accept a signed-in session cookie or a bearer token: Worker
 | `postgresConfigured` | `boolean` | Whether the current PostgreSQL connection can be reused; no connection address is exposed |
 | `postgresUrlEditable` | `boolean` | Whether setup may submit a new PostgreSQL URL: `true` on Go and on Worker with D1 and no pending setup; `false` on Worker without D1 or with a pending setup |
 
-`POST /api/auth/setup` accepts `credential`, `username`, `password` and an optional `database` object with `type` and an optional PostgreSQL `url`. Omitting `database` retains the current backend configuration. A blank PostgreSQL URL can reuse the deployed current PostgreSQL connection; Worker can also reuse the saved target while resuming pending setup. Selecting a new PostgreSQL database requires a URL and `postgresUrlEditable: true`. A Worker without D1 can reuse its deployed `DATABASE_TYPE=postgres` and `DATABASE_URL`, but cannot accept a new URL through setup. With D1 bound, Worker encrypts the selected PostgreSQL URL in its D1 control record; business data remains in the target PostgreSQL database. On success, the same request creates the administrator and session in the target database; subsequent application requests and restarts continue to use that database.
+`POST /api/auth/setup` accepts `credential`, `username`, `password` and an optional `database` object with `type` and an optional PostgreSQL `url` (for example `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`). Omitting `database` retains the current backend configuration. A blank PostgreSQL URL can reuse the deployed current PostgreSQL connection; Worker can also reuse the saved target while resuming pending setup. Selecting a new PostgreSQL database requires a URL and `postgresUrlEditable: true`. A Worker without D1 can reuse its deployed `DATABASE_TYPE=postgres` and `DATABASE_URL`, but cannot accept a new URL through setup. With D1 bound, Worker encrypts the selected PostgreSQL URL in its D1 control record; business data remains in the target PostgreSQL database. On success, the same request creates the administrator and session in the target database; subsequent application requests and restarts continue to use that database.
 
 For a pending Worker setup, the chosen type is locked. A PostgreSQL target reports `postgresConfigured: true` and `postgresUrlEditable: false`, using the saved connection; session status can be read without first connecting to PostgreSQL. Other business operations are disabled while pending. Resume with the original setup username and password; a lease left by an interrupted process lasts at most 10 minutes.
 
@@ -346,6 +357,8 @@ For a pending Worker setup, the chosen type is locked. A PostgreSQL target repor
 | --- | --- | --- |
 | 400 | `invalid_database_type` | Select a type supported by the backend |
 | 400 | `invalid_database_url` | Check the PostgreSQL URL |
+| 503 | `deployment_incomplete` | The Worker has no `DB` (D1) binding or PostgreSQL configuration; complete it in the dashboard first |
+| 503 | `credential_unconfigured` | No setup credential is configured (Worker `ADMIN_TOKEN` or Go `POLARIS_SETUP_KEY`) |
 | 503 | `database_connection_failed` | Check database connectivity and access |
 | 503 | `database_initialization_failed` | Check target database initialization requirements |
 | 503 | `database_configuration_failed` | Check deployment database configuration |
