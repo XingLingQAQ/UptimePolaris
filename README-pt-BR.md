@@ -8,8 +8,6 @@
 
 <p align="center"><strong>Verificações HTTP/TCP, heartbeats Push, métricas de hosts</strong><br>Executa no Cloudflare Workers ou em um servidor Go auto-hospedado.</p>
 
-Armazenamento: D1 ou PostgreSQL no Worker; SQLite ou PostgreSQL no Go. [Começar com Go](backends/go/README.md).
-
 <p align="center">
   <a href="README.md">English</a> · <a href="README-zh-CN.md">简体中文</a> · <a href="README-zh-TW.md">繁體中文（台灣）</a> · <a href="README-zh-HK.md">繁體中文（香港）</a> · <a href="README-ja-JP.md">日本語</a> · <a href="README-ko-KR.md">한국어</a> · <a href="README-fr-FR.md">Français</a> · <strong>Português (Brasil)</strong> · <a href="README-ru-RU.md">Русский</a>
 </p>
@@ -29,75 +27,93 @@ Armazenamento: D1 ou PostgreSQL no Worker; SQLite ou PostgreSQL no Go. [Começar
   <a href="#documentação">Documentação</a>
 </p>
 
-O Uptime Polaris reúne página pública de status, console de administração e monitoramento agendado em uma única aplicação. Ele executa verificações HTTP/TCP, recebe heartbeats Push, coleta métricas de hosts com o `polaris-agent` e envia notificações quando um monitor muda de estado.
+O Uptime Polaris verifica sites e portas periodicamente, recebe batimentos de tarefas agendadas, coleta métricas de CPU, memória e disco dos servidores e envia uma notificação quando um monitor muda de estado. A página de status pública e o console de administração já vêm incluídos.
 
 ## Escolha o backend
 
-Cada implantação usa um backend. O Go funciona sem conta Cloudflare, D1 ou R2.
+Escolha um backend por implantação. Os dois usam a mesma interface.
 
-Armazenamento: o Worker usa D1 ou PostgreSQL e guarda os temas no R2. O Go usa SQLite ou PostgreSQL e guarda dados e temas no diretório de dados. Sondas: o Go executa UDP, ICMP, DNS, TLS e WebSocket diretamente. O Worker não executa essas sondas diretamente; UDP e ICMP passam por um Agent online.
+| | Cloudflare Worker | Go |
+| --- | --- | --- |
+| Executa em | Cloudflare | Servidor ou contêiner próprio |
+| Banco de dados | D1 ou PostgreSQL | SQLite ou PostgreSQL |
+| Sondas diretas | HTTP, TCP (UDP e ICMP via Agent) | HTTP, TCP, UDP, ICMP, DNS, TLS, WebSocket |
+| Intervalo mínimo | 60 segundos | 5 segundos |
+| Arquivos de tema | R2 (opcional) | Diretório de dados |
 
-[Comparação e inicialização dos backends](docs/backends.md)
+Use o Worker quando não quiser manter um servidor. Escolha Go para sondar a rede interna, usar mais protocolos ou intervalos menores. Veja a [comparação de backends](docs/backends.md).
 
 ## Recursos
 
 <p align="center">
-  <img src="assets/readme/check.svg" width="24" height="24" alt="Ícone de verificação de serviços"><br>
-  <strong>Verificações de serviços e sinais de vida</strong><br>
-  Verificações HTTP e TCP, com asserções de resposta, certificado, domínio e DNS. Monitores Push recebem heartbeats de tarefas agendadas.
+  <img src="assets/readme/check.svg" width="24" height="24" alt="Ícone de verificação de serviço"><br>
+  <strong>Verificações de serviço e batimentos</strong><br>
+  Verificações HTTP e TCP, com checagens opcionais de resposta, certificado, expiração do domínio e DNS. Monitores Push servem para cron e scripts de backup: sem batimento dentro do prazo, o monitor é marcado como indisponível.
 </p>
 
 <p align="center">
-  <img src="assets/readme/host.svg" width="24" height="24" alt="Ícone de monitoramento de hosts"><br>
-  <strong>Métricas e sondagens de hosts</strong><br>
-  O <code>polaris-agent</code> reporta métricas de CPU, memória, disco e rede. Ele também pode executar verificações HTTP/TCP a partir do host.
+  <img src="assets/readme/host.svg" width="24" height="24" alt="Ícone de monitoramento de host"><br>
+  <strong>Monitoramento de servidores</strong><br>
+  O <code>polaris-agent</code> envia métricas de CPU, memória, disco, carga e rede. Ele também pode executar verificações HTTP/TCP a partir do próprio host para alcançar serviços internos.
 </p>
 
 <p align="center">
-  <img src="assets/readme/bell.svg" width="24" height="24" alt="Ícone de notificações de status"><br>
+  <img src="assets/readme/bell.svg" width="24" height="24" alt="Ícone de notificação de status"><br>
   <strong>Página de status e notificações</strong><br>
-  A página pública mostra o estado atual e o histórico de eventos. Grupos, janelas de manutenção e canais definem o que aparece e quem recebe notificações.
+  A página de status mostra o estado atual e o histórico de eventos, com grupos e janelas de manutenção. As notificações vão para Telegram, Feishu, Slack, Discord, Webhook, Apprise e Server酱, e cada canal pode ser limitado a grupos de monitores.
 </p>
 
 <p align="center">
   <img src="assets/readme/layers.svg" width="24" height="24" alt="Ícone de armazenamento e temas"><br>
   <strong>Armazenamento e temas</strong><br>
-  O Worker guarda dados no D1 ou PostgreSQL e temas no R2. O Go guarda dados no SQLite ou PostgreSQL e temas no diretório de dados.
+  O Worker guarda dados em D1 ou PostgreSQL e temas no R2; o Go usa SQLite ou PostgreSQL e mantém os temas no diretório de dados.
 </p>
-
-Monitores Push não medem latência; o campo público de latência é `null`. As sondas de cada backend estão na [comparação de backends](docs/backends.md). Configuração e limites: [manual de uso](docs/usage.md).
 
 ## Início rápido
 
-Escolha um backend e siga o guia de implantação correspondente. Abra `/setup`, crie um administrador e adicione o primeiro monitor em `/admin`.
-
-### Cloudflare Worker
-
-[Implantação no Cloudflare](#implantação-no-cloudflare)
-
-### Go
-
-O executável Go inclui a interface web. Baixe a versão do seu sistema na página Releases e siga o [guia Go](backends/go/README.md#english).
+1. Implante no [Cloudflare](#implantação-no-cloudflare) ou em [servidor próprio](#deploy-go).
+2. Abra `/setup`. O Worker verifica vínculos e segredos primeiro; o Go pede a chave de configuração do log de inicialização.
+3. Crie a conta de administrador e adicione monitores em `/admin`.
 
 ## Implantação no Cloudflare
 
-[![Implantar no Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris)
+1. Faça fork deste repositório.
+2. No painel da Cloudflare, abra **Workers & Pages → Create application → GitHub** e selecione seu fork. Defina `npm run build` como comando de build e `npm run deploy` como comando de implantação.
+3. Abra o site após a implantação. A página de configuração inicial verifica vínculos e segredos; configure o que ela indicar em **Settings** do Worker:
+   - **Bindings**: adicione um banco D1 com o nome de variável `DB`. Para temas de terceiros, adicione um bucket R2 com o nome `THEMES`; para observações brutas e backfill, ative o Analytics Engine e adicione um conjunto de dados com o nome `UPTIME`.
+   - **Variables and Secrets**: adicione o segredo `ADMIN_TOKEN` com um valor aleatório longo, por exemplo a saída de `openssl rand -hex 32`.
+4. Na página de configuração inicial, selecione **Re-check**, avance e informe `ADMIN_TOKEN` para criar a conta de administrador.
 
-O botão faz fork do repositório e inicia a implantação. Dê novos nomes ao Worker e ao banco de dados, defina `ADMIN_TOKEN` com um valor aleatório longo e salve-o como segredo do Worker. Se faltar o ID do banco, localize ou crie o banco D1 no Cloudflare, substitua o valor provisório de `database_id` no `wrangler.jsonc` do repositório com fork e implante novamente. O [guia de implantação](docs/deployment.md#通过-cloudflare-按钮部署) traz as etapas exatas.
+As atualizações usam **Sync fork** no GitHub; o Workers Builds reimplanta automaticamente e mantém os vínculos adicionados no painel.
 
-O modelo do botão vincula apenas D1, assets estáticos e agendamentos. Temas no R2 e Analytics Engine não estão incluídos. A instalação do Agent precisa de acesso aos downloads do GitHub Release.
+Também é possível implantar com o botão abaixo. Ele cria um novo repositório na sua conta do GitHub (não é um fork, então não pode ser atualizado com Sync fork); configure o banco e o segredo como a página de configuração inicial indica:
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris)
+
+O [guia de implantação](docs/deployment.md) cobre implantação por linha de comando e PostgreSQL.
 
 <a id="deploy-go"></a>
 
 ## Implantar o backend Go
 
-Baixe a versão do seu sistema nas [Releases](https://github.com/XingLingQAQ/UptimePolaris/releases) e siga o [guia de instalação Go](backends/go/README.md#install-and-start). O binário inclui a interface web. Mantenha o diretório de dados persistente, restrinja o acesso e faça backup do banco junto com o restante do diretório.
+Baixe a versão para o seu sistema em [Releases](https://github.com/XingLingQAQ/UptimePolaris/releases), renomeie para `polaris` (`polaris.exe` no Windows) e inicie:
+
+```sh
+chmod +x polaris   # Linux / macOS
+./polaris --data-dir ./data
+```
+
+```powershell
+.\polaris.exe --data-dir .\data
+```
+
+O programa escuta em `127.0.0.1:8080` por padrão. Para acesso externo, altere `--addr` ou configure um proxy reverso. Todos os dados ficam em `./data`; mantenha esse diretório persistente, restrinja o acesso e faça backup periodicamente. Veja o [guia do backend Go](backends/go/README.md#install-and-start) para mais configurações.
 
 ## Monitoramento de hosts
 
-Na página Agent do console, crie uma máquina, escolha a plataforma e o modo de instalação e execute o comando gerado na máquina de destino. O instalador baixa a última versão estável para essa plataforma.
+Adicione uma máquina na página Agent do console, escolha a plataforma e o modo de instalação e execute o comando gerado na máquina de destino. A máquina precisa acessar o GitHub.
 
-O instalador registra o serviço `polaris-agent` e o comando `pa`. Os dois operam no mesmo programa, configuração e serviço:
+Após a instalação, gerencie o serviço com `pa` (forma curta de `polaris-agent`):
 
 ```sh
 pa status
@@ -105,30 +121,32 @@ pa restart
 pa logs -f
 ```
 
-`pa start`, `stop` e `restart` exigem um gerenciador de serviços; instalações manuais rodam em primeiro plano. `pa logs` lê o arquivo de log criado pela instalação. O comando de instalação usa o protocolo, o domínio e a porta do site acessado; gere-o a partir do endereço que você pretende manter. Modos de instalação, limites de plataforma, configuração, atualização e remoção estão no [manual do Agent](docs/agents.md).
+- Os comandos de instalação contêm o endereço do site e o token da máquina. Gere-os no domínio de produção e nunca os publique.
+- Adicionar uma máquina não cria um monitor. Para acompanhar o estado online ou os limites de recursos, adicione um monitor do tipo Agent na página de monitores.
+- Instalações manuais não têm gerenciador de serviços, então `pa start`, `stop` e `restart` não estão disponíveis.
+
+Veja o [guia do Agent](docs/agents.md) para mais detalhes.
 
 ## Uso e informações públicas
 
-A página pública de status é anônima. Antes de adicionar um monitor, confirme que o nome, o caminho de destino, o hostname e os endereços internos não contêm informação sensível. As APIs públicas removem dados de autenticação; elas não verificam se nomes ou caminhos contêm conteúdo sensível. Veja [dados públicos](docs/usage.md#公开数据).
-
-Os canais de notificação são Telegram, Feishu, Slack, Discord, Webhook, Apprise e Server酱. Um canal pode ser limitado a grupos de monitores. Configuração e solução de problemas de entrega: [guia de notificações](docs/notifications.md).
+A página de status é anônima. Nomes de monitores, caminhos de destino e nomes de host podem aparecer nas páginas e APIs públicas; nunca coloque endereços internos ou segredos neles. Veja [dados públicos](docs/usage.md#公开数据) e o [guia de notificações](docs/notifications.md).
 
 ## Documentação
 
-| Tarefa | Documento |
+| Documento | Conteúdo |
 | --- | --- |
-| Implantar o site ou configurar domínio ou PostgreSQL | [Guia de implantação](docs/deployment.md) |
-| Comparar backends | [Worker / Go](docs/backends.md#english) · [Go](backends/go/README.md#english) |
-| Criar monitores e consultar status ou dados públicos | [Manual de uso](docs/usage.md) |
-| Instalar e gerenciar o Agent de hosts | [Manual do Agent](docs/agents.md) |
-| Configurar bindings, variáveis de ambiente e configurações administrativas | [Referência de configuração](docs/configuration.md) |
-| Configurar canais e escopos de notificação | [Guia de notificações](docs/notifications.md) |
-| Instalar ou configurar temas para a página de status | [Guia de temas](docs/themes.md#english) |
-| Usar a API ou integrar Push | [Referência da API](docs/api.md) |
-| Fazer backup, atualizar e solucionar problemas | [Guia de operações](docs/operations.md) · [Perguntas frequentes](docs/troubleshooting.md) |
-
-Índice completo: [docs/README.md](docs/README.md).
+| [Comparação de backends](docs/backends.md) | Diferenças entre Worker e Go |
+| [Guia de implantação](docs/deployment.md) | Implantação por fork, botão e manual, domínios, PostgreSQL, migração D1 para PostgreSQL |
+| [Backend Go](backends/go/README.md) | Opções de inicialização, variáveis de ambiente, migração SQLite para PostgreSQL |
+| [Manual de uso](docs/usage.md) | Configuração de monitores, Push, estado e disponibilidade |
+| [Guia do Agent](docs/agents.md) | Instalação, gestão, configuração, atualizações, remoção |
+| [Guia de notificações](docs/notifications.md) | Configuração de canais, escopo por grupo, histórico de entregas |
+| [Guia de temas](docs/themes.md) | Instalação, configuração, prévia |
+| [Referência de configuração](docs/configuration.md) | Vínculos, variáveis de ambiente, configurações do console |
+| [Referência da API](docs/api.md) | Endpoints, autenticação, exemplos |
+| [Guia de operações](docs/operations.md) | Backup, recuperação, atualizações, retenção |
+| [Solução de problemas](docs/troubleshooting.md) | Diagnóstico por sintoma |
 
 ## Licença
 
-Este projeto está disponível sob a [licença MIT](LICENSE).
+Este projeto usa a [licença MIT](LICENSE).

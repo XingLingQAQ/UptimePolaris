@@ -23,7 +23,15 @@ POLARIS_DATA_DIR=./data
 
 ## 初始化时选择数据库
 
-初始化页面按后端列出可选数据库：Worker 是 D1 或 PostgreSQL，Go 是 SQLite 或 PostgreSQL。不做选择就沿用当前配置。新选 PostgreSQL 必须填 URL；只有已部署的 PostgreSQL 连接对应当前库时才能留空复用。成功后管理员和会话在目标库，后续请求和重启继续用它。
+Worker 的 `/setup` 页面分为两步：先检查数据库绑定与 `ADMIN_TOKEN`，必需项通过后才进入账号与数据库选择表单；Go 后端直接显示初始化表单。
+
+初始化表单按后端列出可选数据库：Worker 为 D1 或 PostgreSQL，Go 为 SQLite 或 PostgreSQL。不做选择则沿用当前配置。新选 PostgreSQL 必须填写连接 URL，格式示例：
+
+```text
+postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full
+```
+
+URL 需包含协议（`postgres://` 或 `postgresql://`）、用户名、密码、主机名和数据库名，密码中的特殊字符需进行 URL 编码；查询参数仅支持 `sslmode`（`verify-full` 或 `require`，Go 本机回环测试可用 `disable`）。只有已部署的 PostgreSQL 连接对应当前数据库时才能留空复用。初始化成功后，管理员账号和会话保存在目标数据库中，后续请求和重启继续使用该数据库。
 
 会话状态会返回可选类型、默认类型、PostgreSQL 是否已配置、URL 是否可编辑，但不返回 URL。Worker 要在页面填新的 PostgreSQL URL，必须保留 D1 绑定：D1 保存引导选择和加密 URL，业务数据仍在 PostgreSQL。纯 PostgreSQL 且没有 D1 绑定时，部署必须预设 `DATABASE_TYPE=postgres` 和 `DATABASE_URL`，初始化只能复用这个连接，页面不能换 URL。Go 可以在页面填新 URL。不要在日志或截图里暴露 URL。请求字段和错误码见[初始化数据库契约](api.md#初始化数据库契约)。
 
@@ -63,7 +71,7 @@ Go 显式选过数据库后，数据目录里的 `database.json` 优先于 `POLA
 | --- | --- | --- |
 | `ADMIN_TOKEN` | 无默认值 | Secret；首次初始化凭据，也是管理 API 的 Bearer Token |
 | `DATABASE_TYPE` | `d1`，可选 `postgres` | 普通变量；部署数据库类型，活动覆盖记录优先 |
-| `DATABASE_URL` | 无默认值 | Secret；部署预配置 PostgreSQL 的连接 URL，网页指定的连接另存于 D1 控制记录 |
+| `DATABASE_URL` | 无默认值 | Secret；PostgreSQL 连接 URL，形如 `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`（网页指定的连接另存于 D1 控制记录） |
 | `CF_ACCOUNT_ID` | 无默认值 | AE SQL 回填使用的账号 ID |
 | `CF_API_TOKEN` | 无默认值 | Secret；AE SQL 查询所需的账号 Analytics Read 凭据 |
 | `PBKDF2_ITERATIONS` | `3000`；允许 1–100000 | 密码哈希成本，作为字符串变量配置 |

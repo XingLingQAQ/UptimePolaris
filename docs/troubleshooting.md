@@ -23,41 +23,45 @@
 
 ## 初始化页面无法继续
 
-1. Worker 检查 `ADMIN_TOKEN` 有没有配到当前环境。Go 检查当前工作目录的 `.env` 或进程环境里的 `POLARIS_SETUP_KEY`；没设就用 `POLARIS_ADMIN_TOKEN`。两个都为空、环境又没初始化时，用本次启动日志里的自动生成密钥。
-2. 改完密钥，重启对应的后端进程。
-3. 用这个密钥作为安装凭据，不是登录密码，也不是 Agent Token。
-4. 核对选中的数据库：Worker 支持 D1 或 PostgreSQL，Go 支持 SQLite 或 PostgreSQL。新选 PostgreSQL 要填连接地址；已部署的 PostgreSQL 连接可以留空复用，页面不会显示原地址。
-5. 已有数据库提示结构缺失时，按实际后端跑迁移，不要反复重输凭据。首次初始化只给选中的空数据库建表，不能接手未知的表结构。
+1. **Worker 部署检查未通过**：初始化页面第一步会列出数据库和 `ADMIN_TOKEN` 的配置状态：
+   - **数据库未配置**：在 Worker 的 **Settings → Bindings** 中添加 D1 数据库，变量名填写 `DB`；或将变量 `DATABASE_TYPE` 设为 `postgres` 并添加 Secret `DATABASE_URL`。
+   - **初始化密钥未配置**：在 **Settings → Variables and Secrets** 中添加 Secret `ADMIN_TOKEN`。
+   - 在控制台保存修改后，Worker 会自动部署新版本，回到页面点击“重新检查”，全部通过后才能点击“下一步”。
+2. **Go 后端提示未配置密钥**：检查工作目录 `.env` 或进程环境变量中的 `POLARIS_SETUP_KEY`（未设置时回退到 `POLARIS_ADMIN_TOKEN`）。两者均未设置且尚未初始化时，请查看本次进程启动日志中的 `setup_key` 字段。修改后需重启进程。
+3. 请确认输入的是初始化密钥，而不是管理员登录密码或 Agent Token。
+4. 核对所选数据库：Worker 支持 D1 或 PostgreSQL，Go 支持 SQLite 或 PostgreSQL。新选 PostgreSQL 需填写连接地址；已部署的 PostgreSQL 连接可留空复用，页面不会回显原地址。
+5. 已有数据库提示表结构缺失时，请按对应后端执行迁移，不要反复重输凭据。首次初始化仅为空数据库建表，不会接管未知的表结构。
 
-Worker 没绑 D1 时，只能用部署密钥 `DATABASE_URL` 里的 PostgreSQL 连接，页面不提供新地址输入；要在网页选库就保留 D1 绑定。Go 的 `database.json` 保存后会优先于启动参数和环境变量，排查连接时也要看它，但不要公开里面的地址。
+Worker 未绑定 D1 时，只能复用部署密钥 `DATABASE_URL` 中的 PostgreSQL 连接，页面不提供新地址输入框；如需在网页中填写新地址，请保留 D1 绑定。Go 的 `database.json` 保存后优先于启动参数和环境变量，排查连接问题时请一并检查，并避免公开其中的地址。
 
-`credential_unconfigured`（503）表示当前服务没有安装凭据；正常用命令行启动 Go 时，未初始化环境会自动生成密钥，Worker 仍然要自己配置。`invalid_setup_credential`（401）表示输入不匹配。Go 重启后要看最新启动日志，不要沿用上一次的自动密钥。初始化完成后走登录页，初始化接口不会再次注册账号。
+`deployment_incomplete`（503）表示 Worker 尚未绑定数据库；`credential_unconfigured`（503）表示当前服务未配置初始化凭据；`invalid_setup_credential`（401）表示输入的凭据不匹配。Go 重启后需使用最新启动日志中的自动生成密钥。初始化完成后请前往 `/login` 登录，初始化接口不会创建第二个账号。
 
-数据库初始化错误按下面的方式处理，不要把含密码的连接地址贴到日志或截图里：
+数据库初始化错误按以下方式处理（请勿在日志或截图中暴露含密码的连接地址）：
 
 | 错误码 | 处理方式 |
 | --- | --- |
+| `deployment_incomplete` | 在 Worker 的 **Settings → Bindings** 中绑定 `DB`，或配置 `DATABASE_TYPE=postgres` 与 `DATABASE_URL` |
 | `invalid_database_type` | 重新加载页面，选择当前后端提供的数据库类型 |
-| `invalid_database_url` | 检查 PostgreSQL 地址、用户名、密码、数据库名和 TLS 参数 |
+| `invalid_database_url` | 检查 PostgreSQL 连接地址格式（如 `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`），确认包含用户名、密码和数据库名，密码特殊字符已做 URL 编码，且查询参数仅含支持的 `sslmode` |
 | `database_connection_failed` | 检查连接地址、数据库访问权限、网络和证书后重试 |
 | `database_initialization_failed` | 检查目标数据库的建表权限和已有结构；保留已有数据，不要清空后盲目重试 |
 | `database_configuration_failed` | 检查后端持久配置的读取、写入或解密条件，见[配置参考](configuration.md) |
-| `setup_in_progress` | 等正在进行的初始化结束，再重新加载会话；不要在多个标签页同时提交 |
+| `setup_in_progress` | 等待正在进行的初始化结束，再重新加载会话；不要在多个标签页同时提交 |
 
-Worker 初始化中断后，如果页面已经锁定数据库类型并显示使用已保存连接，用原管理员用户名和密码继续提交。目标账号可能已经写入，页面会接着做同一次初始化，不再让你换数据库。持有租约的进程中断时，最多等 10 分钟再重试；不要删 `pending` 控制记录。
+Worker 初始化中断后，若页面已锁定数据库类型并显示使用已保存连接，请使用原管理员用户名和密码继续提交。此时目标账号可能已写入，页面会继续完成同一次初始化，不再允许更换数据库。持有租约的进程中断时，最多等待 10 分钟后重试；请勿删除 `pending` 控制记录。
 
 ## 忘记管理密码
 
-账号设置里改密码仍要输入当前密码。如果只剩登录会话、密码已经忘记，这个表单无法恢复账号。
+账号设置中修改密码需要验证当前密码。若已忘记密码，无法通过设置表单恢复。
 
-Worker 的 D1 环境提供运维工具：
+手动部署的 Worker D1 环境可使用命令行工具重置：
 
 ```sh
 npm run user:list -- --remote
 npm run user:create -- --remote --username your-name --password 'a-new-strong-password'
 ```
 
-工具会给同名用户名更新密码并清除相应的锁定字段，也可能创建新账号。它默认使用 `backends/worker/wrangler.toml`；执行前确认指向的目标，并备份数据库。按钮部署环境不要假定它会读 `wrangler.jsonc`。密码参数会进入命令历史和进程参数，不要在共享终端或采集日志的环境里直接粘贴真实密码。
+该工具会为同名用户更新密码并清除登录锁定记录；若用户不存在则创建新账号。工具默认读取 `backends/worker/wrangler.toml`，执行前请确认目标账号与数据库并做好备份。Fork 部署和按钮部署的 `wrangler.jsonc` 不包含 `database_id`，如需使用该工具，请先在本地配置中填入目标 D1 的 `database_id`。命令行中的密码会留在终端历史中，请勿在共享终端或开启命令审计的环境中直接粘贴明文密码。
 
 这个工具不适用于 Worker PostgreSQL，也不适用于 Go 的 SQLite 或 PostgreSQL。Go 目前没有忘记密码恢复命令；`POLARIS_ADMIN_TOKEN` 是独立的管理凭据，代替不了账号表单要求的旧密码。不要靠清空业务数据库或重复初始化来恢复账号；先保留数据库备份，确认还有哪些管理凭据可用。
 

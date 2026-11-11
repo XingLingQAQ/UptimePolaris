@@ -17,16 +17,16 @@ Uptime Polaris 提供 Cloudflare Worker 和 Go 两种后端。两者用同一套
 | 主题文件 | R2 | 后端的持久化目录 |
 | 运行状态 | Worker 用量 | 运行时长、内存、协程与数据库类型 |
 
-不想自己维护服务器时选 Worker。需要直接探测内网、UDP 或更多协议时选 Go。ICMP 需要主机开放原始套接字权限；界面只列出当前后端或在线 Agent 能执行的检查类型。
+不想维护服务器时建议使用 Worker；需要直接探测内网服务、使用 UDP 或更多协议、或者需要更短的检查间隔时，请选择 Go。ICMP 需要主机开放原始套接字权限；界面只列出当前后端或在线 Agent 支持的检查类型。
 
-初始化时，Worker 提供 D1 或 PostgreSQL，Go 提供 SQLite 或 PostgreSQL；不做选择就沿用当前配置。新选 PostgreSQL 必须提供连接 URL。只有已部署的连接对应当前 PostgreSQL 时，URL 才能留空复用。Worker 在页面输入新 URL 时必须保留 D1 绑定，D1 用来保存加密的引导配置；没有 D1 的纯 PostgreSQL 部署只能复用预配置的 `DATABASE_URL`。初始化在目标库创建管理员和会话，之后的请求和重启继续使用该库。字段和错误码见[初始化数据库契约](api.md#初始化数据库契约)。
+初始化时，Worker 可选 D1 或 PostgreSQL，Go 可选 SQLite 或 PostgreSQL；不做选择则沿用当前配置。新选 PostgreSQL 必须填写连接地址，只有已部署的连接对应当前 PostgreSQL 时才能留空复用。Worker 如需在初始化页面填写新的 PostgreSQL 地址，必须保留 D1 绑定（D1 用于保存加密的引导配置）；未绑定 D1 的纯 PostgreSQL 部署只能复用预设的 `DATABASE_URL`。初始化完成后，管理员账号和会话保存在目标数据库中，后续请求和重启继续使用该数据库。字段和错误码见[初始化数据库契约](api.md#初始化数据库契约)。
 
 ## 部署
 
-- [Worker 部署](deployment.md)：在 Cloudflare 上运行。
-- [Go 安装与启动](../backends/go/README.md#安装与启动)：下载可执行文件，在自己的服务器上运行。
+- [Worker 部署](deployment.md)：在 Cloudflare Workers 上运行。
+- [Go 安装与启动](../backends/go/README.md#安装与启动)：下载可执行文件，在自有服务器上运行。
 
-两种后端都提供内置界面和 `/admin` 管理入口。Worker 的主题文件在 R2；Go 的主题文件在持久化数据目录。备份时把数据库和主题一起备份。
+两种后端都内置前端界面并提供 `/admin` 管理入口。Worker 的主题文件存放在 R2；Go 的主题文件存放在持久化数据目录。备份时请将数据库和主题目录一并备份。
 
 ## English
 

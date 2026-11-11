@@ -96,7 +96,7 @@ Go 在数据目录的 `database.json` 里保存初始化时的显式选库结果
 
 不要把一份完整结构导出反复导入已经初始化的库，也不要通过清空原库来测试恢复。D1 服务提供的恢复能力和可用时间窗口取决于账号和服务配置，要在部署时单独确认。
 
-Fork 部署和按钮部署的 `wrangler.jsonc` 不记录数据库 ID。恢复时先在 Worker 的 **Settings → Bindings** 中确认 `DB` 指向的数据库，再对这个数据库执行操作。不要沿用原手动部署的配置或数据库名。
+Fork 部署和按钮部署的 `wrangler.jsonc` 不记录 `database_id`。备份或恢复这类环境的 D1 时，先在 Cloudflare 控制台的 Worker **Settings → Bindings** 中查看 `DB` 绑定的数据库名称，再用 `npx wrangler d1 export <数据库名> --remote --output .secrets/d1-backup.sql`（恢复时用 `wrangler d1 execute <数据库名> --remote --file ...`）操作对应数据库。不要沿用手动部署的配置或数据库名。
 
 ## 切换数据库后端
 

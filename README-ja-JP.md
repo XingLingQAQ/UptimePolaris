@@ -8,8 +8,6 @@
 
 <p align="center"><strong>HTTP/TCP チェック、Push ハートビート、ホスト指標</strong><br>Cloudflare Worker またはセルフホストの Go サーバーで動作します。</p>
 
-Worker は D1 / PostgreSQL、Go は SQLite / PostgreSQL に対応し、フロントエンドは共通です。[Go の起動手順](backends/go/README.md)。
-
 <p align="center">
   <a href="README.md">English</a> · <a href="README-zh-CN.md">简体中文</a> · <a href="README-zh-TW.md">繁體中文（台灣）</a> · <a href="README-zh-HK.md">繁體中文（香港）</a> · <strong>日本語</strong> · <a href="README-ko-KR.md">한국어</a> · <a href="README-fr-FR.md">Français</a> · <a href="README-pt-BR.md">Português (Brasil)</a> · <a href="README-ru-RU.md">Русский</a>
 </p>
@@ -23,78 +21,98 @@ Worker は D1 / PostgreSQL、Go は SQLite / PostgreSQL に対応し、フロン
 </p>
 
 <p align="center">
-  <a href="#クイックスタート">クイックスタート</a> · <a href="#cloudflare-へのデプロイ">デプロイ</a> · <a href="#deploy-go">Go のデプロイ</a> · <a href="#ホストの監視">Agent</a> · <a href="#ドキュメント">ドキュメント</a>
+  <a href="#クイックスタート">クイックスタート</a> · <a href="#cloudflare-へのデプロイ">デプロイ</a> · <a href="#deploy-go">Go のデプロイ</a> ·
+  <a href="#ホストの監視">Agent</a> ·
+  <a href="#ドキュメント">ドキュメント</a>
 </p>
 
-Uptime Polaris は、公開ステータスページ、管理コンソール、スケジュール監視を 1 つのアプリケーションにまとめたものです。HTTP/TCP チェックを実行し、Push ハートビートを受け取り、`polaris-agent` でホスト指標を収集し、監視の状態が変わると通知を送ります。
+Uptime Polaris は、Web サイトとポートを定期的にチェックし、スケジュールタスクからのハートビートを受け取り、サーバーの CPU、メモリ、ディスク指標を収集し、監視の状態が変わると通知を送ります。公開ステータスページと管理コンソールが付属します。
 
 ## バックエンドを選ぶ
 
-デプロイごとにどちらか一方を使います。Go は Cloudflare アカウント、D1、R2 が不要です。
+デプロイごとにどちらか一方を使います。どちらも同じ画面を提供します。
 
-保存：Worker は D1 または PostgreSQL を使い、テーマ資産は R2 に置きます。Go は SQLite または PostgreSQL を使い、データとテーマをデータディレクトリに保存します。プローブ：Go は UDP、ICMP、DNS、TLS、WebSocket を直接実行できます。Worker はこれらを直接実行できず、UDP と ICMP はオンライン Agent に任せます。
+| | Cloudflare Worker | Go |
+| --- | --- | --- |
+| 実行環境 | Cloudflare | 自前のサーバーまたはコンテナ |
+| データベース | D1 または PostgreSQL | SQLite または PostgreSQL |
+| 直接プローブ | HTTP、TCP（UDP、ICMP は Agent 経由） | HTTP、TCP、UDP、ICMP、DNS、TLS、WebSocket |
+| 最短チェック間隔 | 60 秒 | 5 秒 |
+| テーマファイル | R2（任意） | データディレクトリ |
 
-[バックエンドの比較と起動方法](docs/backends.md)
+サーバーを保守したくない場合は Worker を使用してください。内部ネットワークのプローブ、より多くのプロトコル、短いチェック間隔が必要な場合は Go を選びます。詳しくは[バックエンドの比較](docs/backends.md)を参照してください。
 
-## 主な機能
+## 機能
 
 <p align="center">
   <img src="assets/readme/check.svg" width="24" height="24" alt="サービスチェックのアイコン"><br>
   <strong>サービスチェックとハートビート</strong><br>
-  HTTP と TCP のチェックに加え、レスポンス、証明書、ドメイン、DNS の判定を設定できます。Push 監視は定期ジョブからのハートビートを受け取ります。
+  HTTP と TCP のチェックに加え、レスポンス内容、証明書、ドメイン有効期限、DNS の判定を設定できます。Push 監視は cron やバックアップスクリプト向けで、設定時間を超えてハートビートが届かないと異常と判定します。
 </p>
 
 <p align="center">
   <img src="assets/readme/host.svg" width="24" height="24" alt="ホスト監視のアイコン"><br>
-  <strong>ホスト指標とプローブ</strong><br>
-  <code>polaris-agent</code> が CPU、メモリ、ディスク、ネットワーク指標を送信します。ホストから HTTP/TCP チェックを実行することもできます。
+  <strong>サーバー監視</strong><br>
+  <code>polaris-agent</code> が CPU、メモリ、ディスク、負荷、ネットワーク指標を送信します。ホストから HTTP/TCP チェックを実行し、内部サービスをプローブすることもできます。
 </p>
 
 <p align="center">
   <img src="assets/readme/bell.svg" width="24" height="24" alt="状態通知のアイコン"><br>
   <strong>ステータスページと通知</strong><br>
-  公開ページには現在の状態とイベント履歴が表示されます。表示範囲と通知先はグループ、メンテナンス期間、通知チャネルで決まります。
+  ステータスページには現在の状態とイベント履歴が表示され、グループとメンテナンス期間に対応します。通知先は Telegram、Feishu、Slack、Discord、Webhook、Apprise、Server酱 で、チャネルごとに担当する監視グループを限定できます。
 </p>
 
 <p align="center">
   <img src="assets/readme/layers.svg" width="24" height="24" alt="ストレージとテーマのアイコン"><br>
   <strong>ストレージとテーマ</strong><br>
-  Worker はデータを D1 または PostgreSQL、テーマ資産を R2 に保存します。Go はデータを SQLite または PostgreSQL、テーマをデータディレクトリに保存します。
+  Worker はデータを D1 または PostgreSQL、テーマを R2 に保存します。Go はデータを SQLite または PostgreSQL、テーマをデータディレクトリに保存します。
 </p>
-
-Push 監視はレイテンシを測定せず、公開されるレイテンシは `null` です。各バックエンドで使えるプローブは[バックエンドの比較](docs/backends.md)にあります。設定と制限は[利用ガイド](docs/usage.md)を参照してください。
 
 ## クイックスタート
 
-バックエンドを選び、対応するガイドに従ってデプロイします。`/setup` で管理者を作成し、`/admin` で最初の監視を追加してください。
-
-### Cloudflare Worker
-
-[Cloudflare へのデプロイ](#cloudflare-へのデプロイ)
-
-### Go
-
-Go の実行ファイルには Web 画面が含まれます。Releases から OS に合うファイルを取得し、[Go ガイド](backends/go/README.md#english)に従って起動してください。
+1. [Cloudflare](#cloudflare-へのデプロイ)または[自前のサーバー](#deploy-go)へデプロイします。
+2. サイトの `/setup` を開きます。Worker はバインディングとシークレットを先に確認し、Go は起動ログの初期設定キーを入力します。
+3. 管理者アカウントを作成し、`/admin` で監視を追加します。
 
 ## Cloudflare へのデプロイ
 
-[![Cloudflare にデプロイ](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris)
+1. このリポジトリを Fork します。
+2. Cloudflare ダッシュボードで **Workers & Pages → Create application → GitHub** を開き、fork したリポジトリを選択します。ビルドコマンドに `npm run build`、デプロイコマンドに `npm run deploy` を設定します。
+3. デプロイ後にサイトを開きます。初期設定ページがバインディングとシークレットを確認するので、Worker の **Settings** で以下を設定します。
+   - **Bindings**: 変数名 `DB` で D1 データベースを追加します。サードパーティのテーマを使う場合は変数名 `THEMES` で R2 バケットを追加し、生データとバックフィルが必要な場合は Analytics Engine を有効にして変数名 `UPTIME` でデータセットを追加します。
+   - **Variables and Secrets**: Secret `ADMIN_TOKEN` を追加し、十分に長いランダムな値（例: `openssl rand -hex 32` の出力）を設定します。
+4. 初期設定ページで「再確認」を押し、次へ進んで `ADMIN_TOKEN` を入力し、管理者アカウントを作成します。
 
-ボタンはリポジトリをフォークし、デプロイを開始します。Worker とデータベースに新しい名前を付け、`ADMIN_TOKEN` に長いランダム値を設定して Worker Secret に保存してください。データベース ID がない場合は、Cloudflare で D1 データベースを見つけるか作成し、フォークした `wrangler.jsonc` の `database_id` プレースホルダーを実際の ID に置き換えて再デプロイします。手順は[デプロイガイド](docs/deployment.md#通过-cloudflare-按钮部署)にあります。
+更新は GitHub の Sync fork だけで完了します。Workers Builds が自動で再デプロイし、ダッシュボードで追加したバインディングも保持されます。
 
-ボタン用テンプレートがバインドするのは D1、静的アセット、スケジュールだけです。R2 テーマと Analytics Engine は含まれません。Agent のインストールには GitHub Release のダウンロード先へアクセスできる必要があります。
+下のボタンでもデプロイできます。ボタンによるデプロイは GitHub アカウントに新しいリポジトリを作成するため（fork ではないので Sync fork で更新できません）、データベースとシークレットは初期設定ページの案内に従って設定してください。
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris)
+
+コマンドラインでのデプロイと PostgreSQL の設定は[デプロイガイド](docs/deployment.md)を参照してください。
 
 <a id="deploy-go"></a>
 
 ## Go バックエンドのデプロイ
 
-プロジェクトの [Releases](https://github.com/XingLingQAQ/UptimePolaris/releases) から OS に合うファイルを取得し、[Go インストールガイド](backends/go/README.md#install-and-start)に従って起動します。Web 画面はバイナリに含まれます。データディレクトリは永続化し、アクセス権を制限してください。バックアップはデータベースを含めてディレクトリごと取得します。
+[Releases](https://github.com/XingLingQAQ/UptimePolaris/releases) から OS とアーキテクチャに合うファイルを取得し、`polaris`（Windows では `polaris.exe`）に名前を変更して起動します。
+
+```sh
+chmod +x polaris   # Linux / macOS
+./polaris --data-dir ./data
+```
+
+```powershell
+.\polaris.exe --data-dir .\data
+```
+
+既定では `127.0.0.1:8080` で待ち受けます。外部からアクセスする場合は `--addr` を変更するか、リバースプロキシを設定してください。データはすべて `./data` に保存されるため、このディレクトリを永続化し、アクセス権を制限し、定期的にバックアップしてください。詳しい設定は [Go バックエンドの説明](backends/go/README.md#install-and-start)を参照してください。
 
 ## ホストの監視
 
-コンソールの Agent ページでマシンを作成し、プラットフォームとインストールモードを選び、生成されたコマンドを対象マシンで実行します。インストーラーはそのプラットフォームの最新安定版をダウンロードします。
+管理コンソールの Agent ページでマシンを追加し、プラットフォームとインストール方法を選び、生成されたコマンドを対象マシンで実行します。対象マシンは GitHub にアクセスできる必要があります。
 
-インストーラーは `polaris-agent` サービスと `pa` コマンドを登録します。どちらも同じプログラム、設定、サービスを操作します。
+インストール後は `pa`（`polaris-agent` の短縮コマンド）でサービスを管理できます。
 
 ```sh
 pa status
@@ -102,29 +120,31 @@ pa restart
 pa logs -f
 ```
 
-`pa start`、`stop`、`restart` にはサービスマネージャーが必要です。手動インストールではフォアグラウンドで実行します。`pa logs` はインストールが作成したログファイルを読みます。インストールコマンドには現在のサイトのプロトコル、ドメイン、ポートが入るため、長く使う予定のアドレスから生成してください。インストールモード、プラットフォームの制限、設定、更新、削除は [Agent ガイド](docs/agents.md)にあります。
+- インストールコマンドにはサイトのアドレスとそのマシンの Token が含まれます。本番ドメインで生成し、公開しないでください。
+- マシンを追加しても監視は作成されません。オンライン状態やリソースしきい値を監視するには、監視ページで Agent タイプの監視を追加してください。
+- 手動インストールにはサービスマネージャーがないため、`pa start`、`stop`、`restart` は使用できません。
+
+詳しくは [Agent ガイド](docs/agents.md)を参照してください。
 
 ## 利用と公開情報
 
-公開ステータスページは匿名で閲覧できます。監視を追加する前に、名前、対象パス、ホスト名、内部アドレスに機密情報がないことを確認してください。公開 API は認証情報を除去しますが、名前やパスに機密情報が含まれていないかは検査しません。詳しくは[公開データの説明](docs/usage.md#公开数据)を参照してください。
-
-通知チャネルは Telegram、Feishu、Slack、Discord、Webhook、Apprise、Server酱です。チャネルは監視グループ単位で範囲を限定できます。設定と配信のトラブルシューティングは[通知ガイド](docs/notifications.md)にあります。
+ステータスページはログインなしで閲覧できます。監視名、対象パス、ホスト名は公開ページや公開 API に表示されることがあるため、内部アドレスやシークレットを記載しないでください。詳細は[公開データ](docs/usage.md#公开数据)と[通知ガイド](docs/notifications.md)を参照してください。
 
 ## ドキュメント
 
-| 目的 | ドキュメント |
+| ドキュメント | 内容 |
 | --- | --- |
-| サイトのデプロイ、ドメインまたは PostgreSQL の設定 | [デプロイガイド](docs/deployment.md) |
-| バックエンドの比較 | [Worker / Go](docs/backends.md#english) · [Go](backends/go/README.md#english) |
-| 監視の作成、状態と公開データの確認 | [利用ガイド](docs/usage.md) |
-| ホスト Agent のインストールと管理 | [Agent ガイド](docs/agents.md) |
-| バインディング、環境変数、管理画面の設定 | [設定リファレンス](docs/configuration.md) |
-| 通知チャネルと対象範囲の設定 | [通知ガイド](docs/notifications.md) |
-| ステータスページのテーマのインストールまたは設定 | [テーマガイド](docs/themes.md#english) |
-| API の利用または Push の連携 | [API リファレンス](docs/api.md) |
-| バックアップ、アップグレード、トラブルシューティング | [運用ガイド](docs/operations.md) · [よくある質問](docs/troubleshooting.md) |
-
-全体の索引：[docs/README.md](docs/README.md)。
+| [バックエンドの比較](docs/backends.md) | Worker と Go の違い |
+| [デプロイガイド](docs/deployment.md) | Fork、ボタン、手動デプロイ、ドメイン、PostgreSQL、D1 から PostgreSQL への移行 |
+| [Go バックエンド](backends/go/README.md) | 起動オプション、環境変数、SQLite から PostgreSQL への移行 |
+| [利用ガイド](docs/usage.md) | 監視設定、Push、状態と可用性 |
+| [Agent ガイド](docs/agents.md) | インストール、管理、設定、更新、アンインストール |
+| [通知ガイド](docs/notifications.md) | チャネル設定、グループ範囲、配信記録 |
+| [テーマガイド](docs/themes.md) | インストール、設定、プレビュー |
+| [設定リファレンス](docs/configuration.md) | バインディング、環境変数、コンソール設定 |
+| [API リファレンス](docs/api.md) | エンドポイント、認証、例 |
+| [運用ガイド](docs/operations.md) | バックアップ、復旧、アップグレード、データ保持 |
+| [よくある質問](docs/troubleshooting.md) | 症状別のトラブルシューティング |
 
 ## ライセンス
 

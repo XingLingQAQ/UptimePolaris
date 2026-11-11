@@ -41,7 +41,18 @@ Content-Type: application/json
 
 ### 初始化数据库契约
 
-`GET /api/auth/session` 在 `needsSetup` 为 `true` 时返回 `setupDatabase`，否则该字段为 `null`。响应不包含数据库连接 URL。
+`GET /api/auth/session` 在 `needsSetup` 为 `true` 时返回 `setupDatabase`（Worker 未绑定任何数据库时为 `null`）；初始化完成后该字段为 `null`。响应从不包含数据库连接 URL。
+
+Worker 在 `needsSetup` 为 `true` 时还会返回 `setupRequirements` 数组（初始化完成后为 `null`，Go 后端不返回该字段），每项为 `{ key, required, ok }`：
+
+| `key` | `required` | 含义 |
+| --- | --- | --- |
+| `database` | `true` | 已绑定 `DB`（D1），或已配置 `DATABASE_TYPE=postgres` 与 `DATABASE_URL` |
+| `adminToken` | `true` | 已配置 `ADMIN_TOKEN` |
+| `themes` | `false` | 已绑定 `THEMES`（R2 主题存储） |
+| `analytics` | `false` | 已绑定 `UPTIME`（Analytics Engine） |
+
+Worker 尚未配置数据库时，除 `/setup`、静态资源、`/api/auth/session`、`/api/capabilities` 和 `/api/public/icon` 外，页面请求重定向到 `/setup`，业务 API 与 `POST /api/auth/setup` 返回 503 `deployment_incomplete`。
 
 | `setupDatabase` 字段 | 类型 | 含义 |
 | --- | --- | --- |
@@ -50,7 +61,7 @@ Content-Type: application/json
 | `postgresConfigured` | `boolean` | 当前 PostgreSQL 连接是否可供复用，不包含连接地址 |
 | `postgresUrlEditable` | `boolean` | 是否允许提交新的 PostgreSQL URL；Go 为 `true`，Worker 有 D1 且没有待完成初始化时为 `true`，无 D1 或待完成时为 `false` |
 
-`POST /api/auth/setup` 接受 `credential`、`username`、`password` 和可选的 `database` 对象：`type` 是上面列出的数据库类型之一，`url` 是可选的 PostgreSQL 连接地址。省略 `database` 就沿用当前后端配置。选择 PostgreSQL 时，留空可以复用已部署的当前 PostgreSQL 连接；Worker 恢复待完成初始化时，也可以复用已保存的目标连接。新选 PostgreSQL 必须填 URL，而且 `postgresUrlEditable` 必须为 `true`。没有 D1 绑定的 Worker 只能复用部署预设的 `DATABASE_TYPE=postgres` 和 `DATABASE_URL`，不能在页面指定新 URL。有 D1 绑定的 Worker 会把选中的 PostgreSQL URL 加密保存在 D1 控制记录里，业务数据仍放在目标 PostgreSQL。成功时，同一个请求在目标库创建管理员和会话，之后的业务请求和服务重启继续使用目标库。
+`POST /api/auth/setup` 接受 `credential`、`username`、`password` 和可选的 `database` 对象：`type` 是上面列出的数据库类型之一，`url` 是可选的 PostgreSQL 连接地址（例如 `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`）。省略 `database` 就沿用当前后端配置。选择 PostgreSQL 时，留空可以复用已部署的当前 PostgreSQL 连接；Worker 恢复待完成初始化时，也可以复用已保存的目标连接。新选 PostgreSQL 必须填 URL，而且 `postgresUrlEditable` 必须为 `true`。没有 D1 绑定的 Worker 只能复用部署预设的 `DATABASE_TYPE=postgres` 和 `DATABASE_URL`，不能在页面指定新 URL。有 D1 绑定的 Worker 会把选中的 PostgreSQL URL 加密保存在 D1 控制记录里，业务数据仍放在目标 PostgreSQL。成功时，同一个请求在目标库创建管理员和会话，之后的业务请求和服务重启继续使用目标库。
 
 Worker 有待完成的初始化时，会锁定已选类型。PostgreSQL 目标返回 `postgresConfigured: true` 和 `postgresUrlEditable: false`，使用已保存的连接，不必先连上 PostgreSQL 就能读会话状态。其他业务在 pending 期间停用。续接时提交原初始化账号和密码；进程中断后，租约最多持续 10 分钟。
 
@@ -58,6 +69,8 @@ Worker 有待完成的初始化时，会锁定已选类型。PostgreSQL 目标�
 | --- | --- | --- |
 | 400 | `invalid_database_type` | 按当前后端支持的类型重新选择 |
 | 400 | `invalid_database_url` | 检查 PostgreSQL URL |
+| 503 | `deployment_incomplete` | Worker 尚未绑定 `DB`（D1）或配置 PostgreSQL 环境变量，先在控制台完成绑定 |
+| 503 | `credential_unconfigured` | 尚未配置初始化凭据（Worker 的 `ADMIN_TOKEN` 或 Go 的 `POLARIS_SETUP_KEY`） |
 | 503 | `database_connection_failed` | 检查数据库连接与访问条件 |
 | 503 | `database_initialization_failed` | 检查目标数据库初始化条件 |
 | 503 | `database_configuration_failed` | 检查部署侧数据库配置 |

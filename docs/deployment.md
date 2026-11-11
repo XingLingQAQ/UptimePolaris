@@ -153,15 +153,22 @@ Fork 部署和按钮部署的 D1 由 Worker 在请求时建表并应用迁移，
 
 ### 完成初始化
 
-打开部署地址，进入 `/setup`。Worker 会先显示部署检查，必需项全部通过后才进入下面的表单：
+打开站点地址，进入 `/setup`：
 
-1. 输入刚配置的 `ADMIN_TOKEN` 作为安装凭据。
-2. 设置用户名和密码。
-3. 初始化完成后进入控制台，之后从 `/login` 登录。
+1. **Worker 部署检查（仅 Worker）**：页面先列出数据库、`ADMIN_TOKEN`、R2（可选）和 Analytics Engine（可选）的配置状态。未通过的必需项会说明在 Cloudflare 控制台的配置位置。配置保存后点击“重新检查”，必需项全部通过后点击“下一步”。Go 后端无此步骤，直接显示初始化表单。
+2. 输入初始化凭据（Worker 为 `ADMIN_TOKEN`，Go 为 `POLARIS_SETUP_KEY` 或启动日志中的自动生成密钥）。
+3. 选择数据库（如需修改），设置管理员用户名和密码。
+4. 创建完成后进入 `/admin` 控制台，后续从 `/login` 登录。
 
-用户名为 2–32 个字母、数字或 `._-`，会统一转成小写；密码至少 8 位。没有公开注册入口，初始化完成后不能再用初始化接口创建账号。Worker 在部署检查中提示缺少的 `ADMIN_TOKEN`；Go 后端没有配置初始化密钥时，页面会提示缺少配置。
+用户名为 2–32 个字母、数字或 `._-`，会统一转为小写；密码至少 8 位。系统不开放公开注册，初始化完成后无法再通过初始化接口创建账号。
 
-初始化时，Worker 可选 D1 或 PostgreSQL，Go 可选 SQLite 或 PostgreSQL。新选 PostgreSQL 要填连接 URL；只有已部署的连接对应当前 PostgreSQL 时才能留空复用。不做选择就沿用当前后端配置。Worker 要在页面填新的 PostgreSQL URL，必须保留 D1 绑定：D1 保存引导选择和加密 URL，业务数据在 PostgreSQL。没有 D1 的纯 PostgreSQL 部署必须预设 `DATABASE_TYPE=postgres` 和 `DATABASE_URL`，初始化复用这个连接，页面不能换 URL。成功后管理员和会话建在目标库，后续请求和重启继续用它。不要把连接 URL 放进截图或公开日志。字段和错误码见 [API 初始化契约](api.md#初始化数据库契约)。
+初始化时，Worker 可选 D1 或 PostgreSQL，Go 可选 SQLite 或 PostgreSQL。新选 PostgreSQL 需填写连接 URL，格式示例：
+
+```text
+postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full
+```
+
+只有已部署的连接对应当前 PostgreSQL 时才能留空复用，不做选择则沿用当前后端配置。Worker 如需在页面填写新的 PostgreSQL URL，必须保留 D1 绑定（D1 用于保存引导选择和加密 URL，业务数据存放在 PostgreSQL）。未绑定 D1 的纯 PostgreSQL 部署必须预设 `DATABASE_TYPE=postgres` 和 `DATABASE_URL`，初始化只能复用该连接，无法在页面更换 URL。初始化成功后，管理员和会话保存在目标库中，后续请求和重启继续使用该数据库。请勿在截图或公开日志中暴露连接 URL。字段和错误码见 [API 初始化契约](api.md#初始化数据库契约)。
 
 ## 域名与代理
 
@@ -173,9 +180,15 @@ Fork 部署和按钮部署的 D1 由 Worker 在请求时建表并应用迁移，
 
 ## 使用 PostgreSQL
 
-1. 准备 Worker 能连接的 PostgreSQL 数据库和访问凭据。
-2. 在两份配置里设置 `DATABASE_TYPE` 为 `postgres`，保留 `nodejs_compat`。
-3. 把 `DATABASE_URL` 放进密钥。
+1. 准备 Worker 能连接的 PostgreSQL 数据库和访问凭据。连接 URL 示例：
+
+   ```text
+   postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full
+   ```
+
+   URL 需使用 `postgres://` 或 `postgresql://` 协议，包含用户名、密码、主机名和数据库名（Worker 侧还要求密码非空且主机为公网可达域名/IP）；查询参数仅支持 `sslmode`（`verify-full` 或 `require`，省略时自动按 `verify-full` 处理）。密码中包含 `@`、`:`、`/`、`?`、`#` 等特殊字符时需先做百分号编码（URL 编码）。
+2. 在配置中将 `DATABASE_TYPE` 设为 `postgres`，保留 `nodejs_compat`。
+3. 将 `DATABASE_URL` 保存为 Worker Secret。
 4. 首次初始化空 PostgreSQL 时，打开 `/setup` 创建管理员；初始化会自动建表。已有数据库缺迁移时，在能连接目标库的终端里设置同一个 `DATABASE_URL`，执行迁移：
 
 ```sh
@@ -190,7 +203,7 @@ npm run db:migrate:postgres
 
 后台的“设置 → 迁移到 PostgreSQL”可将当前 D1 的表数据复制到远程 PostgreSQL。复制完成后应用仍然用 D1，数据库配置要另外切换。
 
-1. 备份当前 D1 数据库和 PostgreSQL 目标库。准备一个专供本次迁移的 PostgreSQL 数据库，连接地址要包含用户名、密码和数据库名，并支持通过 TLS 验证证书。目标 schema 应为空；也可用已按当前版本初始化、但没有业务数据的库。迁移期间目标库必须独占，不允许其他进程写入或创建对象。
+1. 备份当前 D1 数据库和 PostgreSQL 目标库。准备一个专供本次迁移的 PostgreSQL 数据库，连接地址格式如 `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`（需包含用户名、密码和数据库名，并支持通过 TLS 验证证书）。目标 schema 应为空；也可用已按当前版本初始化、但没有业务数据的库。迁移期间目标库必须独占，不允许其他进程写入或创建对象。
 2. 暂停所有写 D1 的操作：定时检查、Push、Agent 上报、管理修改都算。管理员仍要能访问设置页。从开始迁移到切换完成，源库一直保持停写。页面检测不到所有源数据变化，复制完成后的写入也不会同步。
 3. 进入后台“设置 → 迁移到 PostgreSQL”，填目标连接地址，点“检查数据库”。页面会显示各表行数，并说明目标库是否需要初始化。全空目标库会在执行复制时初始化；有其他对象或已有业务数据的目标库会被拒绝。
 4. 确认停写、目标库也准备好了，勾选确认并开始迁移。建表和数据复制在目标库的事务里执行；迁移不会覆盖目标库已有的业务数据。
@@ -293,7 +306,7 @@ Open `/setup`. The Worker shows the deployment check first and moves on to the f
 
 Worker setup offers D1 or PostgreSQL; Go offers SQLite or PostgreSQL. A new PostgreSQL selection requires its URL. A blank URL reuses the deployed connection only if it corresponds to the current PostgreSQL database. Omitting the selection keeps the current configuration. To enter a new PostgreSQL URL in Worker setup, retain the D1 binding: D1 stores the bootstrap selection and encrypted URL, while business data remains in PostgreSQL. A PostgreSQL-only Worker without D1 must be deployed with `DATABASE_TYPE=postgres` and `DATABASE_URL`; setup reuses that connection and cannot replace the URL. Successful setup creates the administrator and session in the target, which remains active for later requests and restarts. Keep connection URLs out of screenshots and public logs. See the [setup API contract](api.md#setup-database-contract).
 
-For Worker PostgreSQL, set `DATABASE_TYPE=postgres` in both manual configuration files, retain `nodejs_compat`, and provide `DATABASE_URL` as a secret. Initial setup of an empty PostgreSQL database creates its schema automatically. For an existing database with outstanding migrations, run `npm run db:migrate:postgres` from a terminal with access to the target and the same URL. The tool executes the PostgreSQL schema files transactionally and records them; it does not infer an existing untracked schema. D1-only tools such as `db:init` and `user:create` do not operate on PostgreSQL. A PostgreSQL-only Worker with a preconfigured URL can omit D1 and reuse that connection in setup; retain D1 for a URL entered through the page.
+For Worker PostgreSQL, set `DATABASE_TYPE=postgres` in the configuration, retain `nodejs_compat`, and provide `DATABASE_URL` as a secret in the form `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full` (percent-encode special characters in the password; only `sslmode=verify-full` or `sslmode=require` is accepted in the query string). Initial setup of an empty PostgreSQL database creates its schema automatically. For an existing database with outstanding migrations, run `npm run db:migrate:postgres` from a terminal with access to the target and the same URL. The tool executes the PostgreSQL schema files transactionally and records them; it does not infer an existing untracked schema. D1-only tools such as `db:init` and `user:create` do not operate on PostgreSQL. A PostgreSQL-only Worker with a preconfigured URL can omit D1 and reuse that connection in setup; retain D1 for a URL entered through the page.
 
 To copy D1 data to PostgreSQL, use Settings → Migrate to PostgreSQL. Back up both databases first. The target must be empty or initialized to this version without business data, and exclusively owned by the migration. Stop all source writes, including scheduled checks, Push, Agent reports and administration, from the start of migration until cutover. Preview, confirm and copy, then inspect the result while keeping the source stopped. With default D1 setup and no active override, configure `DATABASE_TYPE` and `DATABASE_URL`, deploy and validate the target before resuming traffic and writes.
 

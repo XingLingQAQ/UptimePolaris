@@ -78,21 +78,19 @@ Uptime Polaris 定时检查网站和端口，接收定时任务发送的心跳�
 ## 部署到 Cloudflare
 
 1. Fork 本仓库。
-2. 进入 **Workers & Pages → Create application → GitHub**，选择 fork 后的仓库。构建命令填写 `npm run build`，部署命令填写 `npm run deploy`。
-3. 部署完成后打开站点，初始化页面会先检查部署。按页面提示完成以下配置：
-   - 在 Worker 的 **Settings → Bindings** 中添加 D1 数据库，变量名填写 `DB`。
-   - 在 **Settings → Variables and Secrets** 中添加 Secret `ADMIN_TOKEN`，值使用足够长的随机字符串，例如 `openssl rand -hex 32` 的输出。
-4. 检查通过后，输入 `ADMIN_TOKEN` 并创建管理员账号。
+2. 在 Cloudflare 控制台打开 **Workers & Pages → Create application → GitHub**，选择 fork 后的仓库。构建命令填写 `npm run build`，部署命令填写 `npm run deploy`。
+3. 部署完成后打开站点，初始化页面会先检查绑定和密钥。请按页面提示在 Worker 的 **Settings** 中配置：
+   - **Bindings**：添加 D1 数据库，变量名填 `DB`。如需安装第三方主题，可再添加 R2 存储桶（变量名 `THEMES`）；如需原始观测与回填，可在启用 Analytics Engine 后添加数据集（变量名 `UPTIME`）。
+   - **Variables and Secrets**：添加 Secret `ADMIN_TOKEN`，值使用足够长的随机字符串，例如 `openssl rand -hex 32` 的输出。
+4. 在初始化页面点击“重新检查”，通过后进入下一步，输入 `ADMIN_TOKEN` 创建管理员账号。
 
-R2 主题存储（变量名 `THEMES`）和 Analytics Engine（变量名 `UPTIME`）为可选项，同样在 **Settings → Bindings** 中添加。
+后续升级只需在 GitHub 上执行 Sync fork，Workers Builds 会自动重新部署，并保留控制台中已添加的绑定。
 
-升级时，在 GitHub 上执行 Sync fork，Workers Builds 会自动重新部署，控制台中添加的绑定会保留。
-
-也可以通过下方按钮部署。按钮部署生成的仓库不是 fork，之后无法直接通过 Sync fork 同步更新；数据库同样需要按初始化页面的提示绑定。
+也可以通过下方按钮部署。按钮部署会在你的 GitHub 账号下新建一个仓库（不是 fork，后续无法通过 Sync fork 同步更新），数据库和密钥同样按初始化页面的提示配置：
 
 [![部署到 Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris)
 
-命令行部署见[部署指南](docs/deployment.md)。
+命令行部署与 PostgreSQL 配置见[部署指南](docs/deployment.md)。
 
 <a id="deploy-go"></a>
 

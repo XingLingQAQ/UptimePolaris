@@ -27,84 +27,93 @@
   <a href="#documentation">Documentation</a>
 </p>
 
-Uptime Polaris provides a public status page, an admin console, and scheduled monitoring in one application. It runs HTTP and TCP checks, receives Push heartbeats, collects host metrics through `polaris-agent`, and sends notifications when a monitor changes state.
+Uptime Polaris checks sites and ports on a schedule, receives heartbeats from scheduled jobs, collects CPU, memory, and disk metrics from servers, and sends a notification when a monitor changes state. The public status page and admin console are built in.
 
-## What it does
+## Choose a backend
+
+Pick one backend per deployment. Both serve the same interface.
+
+| | Cloudflare Worker | Go |
+| --- | --- | --- |
+| Runs on | Cloudflare | Your server or container |
+| Database | D1 or PostgreSQL | SQLite or PostgreSQL |
+| Direct probes | HTTP, TCP (UDP and ICMP through an Agent) | HTTP, TCP, UDP, ICMP, DNS, TLS, WebSocket |
+| Minimum interval | 60 seconds | 5 seconds |
+| Theme files | R2 (optional) | Data directory |
+
+Use Worker when you do not want to maintain a server. Choose Go for private-network probes, more protocols, or shorter intervals. See [backend options](docs/backends.md) for details.
+
+## Features
 
 <p align="center">
   <img src="assets/readme/check.svg" width="24" height="24" alt="Service check icon"><br>
   <strong>Service checks and heartbeats</strong><br>
-  HTTP and TCP checks, plus response, certificate, domain, and DNS assertions. Push monitors accept heartbeats from scheduled jobs and do not measure latency.
+  HTTP and TCP checks with optional response, certificate, domain expiry, and DNS assertions. Push monitors suit cron jobs and backup scripts: a missed heartbeat past the timeout marks the monitor down.
 </p>
 
 <p align="center">
   <img src="assets/readme/host.svg" width="24" height="24" alt="Host monitoring icon"><br>
-  <strong>Host metrics and probes</strong><br>
-  <code>polaris-agent</code> reports CPU, memory, disk, and network metrics. It can also run HTTP and TCP checks from the host.
+  <strong>Server monitoring</strong><br>
+  <code>polaris-agent</code> reports CPU, memory, disk, load, and network metrics. It can also run HTTP and TCP checks from its host to reach internal services.
 </p>
 
 <p align="center">
   <img src="assets/readme/bell.svg" width="24" height="24" alt="Status notification icon"><br>
   <strong>Status page and notifications</strong><br>
-  The public page shows current state and event history. Groups, maintenance windows, and channels decide what is shown and who is notified.
+  The status page shows current state and event history, with groups and maintenance windows. Notifications go to Telegram, Feishu, Slack, Discord, Webhook, Apprise, and ServerChan, and each channel can be limited to monitor groups.
 </p>
 
 <p align="center">
   <img src="assets/readme/layers.svg" width="24" height="24" alt="Storage and themes icon"><br>
   <strong>Storage and themes</strong><br>
-  Worker stores data in D1 or PostgreSQL and theme assets in R2. Go uses SQLite or PostgreSQL and keeps themes in its data directory.
+  Worker stores data in D1 or PostgreSQL and themes in R2; Go uses SQLite or PostgreSQL and keeps themes in its data directory.
 </p>
-
-## Choose a backend
-
-Pick one backend per deployment. Go runs without a Cloudflare account, D1, or R2.
-
-Both backends serve the same frontend and admin interface.
-
-| | Cloudflare Worker | Go backend |
-| --- | --- | --- |
-| Run on | Cloudflare | Your server or container |
-| Database | D1 / PostgreSQL | SQLite / PostgreSQL |
-| Native probes | HTTP / TCP | HTTP / TCP / UDP / ICMP / DNS / TLS / WebSocket |
-| Agent probes | Supported | Supported |
-| Theme assets | Optional R2 bucket | Data directory |
-| Minimum interval | 60 seconds | 5 seconds |
-
-Worker cannot run native UDP, ICMP, DNS, TLS, or WebSocket probes; it can use an online Agent for UDP and ICMP. Go runs those protocols directly, and ICMP only when the process can open raw sockets. The console offers the probe types supported by the active backend and by online Agents.
-
-See [backend options](docs/backends.md#english) and the [Go backend guide](backends/go/README.md#english).
 
 ## Quick start
 
-Pick a backend and follow its deployment guide. Open `/setup`, create an admin account, and add the first monitor at `/admin`.
-
-### Cloudflare Worker
-
-[Deploy to Cloudflare](#deploy-to-cloudflare)
-
-### Go
-
-The Go executable includes the web interface. Download the build for your system from Releases, then follow the [Go guide](backends/go/README.md#english).
+1. Deploy to [Cloudflare](#deploy-to-cloudflare) or to [your own server](#deploy-go).
+2. Open `/setup`. Worker checks bindings and secrets first; Go asks for the setup key from the startup log.
+3. Create the administrator account, then add monitors at `/admin`.
 
 ## Deploy to Cloudflare
 
+1. Fork this repository.
+2. In the Cloudflare dashboard, open **Workers & Pages → Create application → GitHub** and select your fork. Set the build command to `npm run build` and the deploy command to `npm run deploy`.
+3. Open the site after deployment. The setup page checks bindings and secrets first; configure what it reports under the Worker's **Settings**:
+   - **Bindings**: add a D1 database with the variable name `DB`. For third-party themes, add an R2 bucket named `THEMES`; for raw observations and backfill, enable Analytics Engine and add a dataset named `UPTIME`.
+   - **Variables and Secrets**: add the secret `ADMIN_TOKEN` with a long random value, for example the output of `openssl rand -hex 32`.
+4. Select **Re-check** on the setup page, continue to the next step, and enter `ADMIN_TOKEN` to create the administrator account.
+
+Upgrades use **Sync fork** on GitHub; Workers Builds redeploys automatically and keeps the bindings added in the dashboard.
+
+You can also deploy with the button below. It creates a new repository in your GitHub account (not a fork, so it cannot be updated with Sync fork); configure the database and secret as the setup page describes:
+
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris)
 
-The button forks the repository and starts the deployment. Enter new names for the Worker and database, and set `ADMIN_TOKEN` to a long random value as a Worker Secret. If the database ID is missing, find or create the D1 database in Cloudflare, replace the `database_id` placeholder in the forked `wrangler.jsonc`, and deploy again. The [deployment guide](docs/deployment.md#deploy-with-the-cloudflare-button) lists the exact steps.
-
-The button template binds D1, static assets, and schedules. R2 themes and Analytics Engine are not included. Agent installation needs access to GitHub release downloads.
+See the [deployment guide](docs/deployment.md) for command-line deployment and PostgreSQL.
 
 <a id="deploy-go"></a>
 
 ## Deploy the Go backend
 
-Download the build for your system from [Releases](https://github.com/XingLingQAQ/UptimePolaris/releases), then follow the [Go installation guide](backends/go/README.md#install-and-start). The binary includes the web interface. Keep the data directory persistent, restrict access to it, and back up the database with the rest of the directory.
+Download the build for your system from [Releases](https://github.com/XingLingQAQ/UptimePolaris/releases), rename it to `polaris` (`polaris.exe` on Windows), and start it:
+
+```sh
+chmod +x polaris   # Linux / macOS
+./polaris --data-dir ./data
+```
+
+```powershell
+.\polaris.exe --data-dir .\data
+```
+
+The program listens on `127.0.0.1:8080` by default. For external access, change `--addr` or add a reverse proxy. All data lives in `./data`; keep that directory persistent, restrict access to it, and back it up regularly. See the [Go backend guide](backends/go/README.md#install-and-start) for more configuration.
 
 ## Monitor hosts
 
-Create a machine on the console's Agent page, choose a platform and installation mode, then run the generated command on the target machine. The installer downloads the latest stable release for that platform.
+Add a machine on the console's Agent page, choose a platform and installation mode, then run the generated command on the target machine. The target must be able to reach GitHub.
 
-The installer registers the `polaris-agent` service and the `pa` command. Both operate the same program, configuration, and service:
+After installation, manage the service with `pa` (short for `polaris-agent`):
 
 ```sh
 pa status
@@ -112,29 +121,31 @@ pa restart
 pa logs -f
 ```
 
-`pa start`, `stop`, and `restart` need a service manager; manual installations run in the foreground instead. `pa logs` reads the installation's log file. Installation commands contain the scheme, domain, and port of the current site, so generate them from the address you intend to keep. Installation modes, platform limits, configuration, updates, and removal are in the [Agent guide](docs/agents.md).
+- Installation commands contain the site address and that machine's token. Generate them from the production domain and never publish them.
+- Adding a machine does not create a monitor. To watch online status or resource thresholds, add an Agent-type monitor on the monitor page.
+- Manual installations have no service manager, so `pa start`, `stop`, and `restart` are unavailable.
+
+See the [Agent guide](docs/agents.md) for more.
 
 ## Usage and public information
 
-The public status page is anonymous. Before adding a monitor, confirm that its name, target path, hostname, and any internal addresses contain nothing sensitive. Public endpoints remove authentication data; they do not inspect names or paths for sensitive content. See [public data](docs/usage.md#maintenance-status-and-public-data).
-
-Notification channels are Telegram, Feishu, Slack, Discord, Webhook, Apprise, and ServerChan. A channel can be limited to monitor groups. Setup and delivery troubleshooting are in the [notification guide](docs/notifications.md).
+The status page is anonymous. Monitor names, target paths, and hostnames may appear on public pages and APIs, so never put internal addresses or secrets in them. See [public data](docs/usage.md#public-data) and the [notification guide](docs/notifications.md).
 
 ## Documentation
 
-| Task | Guide |
+| Document | Contents |
 | --- | --- |
-| Deploy a site, configure a domain, or use PostgreSQL | [Deployment](docs/deployment.md) |
-| Compare backends | [Worker / Go](docs/backends.md#english) · [Go](backends/go/README.md#english) |
-| Create monitors and read status or public data | [Usage](docs/usage.md) |
-| Install and manage host Agents | [Agent](docs/agents.md) |
-| Configure bindings, environment variables, and console settings | [Configuration reference](docs/configuration.md) |
-| Set up notification channels and scope | [Notifications](docs/notifications.md) |
-| Install or configure status-page themes | [Themes](docs/themes.md) |
-| Call the API or send Push heartbeats | [API reference](docs/api.md) |
-| Back up, upgrade, and troubleshoot | [Operations](docs/operations.md) · [Troubleshooting](docs/troubleshooting.md) |
-
-Full index: [docs/README.md](docs/README.md). The usage, operations, and troubleshooting guides include English summaries.
+| [Backend options](docs/backends.md) | Differences between Worker and Go |
+| [Deployment](docs/deployment.md) | Fork, button, and manual deployment, domains, PostgreSQL, D1 to PostgreSQL |
+| [Go backend](backends/go/README.md) | Flags, environment variables, SQLite to PostgreSQL |
+| [Usage](docs/usage.md) | Monitor configuration, Push, status and availability |
+| [Agent](docs/agents.md) | Installation, management, configuration, updates, removal |
+| [Notifications](docs/notifications.md) | Channel settings, group scope, delivery records |
+| [Themes](docs/themes.md) | Installation, configuration, preview |
+| [Configuration](docs/configuration.md) | Bindings, environment variables, console settings |
+| [API reference](docs/api.md) | Endpoints, authentication, examples |
+| [Operations](docs/operations.md) | Backup, recovery, upgrades, retention |
+| [Troubleshooting](docs/troubleshooting.md) | Diagnosis by symptom |
 
 ## License
 
