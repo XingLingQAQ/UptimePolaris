@@ -93,17 +93,20 @@ func (a *App) agentTransportRoutes() {
 }
 func validNumber(v any) bool { n, ok := v.(float64); return ok && !math.IsNaN(n) && !math.IsInf(n, 0) }
 
-func normalizedMetricRows(value any, keys []string) any {
+func normalizedMetricRows(value any, keys []string) (any, bool) {
+	if value == nil {
+		return nil, true
+	}
 	rows, ok := value.([]any)
 	if !ok {
-		return nil
+		return nil, false
 	}
 	out := []Object{}
 	for _, v := range rows {
 		row := object(v)
 		name, ok := row["name"].(string)
 		if !ok {
-			continue
+			return nil, false
 		}
 		valid := true
 		for _, key := range keys {
@@ -111,15 +114,16 @@ func normalizedMetricRows(value any, keys []string) any {
 				valid = false
 			}
 		}
-		if valid {
-			clean := Object{"name": name}
-			for _, key := range keys {
-				clean[key] = row[key]
-			}
-			out = append(out, clean)
+		if !valid {
+			return nil, false
 		}
+		clean := Object{"name": name}
+		for _, key := range keys {
+			clean[key] = row[key]
+		}
+		out = append(out, clean)
 	}
-	return out
+	return out, true
 }
 func validSummary(row Object) bool {
 	if row == nil {
@@ -136,7 +140,7 @@ func validSummary(row Object) bool {
 		}
 	}
 	for _, key := range []string{"cpu_avg", "cpu_max", "mem_pct_avg", "mem_pct_max", "load_1_avg", "load_5_avg", "net_up_bytes", "net_down_bytes"} {
-		if row[key] != nil && !validNumber(row[key]) {
+		if value, exists := row[key]; !exists || value != nil && !validNumber(value) {
 			return false
 		}
 	}
@@ -148,12 +152,27 @@ func validFrame(frame Object) bool {
 	case "event":
 		return true
 	case "basicReport":
-		for _, key := range []string{"name", "os", "arch", "cpu_model"} {
+		for _, key := range []string{"name", "os", "arch", "kernel", "cpu_model", "version"} {
 			if _, ok := params[key].(string); !ok {
 				return false
 			}
 		}
-		return validNumber(params["cpu_cores"])
+		interval := number(params["report_interval_secs"])
+		if !validNumber(params["cpu_cores"]) || !validNumber(params["mem_total"]) || str(params, "version") == "" ||
+			!contains([]string{"ws", "http"}, str(params, "transport")) || !validNumber(params["report_interval_secs"]) || interval < 1 || interval > 1800 || interval != math.Trunc(interval) {
+			return false
+		}
+		capabilities, ok := params["capabilities"].([]any)
+		if !ok || len(capabilities) > 16 {
+			return false
+		}
+		for _, capability := range capabilities {
+			value, ok := capability.(string)
+			if !ok || !regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`).MatchString(value) {
+				return false
+			}
+		}
+		return true
 	case "report":
 		fields := map[string][]string{"cpu": {"usage"}, "ram": {"total", "used"}, "swap": {"total", "used"}, "load": {"load1", "load5", "load15"}, "disk": {"total", "used"}, "network": {"up", "down", "totalUp", "totalDown"}, "connections": {"tcp", "udp"}}
 		for key, keys := range fields {
@@ -170,10 +189,31 @@ func validFrame(frame Object) bool {
 		if !validNumber(params["uptime"]) || !validNumber(params["process"]) {
 			return false
 		}
-		if v, ok := params["observed_at"]; ok && (!validNumber(v) || number(v) != math.Trunc(number(v))) {
+		if v := params["observed_at"]; !validNumber(v) || number(v) != math.Trunc(number(v)) {
 			return false
 		}
-		return len(array(params["summaries"])) <= 32
+		if _, ok := params["message"].(string); !ok {
+			return false
+		}
+		summaries, ok := params["summaries"].([]any)
+		if !ok || len(summaries) > 32 {
+			return false
+		}
+		for _, summary := range summaries {
+			if !validSummary(object(summary)) {
+				return false
+			}
+		}
+		for key, fields := range map[string][]string{"interfaces": {"up_rate", "down_rate", "total_up_bytes", "total_down_bytes"}, "mounts": {"total_bytes", "used_bytes", "free_bytes", "used_percent"}} {
+			value, exists := params[key]
+			if !exists {
+				return false
+			}
+			if _, ok := normalizedMetricRows(value, fields); !ok {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }
@@ -185,10 +225,7 @@ func (a *App) dispatchFrame(ctx context.Context, agent, frame Object) (Object, e
 	p := object(frame["params"])
 	now := time.Now().Unix()
 	method := str(frame, "method")
-	observed := now
-	if v, ok := p["observed_at"]; ok {
-		observed = int64(number(v))
-	}
+	observed := int64(number(p["observed_at"]))
 	if method == "report" && observed > now+300 {
 		ack["deferred"] = true
 		return ack, nil
@@ -218,27 +255,19 @@ func (a *App) dispatchFrame(ctx context.Context, agent, frame Object) (Object, e
 		}
 		if method == "basicReport" {
 			for _, key := range []string{"os", "arch", "kernel", "cpu_model", "cpu_cores", "version", "isp", "region", "virtualization", "transport", "report_interval_secs"} {
-				if v, ok := p[key]; ok {
-					live[key] = v
-				}
+				live[key] = p[key]
 			}
 			live["public_ip"] = p["publicIp"]
 			live["public_ipv6"] = p["publicIpv6"]
-			values, isArray := p["capabilities"].([]any)
-			validCapabilities := isArray && len(values) <= 16
+			values := array(p["capabilities"])
 			capabilities := []string{}
 			for _, value := range values {
-				capability, ok := value.(string)
-				if !ok || !regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`).MatchString(capability) {
-					validCapabilities = false
-				} else if !contains(capabilities, capability) {
+				capability := value.(string)
+				if !contains(capabilities, capability) {
 					capabilities = append(capabilities, capability)
 				}
 			}
-			live["capabilities"] = nil
-			if validCapabilities {
-				live["capabilities"] = capabilities
-			}
+			live["capabilities"] = capabilities
 		} else {
 			if live["reported_at"] != nil && observed <= integer(live, "reported_at") {
 				ack["ignored"] = true
@@ -253,8 +282,8 @@ func (a *App) dispatchFrame(ctx context.Context, agent, frame Object) (Object, e
 			live["uptime"] = p["uptime"]
 			live["process_count"] = p["process"]
 			live["message"] = p["message"]
-			live["interfaces"] = normalizedMetricRows(p["interfaces"], []string{"up_rate", "down_rate", "total_up_bytes", "total_down_bytes"})
-			live["mounts"] = normalizedMetricRows(p["mounts"], []string{"total_bytes", "used_bytes", "free_bytes", "used_percent"})
+			live["interfaces"], _ = normalizedMetricRows(p["interfaces"], []string{"up_rate", "down_rate", "total_up_bytes", "total_down_bytes"})
+			live["mounts"], _ = normalizedMetricRows(p["mounts"], []string{"total_bytes", "used_bytes", "free_bytes", "used_percent"})
 			live["interfaces_json"] = nil
 			live["mounts_json"] = nil
 			if live["interfaces"] != nil {
@@ -465,8 +494,12 @@ func (a *App) agentConfigExchange(w http.ResponseWriter, r *http.Request) error 
 	if e != nil {
 		return e
 	}
+	settings, e := a.settings(r.Context())
+	if e != nil {
+		return e
+	}
 	var desired any
-	if result["desired_revision"] != nil && result["desired_revision"] != result["applied_revision"] && boolean(a.settings(r.Context())["security.allowAgentCommands"]) {
+	if result["desired_revision"] != nil && result["desired_revision"] != result["applied_revision"] && boolean(settings["security.allowAgentCommands"]) {
 		desired = Object{"revision": result["desired_revision"], "config": result["desired"]}
 	}
 	respond(w, 200, Object{"ok": true, "runtime_config": desired})

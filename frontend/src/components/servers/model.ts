@@ -128,12 +128,6 @@ export function fleetSummary(servers: PublicServer[]) {
   };
 }
 
-/** Pinned machines first, in the visitor's pin order; everything else keeps its order. / 收藏的机器按收藏顺序置顶，其余保持原顺序。 */
-export function pinFirst(servers: PublicServer[], pins: string[]) {
-  const rank = new Map(pins.map((id, index) => [id, index]));
-  return [...servers].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity));
-}
-
 /** The compare list from the URL: known ids only, no repeats, at most four. / 从 URL 读取对比列表：仅保留存在的机器，去重，最多 4 台。 */
 export function compareIds(value: string | null, servers?: PublicServer[]) {
   const ids = [...new Set((value ?? '').split(',').map(id => id.trim()).filter(Boolean))];

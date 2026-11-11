@@ -165,8 +165,8 @@ func validateEmptyPostgres(ctx context.Context, db *sql.Tx, allowLoginLimits boo
 	}
 	expected := map[string]map[string]string{
 		"polaris_documents": {"kind": "text", "id": "text", "data": "text", "updated_at": "bigint"},
-		"polaris_readings": {"seq": "bigint", "monitor_id": "text", "ts": "bigint", "status": "integer", "value": "double precision", "code": "integer", "message": "text", "addons": "text"},
-		"polaris_leases": {"id": "text", "owner": "text", "expires_at": "bigint", "next_due": "bigint"},
+		"polaris_readings":  {"seq": "bigint", "monitor_id": "text", "ts": "bigint", "status": "integer", "value": "double precision", "code": "integer", "message": "text", "addons": "text"},
+		"polaris_leases":    {"id": "text", "owner": "text", "expires_at": "bigint", "next_due": "bigint"},
 		"polaris_sequences": {"name": "text", "value": "bigint"},
 	}
 	columns, err := db.QueryContext(ctx, `SELECT table_name, column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema=current_schema()`)
@@ -369,7 +369,11 @@ func (a *App) finishDatabaseSetup(w http.ResponseWriter, r *http.Request, body O
 	}
 	a.config.DatabaseURL = target
 	secret := token(32)
-	age := int(number(a.settings(ctx)["security.sessionTtlDays"])) * 86400
+	settings, err := a.settings(ctx)
+	if err != nil {
+		return err
+	}
+	age := int(number(settings["security.sessionTtlDays"])) * 86400
 	expires := time.Now().Unix() + int64(age)
 	err = a.store.mutate(ctx, func(tx *transaction) error {
 		users, err := tx.list("user")

@@ -295,13 +295,7 @@ async function pruneHistory(env: Env, maxDays = MAX_DAYS): Promise<void> {
 async function pruneMachineHistory(env: Env, maxDays = MAX_DETAIL_DAYS): Promise<void> {
   const db = getDB(env);
   const cutoff = Math.floor(Date.now() / 1000) - maxDays * 86400;
-  try {
-    await db.execute(agentLiveSQL[db.type].deleteOldHistory, [cutoff]);
-  } catch {
-    // Table may not exist on a deployment that has not applied 0012 yet; the
-    // monitor DELETE cascade covers it, and tomorrow's sync will prune it.
-    // 尚未应用 0012 的部署可能没有此表；监控 DELETE 级联会处理，明天的同步也会清理。
-  }
+  await db.execute(agentLiveSQL[db.type].deleteOldHistory, [cutoff]);
 }
 
 /**
@@ -324,13 +318,7 @@ async function pruneMachineHistory(env: Env, maxDays = MAX_DETAIL_DAYS): Promise
 async function pruneEvents(env: Env, maxDays = MAX_EVENT_DAYS): Promise<void> {
   const db = getDB(env);
   const cutoff = Math.floor(Date.now() / 1000) - maxDays * 86400;
-  try {
-    await db.execute(eventsSQL[db.type].pruneOld, [cutoff]);
-  } catch {
-    // Same tolerance as the other prunes: a missing table or a locked row must
-    // not fail the sync that already did its real work.
-    // 与其他清理一样容忍缺表或锁定行，不能让已经完成实际工作的同步因此失败。
-  }
+  await db.execute(eventsSQL[db.type].pruneOld, [cutoff]);
 }
 
 async function pruneAgentAvailability(env: Env, maxDays = MAX_DAYS): Promise<void> {

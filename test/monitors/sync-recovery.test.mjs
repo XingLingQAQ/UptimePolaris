@@ -14,6 +14,7 @@ const worker = await build({
   stdin: {
     contents: `
       import { runSync } from './backends/worker/src/lib/jobs/daily-sync.ts';
+      import { resetSettingsCache } from './backends/worker/src/lib/settings/store.ts';
       Date.now = () => ${fixtureNow};
       let failed = false;
       const queried = [];
@@ -34,6 +35,7 @@ const worker = await build({
         return Response.json({ success: true, data });
       };
       export default { async fetch(request, env) {
+        resetSettingsCache();
         const scoped = new URL(request.url).pathname === '/disabled'
           ? { ...env, CF_API_TOKEN: '' }
           : env;
@@ -198,6 +200,15 @@ try {
     1,
     'a delivery inside the window must survive',
   );
+  // 保留配置不可读或清理表故障时必须失败，不能静默采用默认值。
+  // Fail when retention configuration or cleanup tables are unavailable.
+  for (const table of ['app_settings', 'agent_commands', 'machine_history', 'events']) {
+    await db.prepare(`ALTER TABLE ${table} RENAME TO fixture_unavailable`).run();
+    const unavailable = await mf.dispatchFetch('http://localhost/disabled');
+    assert.equal(unavailable.status, 500, table);
+    await unavailable.text();
+    await db.prepare(`ALTER TABLE fixture_unavailable RENAME TO ${table}`).run();
+  }
   console.log('PASS Miniflare D1 cursor retry, bounded recovery, disabled AE status, and delivery retention');
 } finally {
   await mf.dispose();

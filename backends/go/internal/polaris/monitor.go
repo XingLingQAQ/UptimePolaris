@@ -693,11 +693,14 @@ func (a *App) execute(ctx context.Context, m Object, force bool) (Object, error)
 func (a *App) persistCheck(ctx context.Context, m Object, primary CheckResult, addons Object, passive bool) (Object, error) {
 	now := time.Now().Unix()
 	id := str(m, "id")
-	settings := a.settings(ctx)
-	maintenance := boolean(a.maintenance(ctx)["active"])
+	settings, err := a.settings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	maintenance := boolean(maintenance(settings)["active"])
 	var live Object
 	event, notified := false, false
-	err := a.store.mutate(ctx, func(t *transaction) error {
+	err = a.store.mutate(ctx, func(t *transaction) error {
 		current, e := t.get("monitor", id)
 		if e != nil {
 			return e

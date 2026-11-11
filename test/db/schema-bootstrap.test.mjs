@@ -190,6 +190,19 @@ try {
   const second = await fetchWithoutRedirect('http://localhost/');
   assert.equal(second.status, 302, 'the redirect did not survive a second request');
 
+  // 状态损坏不能缓存为初始化成功；恢复记录后仍应进入 setup。
+  // Corrupt state must not be cached as completed; restoring it must still require setup.
+  await db.prepare('DELETE FROM auth_setup_state WHERE id=1').run();
+  const missingState = await fetchWithoutRedirect('http://localhost/api/overview');
+  assert.equal(missingState.status, 503);
+  assert.deepEqual(await missingState.json(), { error: 'database_unavailable' });
+  await db.prepare('INSERT INTO auth_setup_state(id,completed) VALUES(1,1)').run();
+  assert.equal((await fetchWithoutRedirect('http://localhost/api/overview')).status, 503);
+  await db.prepare('UPDATE auth_setup_state SET completed=0 WHERE id=1').run();
+  const restored = await fetchWithoutRedirect('http://localhost/admin');
+  assert.equal(restored.status, 302);
+  assert.equal(restored.headers.get('location'), '/setup');
+
   // 页面进入初始化，业务 API 在鉴权和处理器之前拒绝。
   // Redirect pages to setup and reject business APIs before authentication or handlers.
   for (const path of ['/login', '/admin', '/admin/settings', '/monitor/example', '/server/example', '/status/other', '/unknown', '/setup/nested', '/theme/anything', '/agent/old', '/install.sh']) {

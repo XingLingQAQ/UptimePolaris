@@ -7,13 +7,13 @@ export interface BasicReportParams {
   os: string;
   /** Architecture, e.g. "x86_64", "aarch64", ... / 架构，例如 "x86_64"、"aarch64" 等。 */
   arch: string;
-  /** Kernel version string, `uname -r` style. Optional. / 内核版本字符串，格式如 `uname -r`；可选。 */
-  kernel?: string;
+  /** Kernel version string, `uname -r` style. / 内核版本字符串，格式如 `uname -r`。 */
+  kernel: string;
   cpu_model: string;
   cpu_cores: number;
   /** Total RAM in bytes; the agent samples it identically every frame. / 内存总量（字节）；Agent 每帧以相同方式采样。 */
   mem_total: number;
-  version?: string;
+  version: string;
   /** Optional network identity; both publicIp and publicIpv6 are persisted. / 可选网络身份；publicIp 和 publicIpv6 均会持久化。 */
   publicIp?: string;
   publicIpv6?: string;
@@ -21,10 +21,10 @@ export interface BasicReportParams {
   region?: string;
   /** Virtualization, e.g. "physical" | "kvm" | "vmware" | "hyperv" | "docker" | "virtualbox" | "xen" | ... / 虚拟化类型，例如 "physical"、"kvm"、"vmware"、"hyperv"、"docker"、"virtualbox"、"xen" 等。 */
   virtualization?: string;
-  /** Transport announced by the Agent; absent values remain unknown. / Agent 声明的传输方式；未上报时为未知。 */
-  transport?: string;
-  report_interval_secs?: number;
-  capabilities?: string[];
+  /** Transport announced by the Agent. / Agent 声明的传输方式。 */
+  transport: 'ws' | 'http';
+  report_interval_secs: number;
+  capabilities: string[];
 }
 
 export interface AgentInterfaceStat {
@@ -50,8 +50,8 @@ export interface AgentMountStat {
 }
 
 export interface ReportParams {
-  observed_at?: number;
-  summaries?: AgentMinuteSummary[];
+  observed_at: number;
+  summaries: AgentMinuteSummary[];
   cpu: {
     /** 0-100, sampled since the previous frame. / 0–100，自上一帧以来采样。 */
     usage: number;
@@ -75,16 +75,10 @@ export interface ReportParams {
   process: number;
   /** Free-form note; the agent sets it to its own error state if any. / 自由文本备注；Agent 存在错误时将其设为自身错误状态。 */
   message: string;
-  /**
-   * Per-NIC snapshot. Arrives as a JSON array OR null: null means "this
-   * agent does not populate interfaces" and the UI renders "—" rather than
-   * an empty table. Old agents omit the field entirely; same render path.
-   * 各网卡快照，以 JSON 数组或 null 上报。null 表示 Agent 不提供网卡数据，界面显示
-   * “—”而非空表；旧 Agent 完全省略该字段，也使用相同的渲染路径。
-   */
-  interfaces?: AgentInterfaceStat[] | null;
-  /** Per-mount snapshot. Same null-vs-empty-vs-missing story as interfaces. / 各挂载点快照；null、空值和缺失的处理与网卡相同。 */
-  mounts?: AgentMountStat[] | null;
+  /** Null means no interface details were collected. / null 表示未采集网卡明细。 */
+  interfaces: AgentInterfaceStat[] | null;
+  /** Null means no mount details were collected. / null 表示未采集挂载点明细。 */
+  mounts: AgentMountStat[] | null;
 }
 
 export interface AgentMinuteSummary {
@@ -121,26 +115,29 @@ export function asBasicReportParams(p: unknown): BasicReportParams | null {
   if (typeof o.arch !== 'string') return null;
   if (typeof o.cpu_model !== 'string') return null;
   if (typeof o.cpu_cores !== 'number' || !Number.isFinite(o.cpu_cores)) return null;
+  if (typeof o.kernel !== 'string' || typeof o.version !== 'string' || !o.version) return null;
+  if (num(o.mem_total) === null || (o.transport !== 'ws' && o.transport !== 'http')) return null;
+  const interval = positiveInteger(o.report_interval_secs);
+  if (interval === undefined || interval > 1800) return null;
+  if (!Array.isArray(o.capabilities) || o.capabilities.length > 16 || !o.capabilities.every((item) => typeof item === 'string' && /^[a-z][a-z0-9_]{0,31}$/.test(item))) return null;
   return {
     name: o.name,
     os: o.os,
     arch: o.arch,
-    kernel: typeof o.kernel === 'string' ? o.kernel : undefined,
+    kernel: o.kernel,
     cpu_model: o.cpu_model,
     cpu_cores: o.cpu_cores,
-    mem_total: typeof o.mem_total === 'number' ? o.mem_total : 0,
-    version: typeof o.version === 'string' ? o.version : undefined,
+    mem_total: o.mem_total as number,
+    version: o.version,
     publicIp: typeof o.publicIp === 'string' ? o.publicIp : undefined,
     publicIpv6: typeof o.publicIpv6 === 'string' ? o.publicIpv6 : undefined,
     isp: typeof o.isp === 'string' ? o.isp : undefined,
     region: typeof o.region === 'string' ? o.region : undefined,
     virtualization:
       typeof o.virtualization === 'string' ? o.virtualization : undefined,
-    transport: typeof o.transport === 'string' ? o.transport : undefined,
-    report_interval_secs: positiveInteger(o.report_interval_secs),
-    capabilities: Array.isArray(o.capabilities) && o.capabilities.length <= 16 && o.capabilities.every((item) => typeof item === 'string' && /^[a-z][a-z0-9_]{0,31}$/.test(item))
-      ? [...new Set(o.capabilities as string[])]
-      : undefined,
+    transport: o.transport,
+    report_interval_secs: interval,
+    capabilities: [...new Set(o.capabilities as string[])],
   };
 }
 
@@ -165,7 +162,7 @@ function obj(v: unknown): Record<string, unknown> | null {
 export function asReportParams(p: unknown): ReportParams | null {
   const o = obj(p);
   if (!o) return null;
-  if (Array.isArray(o.summaries) && o.summaries.length > 32) return null;
+  if (!Array.isArray(o.summaries) || o.summaries.length > 32) return null;
 
   const cpu = obj(o.cpu);
   const ram = obj(o.ram);
@@ -196,6 +193,10 @@ export function asReportParams(p: unknown): ReportParams | null {
   const process = num(o.process);
   const observedAt = num(o.observed_at);
   const summaries = asMinuteSummaries(o.summaries);
+  const interfaces = asInterfaceArray(o.interfaces);
+  const mounts = asMountArray(o.mounts);
+  if (observedAt === null || !Number.isInteger(observedAt) || summaries === undefined ||
+      interfaces === undefined || mounts === undefined || typeof o.message !== 'string') return null;
 
   if (
     cpuUsage === null || ramTotal === null || ramUsed === null ||
@@ -219,11 +220,11 @@ export function asReportParams(p: unknown): ReportParams | null {
     connections: { tcp: connTcp, udp: connUdp },
     uptime,
     process,
-    message: typeof o.message === 'string' ? o.message : '',
-    observed_at: observedAt === null ? undefined : observedAt,
+    message: o.message,
+    observed_at: observedAt,
     summaries,
-    interfaces: asInterfaceArray(o.interfaces),
-    mounts: asMountArray(o.mounts),
+    interfaces,
+    mounts,
   };
 }
 
@@ -238,7 +239,7 @@ function asMinuteSummary(value: unknown): AgentMinuteSummary | undefined {
   const cpuSamples = num(row.cpu_samples);
   const memSamples = num(row.mem_samples);
   if (bucketTs === null || sampleCount === undefined || durationSec === undefined || networkDurationSec === undefined || cpuSamples === null || memSamples === null) return undefined;
-  const nullableNumber = (v: unknown) => v === null ? null : num(v);
+  const nullableNumber = (v: unknown) => v === null ? null : num(v) ?? undefined;
   const values = [row.cpu_avg, row.cpu_max, row.mem_pct_avg, row.mem_pct_max, row.load_1_avg, row.load_5_avg, row.net_up_bytes, row.net_down_bytes].map(nullableNumber);
   if (values.some((v) => v === undefined)) return undefined;
   return {
@@ -262,23 +263,24 @@ function asMinuteSummary(value: unknown): AgentMinuteSummary | undefined {
 function asMinuteSummaries(value: unknown): AgentMinuteSummary[] | undefined {
   if (!Array.isArray(value)) return undefined;
   if (value.length > 32) return undefined;
-  return value.map(asMinuteSummary).filter((item): item is AgentMinuteSummary => item !== undefined);
+  const summaries = value.map(asMinuteSummary);
+  if (summaries.some((item) => item === undefined)) return undefined;
+  return summaries as AgentMinuteSummary[];
 }
 
-/** Missing or malformed interface collections yield null; malformed rows are omitted. / 网卡集合缺失或格式错误时返回 null；格式错误的条目会被省略。 */
-function asInterfaceArray(v: unknown): AgentInterfaceStat[] | null {
-  if (v === undefined || v === null) return null;
-  if (!Array.isArray(v)) return null;
+function asInterfaceArray(v: unknown): AgentInterfaceStat[] | null | undefined {
+  if (v === null) return null;
+  if (!Array.isArray(v)) return undefined;
   const out: AgentInterfaceStat[] = [];
   for (const row of v) {
     const r = obj(row);
-    if (!r) continue;
+    if (!r) return undefined;
     const name = typeof r.name === 'string' ? r.name : null;
     const upRate = num(r.up_rate);
     const downRate = num(r.down_rate);
     const totalUp = num(r.total_up_bytes);
     const totalDown = num(r.total_down_bytes);
-    if (name === null || upRate === null || downRate === null || totalUp === null || totalDown === null) continue;
+    if (name === null || upRate === null || downRate === null || totalUp === null || totalDown === null) return undefined;
     out.push({
       name,
       up_rate: upRate,
@@ -290,19 +292,19 @@ function asInterfaceArray(v: unknown): AgentInterfaceStat[] | null {
   return out;
 }
 
-function asMountArray(v: unknown): AgentMountStat[] | null {
-  if (v === undefined || v === null) return null;
-  if (!Array.isArray(v)) return null;
+function asMountArray(v: unknown): AgentMountStat[] | null | undefined {
+  if (v === null) return null;
+  if (!Array.isArray(v)) return undefined;
   const out: AgentMountStat[] = [];
   for (const row of v) {
     const r = obj(row);
-    if (!r) continue;
+    if (!r) return undefined;
     const name = typeof r.name === 'string' ? r.name : null;
     const totalBytes = num(r.total_bytes);
     const usedBytes = num(r.used_bytes);
     const freeBytes = num(r.free_bytes);
     const usedPercent = num(r.used_percent);
-    if (name === null || totalBytes === null || usedBytes === null || freeBytes === null || usedPercent === null) continue;
+    if (name === null || totalBytes === null || usedBytes === null || freeBytes === null || usedPercent === null) return undefined;
     out.push({
       name,
       total_bytes: totalBytes,

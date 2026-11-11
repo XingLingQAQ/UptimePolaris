@@ -94,13 +94,7 @@ function toBytes(value: unknown): Uint8Array<ArrayBuffer> | null {
 /** The stored icon, or null when the operator has never uploaded one. / 已存储图标；管理员从未上传时为 null。 */
 export async function readSiteIcon(env: Env): Promise<StoredIcon | null> {
   const db = getDB(env);
-  let row: Record<string, unknown> | null;
-  try {
-    row = await db.queryOne<Record<string, unknown>>(siteIconSQL[db.type].read);
-  } catch {
-    // Missing table degrades to the generated mark, not an error. / 缺表时退回生成的图标，不报错。
-    return null;
-  }
+  const row = await db.queryOne<Record<string, unknown>>(siteIconSQL[db.type].read);
   if (!row) return null;
   const bytes = toBytes(row.bytes);
   if (!bytes) return null;

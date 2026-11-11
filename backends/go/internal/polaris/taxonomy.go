@@ -16,7 +16,11 @@ func (a *App) taxonomyRoutes() {
 	for _, spec := range []struct{ base, kind, key string }{{"/api/groups", "group", "groups"}, {"/api/tags", "tag", "tags"}, {"/api/admin/agent-groups", "agent_group", "groups"}, {"/api/admin/agent-tags", "agent_tag", "tags"}} {
 		spec := spec
 		a.route("GET "+spec.base, false, func(w http.ResponseWriter, r *http.Request) error {
-			if strings.HasPrefix(spec.kind, "agent_") && !boolean(object(a.presentation(r.Context())["config"])["agentEnabled"]) {
+			state, e := a.presentation(r.Context())
+			if e != nil {
+				return e
+			}
+			if strings.HasPrefix(spec.kind, "agent_") && !boolean(object(state["config"])["agentEnabled"]) {
 				return failure("agent_page_disabled", 409)
 			}
 			rows, e := a.store.list(r.Context(), spec.kind)
@@ -108,7 +112,11 @@ func (a *App) taxonomyRoutes() {
 		if e != nil {
 			return e
 		}
-		respond(w, 200, Object{"groups": rows, "agentEnabled": object(a.presentation(r.Context())["config"])["agentEnabled"]})
+		state, e := a.presentation(r.Context())
+		if e != nil {
+			return e
+		}
+		respond(w, 200, Object{"groups": rows, "agentEnabled": object(state["config"])["agentEnabled"]})
 		return nil
 	})
 	for _, method := range []string{"POST", "PUT", "DELETE"} {
@@ -267,7 +275,11 @@ func (a *App) managedGroups(ctx context.Context) ([]Object, error) {
 		return nil, e
 	}
 	agents := []Object{}
-	if boolean(object(a.presentation(ctx)["config"])["agentEnabled"]) {
+	state, e := a.presentation(ctx)
+	if e != nil {
+		return nil, e
+	}
+	if boolean(object(state["config"])["agentEnabled"]) {
 		agents, e = a.store.list(ctx, "agent_group")
 		if e != nil {
 			return nil, e
@@ -347,7 +359,11 @@ func (a *App) managedGroupWrite(w http.ResponseWriter, r *http.Request) error {
 			return failure("invalid_request", 400)
 		}
 		input["name"] = name
-		if kind != "monitor" && !boolean(object(a.presentation(r.Context())["config"])["agentEnabled"]) {
+		state, e := a.presentation(r.Context())
+		if e != nil {
+			return e
+		}
+		if kind != "monitor" && !boolean(object(state["config"])["agentEnabled"]) {
 			return failure("agent_page_disabled", 409)
 		}
 		for _, g := range groups {

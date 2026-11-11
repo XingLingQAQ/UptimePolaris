@@ -39,9 +39,9 @@ AE SQL 回填需要配置数据集和查询凭据，只能恢复这个数据集�
 1. 记录当前服务版本、Worker 部署版本、数据库后端、绑定和 Agent 版本。
 2. 备份数据库、主题资产和密钥，检查备份文件是否可读。
 3. 在隔离环境审阅并验证迁移；不要拿重置脚本升级已有数据库。
-4. 手动部署的 D1，先确认 `backends/worker/wrangler.toml`，再执行 `npm run db:init`；按钮部署的 D1 用 fork 后仓库的 `wrangler.jsonc`，命令见[部署指南](deployment.md#上传与初始化)。PostgreSQL 执行 `npm run db:migrate:postgres`。
+4. 手动部署的 D1，先确认 `backends/worker/wrangler.toml`，再执行 `npm run db:init`；Fork 部署和按钮部署的 D1 由 Worker 在请求时应用迁移，见[部署指南](deployment.md#上传与初始化)。PostgreSQL 执行 `npm run db:migrate:postgres`。
 5. 需要更新 Agent 时，先确认目标版本的下载清单和所需平台文件能访问。
-6. 手动部署运行 `npm run deploy`；按钮部署使用关联的 Workers Builds。检查初始化状态、登录、监控采集和通知。
+6. 手动部署运行 `npm run deploy`；Fork 部署在 GitHub 上执行 Sync fork，按钮部署把新版本合并到生成的仓库，再由 Workers Builds 自动部署。检查初始化状态、登录、监控采集和通知。
 7. 先小范围更新 Agent，确认版本、服务和上报都正常，再推广。
 
 空 D1 会在首次请求时自动建表。已有迁移记录的 D1，Worker 请求也可能自动应用还没记录的迁移，所以要在部署新版本前完成备份和迁移审阅。已有库必须保持迁移记录和结构一致；不要删掉 ledger 让系统去猜结构。
@@ -96,7 +96,7 @@ Go 在数据目录的 `database.json` 里保存初始化时的显式选库结果
 
 不要把一份完整结构导出反复导入已经初始化的库，也不要通过清空原库来测试恢复。D1 服务提供的恢复能力和可用时间窗口取决于账号和服务配置，要在部署时单独确认。
 
-按钮部署的数据库操作，要在 fork 后的仓库里用 `--config wrangler.jsonc`，先核对账号、绑定和数据库 ID。不要沿用原手动部署的配置或数据库名。
+Fork 部署和按钮部署的 `wrangler.jsonc` 不记录数据库 ID。恢复时先在 Worker 的 **Settings → Bindings** 中确认 `DB` 指向的数据库，再对这个数据库执行操作。不要沿用原手动部署的配置或数据库名。
 
 ## 切换数据库后端
 
@@ -161,7 +161,7 @@ Go runs scheduling inside its process, checks for due work each second, and atte
 
 1. Record the running service and deployment versions, backend, database, bindings and Agent versions. Back up the database, theme files, credentials and configuration.
 2. Review migrations against a backup in an isolated environment. Worker D1 and PostgreSQL migrations are different from Go's own `polaris_*` tables; never run the Worker PostgreSQL migration for Go.
-3. For manual Worker D1 deployments, confirm `backends/worker/wrangler.toml` and use `npm run db:init`; for Worker PostgreSQL use `npm run db:migrate:postgres`. Button deployments use their forked `wrangler.jsonc`; see [deployment](deployment.md#database-setup-and-initialization). Worker requests can apply outstanding D1 migrations when a migration ledger already exists, so back up and review before deploying.
+3. For manual Worker D1 deployments, confirm `backends/worker/wrangler.toml` and use `npm run db:init`; for Worker PostgreSQL use `npm run db:migrate:postgres`. Fork and button deployments apply D1 migrations on request; see [deployment](deployment.md#database-setup-and-initialization). Worker requests can apply outstanding D1 migrations when a migration ledger already exists, so back up and review before deploying.
 4. Confirm the intended Agent release and platform downloads are accessible before upgrading Agents.
 5. Deploy the intended Worker or replace the Go binary or image while preserving its data directory. Check setup, login, monitoring, notification delivery and Agent reports. Roll out Agent upgrades gradually.
 
@@ -179,7 +179,7 @@ For a manually configured Worker D1, after confirming the account and target dat
 npx wrangler d1 export DATABASE_NAME --remote --output .secrets/d1-backup.sql --config backends/worker/wrangler.toml
 ```
 
-For button deployments use the forked repository's `wrangler.jsonc` and confirm its account and database ID. Restore first to a separate empty database and temporary entry point, restore matching theme files and secrets, then check accounts, monitors, history and Agent reports before switching production. A complete schema export should not be repeatedly imported into an initialized database.
+Fork and button deployments keep no database ID in `wrangler.jsonc`; confirm which database `DB` points to under the Worker's **Settings → Bindings** before operating on it. Restore first to a separate empty database and temporary entry point, restore matching theme files and secrets, then check accounts, monitors, history and Agent reports before switching production. A complete schema export should not be repeatedly imported into an initialized database.
 
 ### Database migration and retention
 

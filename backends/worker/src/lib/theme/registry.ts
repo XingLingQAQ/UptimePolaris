@@ -56,7 +56,8 @@ export type RemoveThemeResult = { ok: true } | { ok: false; error: string; deact
 export async function removeTheme(env: Env, short: string): Promise<RemoveThemeResult> {
   const theme = await getTheme(env,short);
   if (!theme) return { ok:false,error:'theme_not_found',deactivated:false };
-  const lease = await acquireThemeLease(env,theme.id ?? `legacy:${short}`);
+  if (!themeStoragePrefix(theme.id)) return { ok:false,error:'theme_delete_invalid_path',deactivated:false };
+  const lease = await acquireThemeLease(env,theme.id);
   if (!lease) return { ok:false,error:'theme_busy',deactivated:false };
   try { return await removeLeasedTheme(env,short,theme.id,lease); }
   finally { try { await lease.release(); } catch { } }
@@ -87,8 +88,8 @@ async function removeLeasedTheme(env: Env, short: string, expectedId: string, le
       const changes = await db.commit([
         ...(pg ? [{ sql: "SELECT pg_advisory_xact_lock(hashtext('polaris-presentation-theme'))" }] : []),
         { sql: write, params: [JSON.stringify(state.config),next,now,state.revision] },
-        { sql: `UPDATE themes SET deleting=1 WHERE short=${pg ? '$1' : '?'} AND EXISTS (SELECT 1 FROM presentation_state WHERE id='main' AND revision=${guard})${storageGuard}${leaseGuard}`, params: [short,next,theme.id ?? `legacy:${short}`,lease.token,Date.now()] },
-        { sql: `DELETE FROM theme_versions WHERE id=${pg ? '$1' : '?'} AND EXISTS (SELECT 1 FROM presentation_state WHERE id='main' AND revision=${guard}) AND EXISTS (SELECT 1 FROM themes WHERE id=theme_versions.id AND deleting=1)${leaseGuard}`, params: [theme.id,next,theme.id ?? `legacy:${short}`,lease.token,Date.now()] },
+        { sql: `UPDATE themes SET deleting=1 WHERE short=${pg ? '$1' : '?'} AND EXISTS (SELECT 1 FROM presentation_state WHERE id='main' AND revision=${guard})${storageGuard}${leaseGuard}`, params: [short,next,theme.id,lease.token,Date.now()] },
+        { sql: `DELETE FROM theme_versions WHERE id=${pg ? '$1' : '?'} AND EXISTS (SELECT 1 FROM presentation_state WHERE id='main' AND revision=${guard}) AND EXISTS (SELECT 1 FROM themes WHERE id=theme_versions.id AND deleting=1)${leaseGuard}`, params: [theme.id,next,theme.id,lease.token,Date.now()] },
         visibilityRevisionWrite(now,pg),
       ]);
       const offset = pg ? 1 : 0;
@@ -108,7 +109,7 @@ async function removeLeasedTheme(env: Env, short: string, expectedId: string, le
     const remove = db.type === 'postgres'
       ? 'DELETE FROM themes WHERE short=$1 AND deleting=1 AND EXISTS (SELECT 1 FROM theme_operations WHERE id=$2 AND token=$3 AND expires_at>=$4)'
       : 'DELETE FROM themes WHERE short=? AND deleting=1 AND EXISTS (SELECT 1 FROM theme_operations WHERE id=? AND token=? AND expires_at>=?)';
-    if ((await db.execute(remove,[short,theme.id ?? `legacy:${short}`,lease.token,Date.now()])).rowsAffected !== 1) return { ok:false,error:'theme_busy',deactivated };
+    if ((await db.execute(remove,[short,theme.id,lease.token,Date.now()])).rowsAffected !== 1) return { ok:false,error:'theme_busy',deactivated };
   }
   catch { return { ok:false,error:'theme_delete_registry_failed',deactivated }; }
   return { ok:true };

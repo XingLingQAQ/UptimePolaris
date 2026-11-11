@@ -12,6 +12,16 @@ export interface SetupDatabaseSelection {
   url?: string;
 }
 
+/** Worker 初始化前检查的部署项；Go 后端不返回。 / Deployment items the Worker checks before setup; the Go backend does not report them. */
+export type SetupRequirementKey = 'database' | 'adminToken' | 'themes' | 'analytics';
+
+export interface SetupRequirement {
+  key: SetupRequirementKey;
+  /** 必需项未通过时不能初始化。 / Setup cannot proceed while a required item fails. */
+  required: boolean;
+  ok: boolean;
+}
+
 // Allow only setup dependencies; an admin token cannot open business APIs before setup.
 // 仅放行初始化所需入口，业务 API 不因持有管理员令牌而提前开放。
 export function isSetupEndpoint(method: string, path: string): boolean {

@@ -158,7 +158,11 @@ func (a *App) agentPoll(w http.ResponseWriter, r *http.Request) error {
 	}
 	now := time.Now().Unix()
 	jobs, commands := []Object{}, []Object{}
-	enabledCommands := boolean(a.settings(r.Context())["security.allowAgentCommands"])
+	settings, e := a.settings(r.Context())
+	if e != nil {
+		return e
+	}
+	enabledCommands := boolean(settings["security.allowAgentCommands"])
 	// 事务前读取附加检查缓存，事务内重新验证 Agent 和监控配置。
 	// Read add-on caches first; revalidate Agent and monitor configuration in the transaction.
 	requests := map[string]Object{}
@@ -396,7 +400,11 @@ func (a *App) enqueueCommand(ctx context.Context, id, action string) (string, er
 	if !contains([]string{"upgrade", "restart", "re_report", "check_update"}, action) {
 		return "", failure("unknown_action", 400)
 	}
-	if !boolean(a.settings(ctx)["security.allowAgentCommands"]) {
+	settings, e := a.settings(ctx)
+	if e != nil {
+		return "", e
+	}
+	if !boolean(settings["security.allowAgentCommands"]) {
 		return "", failure("commands_disabled", 403)
 	}
 	agent, e := a.store.get(ctx, "agent", id)
@@ -469,7 +477,11 @@ func (a *App) listCommands(w http.ResponseWriter, r *http.Request) error {
 	if limit := queryLimit(r, 20, 100); len(commands) > limit {
 		commands = commands[:limit]
 	}
-	respond(w, 200, Object{"commands": commands, "enabled": a.settings(r.Context())["security.allowAgentCommands"], "capability": "commands"})
+	settings, e := a.settings(r.Context())
+	if e != nil {
+		return e
+	}
+	respond(w, 200, Object{"commands": commands, "enabled": settings["security.allowAgentCommands"], "capability": "commands"})
 	return nil
 }
 func (a *App) agentCommandResult(w http.ResponseWriter, r *http.Request) error {

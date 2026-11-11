@@ -6,7 +6,6 @@ import { usePageConfig, usePageConfigKey } from '@/components/context/PageConfig
 import { fetchPublicConfig, publicConfigKey } from '@/config/api';
 import { usePublicConfigResource } from '@/config/usePublicConfig';
 import type { MonitorResponse, MonitoringData } from '@/types/monitor';
-import { useCallback, useEffect, useRef } from 'react';
 import type { SWRConfiguration } from 'swr';
 import useSWR, { mutate } from 'swr';
 
@@ -48,13 +47,7 @@ interface PrefetchOptions {
   force?: boolean;
 }
 
-interface IntentPrefetchOptions extends PrefetchOptions {
-  delayMs?: number;
-  disabled?: boolean;
-}
-
 const DEFAULT_PREFETCH_TTL_MS = 30_000;
-const DEFAULT_PREFETCH_DELAY_MS = 120;
 const MAX_CONCURRENT_PREFETCHES = 2;
 
 let activePrefetches = 0;
@@ -93,54 +86,6 @@ export async function prefetchSWRKey<T>(key: string, options: PrefetchOptions = 
     activePrefetches -= 1;
     inFlightPrefetchKeys.delete(key);
   }
-}
-
-export function useIntentPrefetch(
-  keys: string | readonly string[],
-  options: IntentPrefetchOptions = {}
-) {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // stable ref for keys — avoids array identity churn in callbacks / 使用稳定引用，避免回调受到数组身份变化的影响
-  const keysRef = useRef<readonly string[]>(
-    Array.isArray(keys) ? (keys as readonly string[]) : [keys as string]
-  );
-  const delayMs = options.delayMs ?? DEFAULT_PREFETCH_DELAY_MS;
-  const disabled = options.disabled ?? false;
-  const force = options.force ?? false;
-  const ttlMs = options.ttlMs;
-
-  // keep keys ref in sync without adding array to callback deps / 同步键引用而不将数组加入回调依赖
-  const keysSignature = Array.isArray(keys)
-    ? (keys as readonly string[]).join('\x00')
-    : (keys as string);
-  useEffect(() => {
-    keysRef.current = Array.isArray(keys) ? (keys as readonly string[]) : [keys as string];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keysSignature]);
-
-  const cancelPrefetch = useCallback(() => {
-    if (!timerRef.current) return;
-    clearTimeout(timerRef.current);
-    timerRef.current = null;
-  }, []);
-
-  const schedulePrefetch = useCallback(() => {
-    if (disabled) return;
-    cancelPrefetch();
-    timerRef.current = setTimeout(() => {
-      timerRef.current = null;
-      for (const k of keysRef.current) {
-        void prefetchSWRKey(k, { force, ttlMs });
-      }
-    }, delayMs);
-  }, [cancelPrefetch, delayMs, disabled, force, ttlMs]);
-
-  useEffect(() => cancelPrefetch, [cancelPrefetch]);
-
-  return {
-    schedulePrefetch,
-    cancelPrefetch,
-  };
 }
 
 /**
@@ -234,11 +179,6 @@ export function useConfig(config?: SWRConfiguration) {
   const key = usePageConfigKey();
   const { data, error, isLoading, refresh: revalidate } = usePublicConfigResource(key, config);
   return { config: data, isLoading, isError: !!error, error, revalidate };
-}
-
-export function useMaintenanceData(config?: SWRConfiguration) {
-  const { config: data, ...state } = useConfig(config);
-  return { maintenanceList: data?.maintenanceList ?? [], ...state };
 }
 
 /** Refresh the monitor/config payloads for a page; reject fetch errors so refresh controls can report failure. / 刷新页面监控和配置数据；请求失败时拒绝，使刷新控件能够报告错误。 */

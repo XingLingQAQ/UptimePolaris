@@ -4,7 +4,6 @@ import { validateAgentOptions, validateTarget, hostOfTarget } from '../../fronte
 import { readingLabel, toneForStatus } from '../../frontend/src/admin/monitors/presentation';
 import { getMonitorStatusKey, selectSystemStatus } from '../../frontend/src/lib/monitor-status.ts';
 import { filterMonitorByStatus } from '../../frontend/src/components/status-page/monitor-filters.ts';
-import { calculateLatencyMetrics } from '../../frontend/src/components/charts/metrics.ts';
 import { STATUS_RAIL, beatStatus } from '../../frontend/src/components/status-page/status.ts';
 import { ICON_PATH, ICON_VERSION, resolveSiteIconUrl } from '../../frontend/src/lib/icon-proxy.ts';
 import { BRAND_ICON_PATH, BRAND_ICON_VERSION } from '../../backends/worker/src/lib/brand.ts';
@@ -142,8 +141,6 @@ eq('unavailable source does not match a heartbeat filter', filterMonitorByStatus
 eq('no heartbeat does not match a heartbeat filter', filterMonitorByStatus(monitorFixture, 'up', {}), false);
 eq('warning rail color', STATUS_RAIL[beatStatus(heartbeat(2))], 'bg-warning');
 eq('pending rail color', STATUS_RAIL[beatStatus(heartbeat(4))], 'bg-warning');
-eq('warning latency remains valid', calculateLatencyMetrics([heartbeat(2, 20)]).latestPing, 20);
-eq('pending latency does not count as online', calculateLatencyMetrics([heartbeat(1, 10), heartbeat(4, 20)]).latestPing, null);
 
 // selectSystemStatus counts a warn as attention without calling it an outage.
 // selectSystemStatus 将 warn 计为需要关注，但不视为故障。

@@ -22,7 +22,7 @@ try {
   assert.equal(create.status, 201);
   const { token: token } = await create.json();
   const now = Math.floor(Date.now() / 1000);
-  const frame = (id, observed_at) => ({ jsonrpc: '2.0', id, method: 'report', params: {
+  const frame = (id, observed_at) => ({ jsonrpc: '2.0', id, method: 'report', params: { summaries: [], interfaces: null, mounts: null, message: '',
     observed_at, cpu: { usage: 5 }, ram: { total: 100, used: 10 }, swap: { total: 0, used: 0 },
     load: { load1: 0, load5: 0, load15: 0 }, disk: { total: 100, used: 10 },
     network: { up: 0, down: 0, totalUp: 0, totalDown: 0 }, connections: { tcp: 0, udp: 0 }, uptime: 1, process: 1,

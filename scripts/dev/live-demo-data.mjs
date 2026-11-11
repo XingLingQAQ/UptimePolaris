@@ -22,7 +22,6 @@ export const DEMO_IDS = {
   channels: { telegram: 'd0000000-0000-4000-8000-000000000401', feishu: 'd0000000-0000-4000-8000-000000000402' },
 };
 export const DEMO_NUM_ID_BASE = 9001;
-export const DEMO_MONITOR_IDS = Object.values(DEMO_IDS.monitors);
 export const DEMO_AGENT_TOKEN = 'demo-agent-edge-node-01';
 export const DEMO_PUSH_TOKEN = 'demo-push-nightly-backup';
 export const DEMO_RUNTIME_DEFAULTS = { sample_interval_secs: 5, report_interval_secs: 15, include_nics: [], exclude_nics: ['lo'], include_mounts: [], exclude_mounts: ['/proc'], auto_update: false };
@@ -35,8 +34,6 @@ const agentFleet = [
   { key: 'toronto', name: 'Demo · Toronto Backup', token: 'demo-agent-toronto', group: 'data', tags: ['backup'], os: 'Windows', arch: 'x86_64', region: 'Toronto, CA', cpu: null, memory: null, disk: null, load: null, upload: null, download: null, sent: null, received: null, uptime: null, reported: 'unknown', profile: 'unknown' },
   { key: 'seoul', name: 'Demo · Seoul Storage', token: 'demo-agent-seoul', group: 'production', tags: ['storage', 'critical'], os: 'Linux', arch: 'x86_64', region: 'Seoul, KR', cpu: 34, memory: 55, disk: 94, load: 1.12, upload: 90000, download: 210000, sent: 122e9, received: 390e9, uptime: 86400 * 12, reported: 'online', profile: 'disk' },
 ];
-
-export const DEMO_AGENT_FLEET = agentFleet;
 
 export function demoPorts(env = process.env) {
   const http = Number(env.UPTIME_DEMO_HTTP_PORT ?? 8790);
@@ -73,8 +70,6 @@ function monitors(ports = demoPorts()) {
     { key: 'icmp', name: 'Demo · ICMP Ping via Agent', type: 'icmp', target: '127.0.0.1', options: { check_source: source }, tags: ['edge'] },
   ];
 }
-
-export const DEMO_MONITOR_NAMES = Object.fromEntries(monitors({ http: 8790, tcp: 8791 }).map(monitor => [DEMO_IDS.monitors[monitor.key], monitor.name]));
 
 export function buildSeedStatements(at = Math.floor(Date.now() / 1000)) {
   if (!Number.isSafeInteger(at) || at <= 0) throw new Error('Seed timestamp must be positive epoch seconds');

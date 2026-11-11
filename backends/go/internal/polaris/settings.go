@@ -26,15 +26,16 @@ func defaultSettings() Object {
 		"security.sessionTtlDays": 14, "security.loginMaxAttempts": 8, "security.loginWindowSec": 300, "security.allowAgentCommands": false,
 	}
 }
-func (a *App) settings(ctx context.Context) Object {
+func (a *App) settings(ctx context.Context) (Object, error) {
 	out := defaultSettings()
 	stored, e := a.store.get(ctx, "config", "settings")
-	if e == nil {
-		for k, v := range stored {
-			out[k] = v
-		}
+	if e != nil {
+		return nil, failure("database_unavailable", 503)
 	}
-	return out
+	for k, v := range stored {
+		out[k] = v
+	}
+	return out, nil
 }
 func validSetting(key string, v any) bool {
 	defaults := defaultSettings()
@@ -130,8 +131,7 @@ func windowOccurrence(o Object, now time.Time) (time.Time, time.Time) {
 	}
 	return start, end
 }
-func (a *App) maintenance(ctx context.Context) Object {
-	s := a.settings(ctx)
+func maintenance(s Object) Object {
 	now := time.Now().UTC()
 	out := Object{"serverNow": now.Format(time.RFC3339Nano), "active": boolean(s["maintenance.enabled"]), "source": nil, "title": strings.TrimSpace(str(s, "maintenance.title")), "description": strings.TrimSpace(str(s, "maintenance.description")), "startsAt": nil, "endsAt": nil, "scheduled": []Object{}}
 	manual := boolean(out["active"])
@@ -161,12 +161,18 @@ func (a *App) maintenance(ctx context.Context) Object {
 func defaultPresentation() Object {
 	return Object{"agentEnabled": false, "workerService": "uptime-polaris", "domains": []any{}, "pages": Object{"monitor": Object{"theme": nil, "themeOptions": Object{}}, "agent": Object{"theme": nil, "themeOptions": Object{}}}}
 }
-func (a *App) presentation(ctx context.Context) Object {
+func (a *App) presentation(ctx context.Context) (Object, error) {
 	o, e := a.store.get(ctx, "config", "presentation")
-	if e != nil || o == nil {
-		return Object{"config": defaultPresentation(), "revision": "initial"}
+	if e != nil {
+		return nil, failure("database_unavailable", 503)
 	}
-	return o
+	if o == nil {
+		return Object{"config": defaultPresentation(), "revision": "initial"}, nil
+	}
+	if !validatePresentation(object(o["config"])) || str(o, "revision") == "" {
+		return nil, failure("invalid_presentation", 503)
+	}
+	return o, nil
 }
 func validatePresentation(config Object) bool {
 	if config == nil || len(config) != 4 {
@@ -222,7 +228,10 @@ func validatePresentation(config Object) bool {
 	return true
 }
 func (a *App) pageContext(r *http.Request) (string, bool, bool, Object, error) {
-	state := a.presentation(r.Context())
+	state, e := a.presentation(r.Context())
+	if e != nil {
+		return "", false, false, nil, e
+	}
 	config := object(state["config"])
 	kind := "monitor"
 	enabled, configured := true, true
@@ -264,7 +273,7 @@ func (a *App) settingsRoutes() {
 	a.route("GET /api/admin/settings", false, func(w http.ResponseWriter, r *http.Request) error {
 		stored, e := a.store.get(r.Context(), "config", "settings")
 		if e != nil {
-			return e
+			return failure("database_unavailable", 503)
 		}
 		specs := []Object{}
 		for k, v := range defaultSettings() {
@@ -281,7 +290,11 @@ func (a *App) settingsRoutes() {
 			specs = append(specs, Object{"key": k, "default": v, "stored": exists, "kind": kind})
 		}
 		sort.Slice(specs, func(i, j int) bool { return str(specs[i], "key") < str(specs[j], "key") })
-		respond(w, 200, Object{"values": a.settings(r.Context()), "invalid": []any{}, "specs": specs})
+		settings, e := a.settings(r.Context())
+		if e != nil {
+			return e
+		}
+		respond(w, 200, Object{"values": settings, "invalid": []any{}, "specs": specs})
 		return nil
 	})
 	a.route("PUT /api/admin/settings", false, func(w http.ResponseWriter, r *http.Request) error {
@@ -311,7 +324,11 @@ func (a *App) settingsRoutes() {
 		if e != nil {
 			return e
 		}
-		respond(w, 200, Object{"ok": true, "values": a.settings(r.Context())})
+		settings, e := a.settings(r.Context())
+		if e != nil {
+			return e
+		}
+		respond(w, 200, Object{"ok": true, "values": settings})
 		return nil
 	})
 	a.route("DELETE /api/admin/settings/{key}", false, func(w http.ResponseWriter, r *http.Request) error {
@@ -338,7 +355,11 @@ func (a *App) settingsRoutes() {
 		return nil
 	})
 	a.route("GET /api/admin/presentation", false, func(w http.ResponseWriter, r *http.Request) error {
-		respond(w, 200, a.presentation(r.Context()))
+		state, e := a.presentation(r.Context())
+		if e != nil {
+			return e
+		}
+		respond(w, 200, state)
 		return nil
 	})
 	a.route("PUT /api/admin/presentation", false, func(w http.ResponseWriter, r *http.Request) error {
@@ -501,7 +522,10 @@ func (a *App) rollupHistory(ctx context.Context, force bool) error {
 		return e
 	}
 	defer a.store.release(context.Background(), "history-rollup", owner, now+60)
-	settings := a.settings(ctx)
+	settings, e := a.settings(ctx)
+	if e != nil {
+		return e
+	}
 	today := now / 86400 * 86400
 	cutoff := today - int64(number(settings["retention.detailDays"]))*86400
 	return a.store.mutate(ctx, func(t *transaction) error {
@@ -698,4 +722,3 @@ func publicMessage(kind string, status int64, message string) string {
 	return ""
 }
 func iso(ts int64) string { return time.Unix(ts, 0).UTC().Format("2006-01-02T15:04:05.000Z") }
-func fmtID(v any) string  { return fmt.Sprint(v) }

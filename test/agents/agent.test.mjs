@@ -226,7 +226,7 @@ let agentToken = null;
     jsonrpc: '2.0',
     id: 1,
     method: 'basicReport',
-    params: {
+    params: { transport: 'ws', capabilities: [],
       name: 'test-box',
       os: 'linux',
       arch: 'x86_64',
@@ -241,13 +241,8 @@ let agentToken = null;
   };
   ws.send(JSON.stringify(basicFrame));
 
-  /**
-   * The frame handler is fire-and-forget (see handler.ts comment): there is
-   * no ack path on the wire, so we poll the database for the write to have
-   * landed. A single 100ms wait is enough for an in-process D1.
-   * 帧处理器不等待结果（见 handler.ts），线上没有确认路径，因此轮询数据库等待写入；
-   * 进程内 D1 等待一次 100ms 即可。
-   */
+  // 等待本地 WebSocket 处理器完成写入和发送确认。
+  // Wait for the local WebSocket handler to persist and acknowledge the frame.
   await new Promise((r) => setTimeout(r, 200));
   eq('basicReport is acknowledged after its write', acknowledgements[0], {
     jsonrpc: '2.0', id: 1, result: { ack: true, ignored: false },
@@ -271,7 +266,7 @@ let agentToken = null;
     jsonrpc: '2.0',
     id: 2,
     method: 'report',
-    params: {
+    params: { interfaces: null, mounts: null,
       observed_at: observedAt,
       summaries: [{
         bucket_ts: Math.floor(observedAt / 60) * 60,
@@ -390,7 +385,7 @@ let httpToken = null;
       jsonrpc: '2.0',
       id: 1,
       method: 'basicReport',
-      params: {
+      params: { kernel: 'fixture-kernel', version: '0.1.0', report_interval_secs: 60, capabilities: [],
         name: 'http-box',
         os: 'linux',
         arch: 'aarch64',
@@ -432,7 +427,7 @@ let httpToken = null;
     await post(`/api/public/agent/push/${httpToken}`, [
       {
         jsonrpc: '2.0', id: null, method: 'report',
-        params: {
+        params: { observed_at: Math.floor(Date.now() / 1000), summaries: [], interfaces: null, mounts: null,
           cpu: { usage: 10 }, ram: { total: 1000, used: 100 }, swap: { total: 0, used: 0 },
           load: { load1: 0.1, load5: 0.1, load15: 0.1 },
           disk: { total: 2000, used: 200 },
@@ -442,7 +437,7 @@ let httpToken = null;
       },
       {
         jsonrpc: '2.0', id: null, method: 'report',
-        params: {
+        params: { observed_at: Math.floor(Date.now() / 1000), summaries: [], interfaces: null, mounts: null,
           cpu: { usage: 50 }, ram: { total: 1000, used: 500 }, swap: { total: 0, used: 0 },
           load: { load1: 0.5, load5: 0.5, load15: 0.5 },
           disk: { total: 2000, used: 1000 },
@@ -456,7 +451,7 @@ let httpToken = null;
   eq('and every frame is applied', [batch.body.applied, batch.body.received], [2, 2]);
 
   const heavyReport = {
-    jsonrpc: '2.0', id: null, method: 'report', params: {
+    jsonrpc: '2.0', id: null, method: 'report', params: { observed_at: Math.floor(Date.now() / 1000), interfaces: null, mounts: null,
       summaries: Array(20).fill({}),
       cpu: { usage: 1 }, ram: { total: 10, used: 1 }, swap: { total: 0, used: 0 },
       load: { load1: 0, load5: 0, load15: 0 }, disk: { total: 10, used: 1 },
@@ -532,7 +527,7 @@ console.log('\nagent rollup\n');
 
   const duplicateObservedAt = Math.floor(Date.now() / 1000);
   await post(`/api/public/agent/push/${agentToken}`, {
-    jsonrpc: '2.0', id: null, method: 'report', params: {
+    jsonrpc: '2.0', id: null, method: 'report', params: { interfaces: null, mounts: null,
       observed_at: duplicateObservedAt,
       summaries: [{
         bucket_ts: bucket.bucket_ts, sample_count: 2, cpu_samples: 2, cpu_avg: 25, cpu_max: 42.5,
@@ -602,7 +597,7 @@ console.log('\nagent rollup\n');
     net_up_bytes: 300, net_down_bytes: 500, duration_sec: 5, network_duration_sec: 5,
   };
   const summaryFrame = {
-    jsonrpc: '2.0', id: null, method: 'report', params: {
+    jsonrpc: '2.0', id: null, method: 'report', params: { interfaces: null, mounts: null,
       observed_at: duplicateObservedAt, summaries: [summary],
       cpu: { usage: 70 }, ram: { total: 1000, used: 400 }, swap: { total: 0, used: 0 },
       load: { load1: 0.3, load5: 0.5, load15: 0.7 }, disk: { total: 1000, used: 100 },
@@ -709,8 +704,8 @@ console.log('\npaused agent acknowledgement\n');
   const token = created.agent.token;
   await post(`/api/admin/agents/${created.agent.id}/active`, { active: false }, 'POST', auth);
   const ignored = await readJson(await post(`/api/public/agent/push/${token}`, [
-    { jsonrpc: '2.0', id: 1, method: 'basicReport', params: { name: 'paused', os: 'linux', arch: 'x64', cpu_model: 'x', cpu_cores: 1 } },
-    { jsonrpc: '2.0', id: null, method: 'report', params: { cpu: { usage: 1 }, ram: { total: 10, used: 1 }, swap: { total: 0, used: 0 }, load: { load1: 0, load5: 0, load15: 0 }, disk: { total: 10, used: 1 }, network: { up: 0, down: 0, totalUp: 0, totalDown: 0 }, connections: { tcp: 0, udp: 0 }, uptime: 1, process: 1, message: '' } },
+    { jsonrpc: '2.0', id: 1, method: 'basicReport', params: { kernel: 'fixture-kernel', mem_total: 1024, version: '0.1.0', transport: 'ws', report_interval_secs: 60, capabilities: [], name: 'paused', os: 'linux', arch: 'x64', cpu_model: 'x', cpu_cores: 1 } },
+    { jsonrpc: '2.0', id: null, method: 'report', params: { observed_at: Math.floor(Date.now() / 1000), summaries: [], interfaces: null, mounts: null, cpu: { usage: 1 }, ram: { total: 10, used: 1 }, swap: { total: 0, used: 0 }, load: { load1: 0, load5: 0, load15: 0 }, disk: { total: 10, used: 1 }, network: { up: 0, down: 0, totalUp: 0, totalDown: 0 }, connections: { tcp: 0, udp: 0 }, uptime: 1, process: 1, message: '' } },
   ]));
   eq('paused frames are acknowledged as ignored', [ignored.status, ignored.body.applied, ignored.body.accepted, ignored.body.ignored], [200, 2, 0, 2]);
   const row = await (await mf.getD1Database('DB')).prepare('SELECT COUNT(*) AS n FROM machine_live WHERE agent_id = ?').bind(created.agent.id).first();

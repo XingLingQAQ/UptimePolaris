@@ -55,7 +55,7 @@ Go 显式选过数据库后，数据目录里的 `database.json` 优先于 `POLA
 | `THEMES` | R2，可选 | 第三方主题版本与资源；内置界面不依赖它 |
 | `UPTIME` | Analytics Engine，可选 | 原始观测写入；SQL 回填另需查询凭据 |
 
-手动部署的 CF CLI 读 `backends/worker/cloudflare.config.ts`，数据库 npm 脚本默认读 `backends/worker/wrangler.toml`。按钮部署用根目录的 `wrangler.jsonc`。直接运行 Wrangler 时，JSONC 优先于 TOML；操作手动部署的数据库时，显式加 `--config backends/worker/wrangler.toml`，并核对账号和数据库。资源名称可以自己起，绑定名不要改。详细步骤见[部署指南](deployment.md)。
+手动部署的 CF CLI 读 `backends/worker/cloudflare.config.ts`，数据库 npm 脚本默认读 `backends/worker/wrangler.toml`。Fork 部署和按钮部署用根目录的 `wrangler.jsonc`，其中不声明 `DB`、`THEMES`、`UPTIME`，这些绑定在 Worker 的 **Settings → Bindings** 中添加。直接运行 Wrangler 时，JSONC 优先于 TOML；操作手动部署的数据库时，显式加 `--config backends/worker/wrangler.toml`，并核对账号和数据库。资源名称可以自己起，绑定名不要改。详细步骤见[部署指南](deployment.md)。
 
 ## Worker 环境变量
 
@@ -74,7 +74,7 @@ AE SQL 回填需要 `UPTIME`、`CF_ACCOUNT_ID`、`CF_API_TOKEN` 同时可用。�
 
 `PBKDF2_ITERATIONS` 会增加认证时的 CPU 开销。默认成本有限；调整前要结合 Worker 的实际运行预算验证，不能只凭本地计时判断生产环境能否承受。已有密码记录各自保存自己的哈希成本，改这个变量不会立刻重算所有密码。
 
-手动部署的生产 Secret 可以通过 `--secrets-file` 提供；按钮部署在 Cloudflare 里设置 Worker Secret。步骤见[部署指南](deployment.md)。不要把这些值写进普通配置、提交记录或文档截图。
+手动部署的生产 Secret 可以通过 `--secrets-file` 提供；Fork 部署和按钮部署在 Worker 的 **Settings → Variables and Secrets** 中设置。步骤见[部署指南](deployment.md)。不要把这些值写进普通配置、提交记录或文档截图。
 
 ## 后台设置
 
@@ -179,7 +179,7 @@ On Go, an explicit setup selection writes `database.json` in the data directory.
 | `THEMES` | R2, optional | Third-party theme versions and assets; not required for the built-in interface |
 | `UPTIME` | Analytics Engine, optional | Raw observations; SQL backfill also requires query credentials |
 
-Manual deployment uses `backends/worker/cloudflare.config.ts`; database npm scripts default to `backends/worker/wrangler.toml`. The root `wrangler.jsonc` is the button-deployment template. Direct Wrangler commands prefer JSONC when both formats exist. For a manual deployment, specify `--config backends/worker/wrangler.toml` for database operations and confirm the account and database first. Resource names can change; binding names must remain as shown. See [deployment](deployment.md#english).
+Manual deployment uses `backends/worker/cloudflare.config.ts`; database npm scripts default to `backends/worker/wrangler.toml`. Fork and button deployments use the root `wrangler.jsonc`, which declares no `DB`, `THEMES` or `UPTIME`; add those bindings under the Worker's **Settings → Bindings**. Direct Wrangler commands prefer JSONC when both formats exist. For a manual deployment, specify `--config backends/worker/wrangler.toml` for database operations and confirm the account and database first. Resource names can change; binding names must remain as shown. See [deployment](deployment.md#english).
 
 ### Worker environment variables
 

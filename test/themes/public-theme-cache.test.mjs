@@ -53,7 +53,7 @@ await checkExample('agent');
 const token = 'theme-cache-fixture-token';
 const mf = new Miniflare({
   modules: true, script: bundled.outputFiles[0].text, compatibilityDate: '2025-01-01',
-  compatibilityFlags: ['nodejs_compat'], bindings: { ADMIN_TOKEN: token },
+  compatibilityFlags: ['nodejs_compat'], bindings: { ADMIN_TOKEN: token, PBKDF2_ITERATIONS: '3000' },
   d1Databases: { DB: 'public-theme-cache-fixture' }, r2Buckets: { THEMES: 'public-theme-cache-fixture' },
 });
 
@@ -111,7 +111,9 @@ try {
     console.log('CHECKPOINT theme-cache: opening isolated D1/R2 fixture');
     const db = await bounded(mf.getD1Database('DB'), 'D1 startup', 20000);
     await applyD1Migrations(db);
-    await db.prepare("UPDATE auth_setup_state SET completed=1 WHERE id=1").run();
+    const setup = await request(originA, '/api/auth/setup', { method:'POST', headers:{'content-type':'application/json'},
+      body:JSON.stringify({ credential:token, username:'owner', password:'fixture-cache-owner' }) });
+    assert.equal(setup.status, 200);
     const first = await upload('1.0.0');
     for (const origin of [originA, originB]) {
       const config = await request(origin, '/api/public/config');

@@ -47,7 +47,7 @@
     "test:database-migration-ui": "node test/ui/database-migration.test.mjs",
     "test:database-migration-cli": "node test/db/data-migration-cli.test.mjs",
     "test:auth": "node test/auth/auth.test.mjs",
-    "test:auth-setup": "node test/auth/auth-setup.test.mjs && node test/auth/database-setup.test.mjs",
+    "test:auth-setup": "node test/auth/auth-setup.test.mjs && node test/auth/database-setup.test.mjs && node test/auth/deployment-check.test.mjs",
     "test:e2e": "node test/api/e2e.test.mjs",
     "test:checks": "node test/helpers/run-checks.mjs",
     "test:monitor-check": "node test/monitors/monitor-check.test.mjs",

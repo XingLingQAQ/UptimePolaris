@@ -1,5 +1,6 @@
 import { api } from './api';
 import { setupRedirect } from './lib/auth/setup-redirect';
+import { databaseConfigured } from './lib/auth/setup-requirements';
 import { bootstrapSchema } from './lib/db/bootstrap';
 import { withDBScope } from './lib/db/factory';
 import { ensureSchemaReady } from './lib/db/schema-guard';
@@ -44,8 +45,8 @@ function schemaBlocked(check: { error: string; missing?: string[]; message: stri
 
 // Apply the same gate during database selection before business-table handlers can run.
 // 选库未完成时也执行同一门禁，不能进入依赖业务表的处理器。
-async function routeBeforeReady(request: Request, env: Env, ctx: ExecutionContext, pending: boolean): Promise<Response> {
-  const blocked = setupRequiredResponse(request, pending ? 'setup_in_progress' : 'setup_required');
+async function routeBeforeReady(request: Request, env: Env, ctx: ExecutionContext, error: 'setup_in_progress' | 'setup_required' | 'deployment_incomplete'): Promise<Response> {
+  const blocked = setupRequiredResponse(request, error);
   if (blocked) return blocked;
   const path = new URL(request.url).pathname;
   if (path === '/api/public/icon') {
@@ -73,7 +74,7 @@ async function handleDatabaseRequest(request: Request, env: Env, ctx: ExecutionC
     try { emptyPostgres = await postgresIsEmpty(env); }
     catch { return Response.json({ error: 'database_connection_failed' }, { status: 503, headers: { 'cache-control': 'private, no-store' } }); }
   }
-  if (pending || emptyPostgres) return routeBeforeReady(request, env, ctx, !!pending);
+  if (pending || emptyPostgres) return routeBeforeReady(request, env, ctx, pending ? 'setup_in_progress' : 'setup_required');
 
   const schema = await ensureSchemaReady(env);
   if (!schema.ok) return schemaBlocked(schema);
@@ -98,6 +99,15 @@ export default {
   /** 在请求数据库作用域内处理初始化和结构检查，再进入页面或 API 路由。 / Handle setup and schema checks in the request database scope before page or API routing. */
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
+      // 未绑定数据库时只开放初始化检查所需的入口，其他页面转到 /setup。
+      // Without a database binding, serve only what the setup check needs and send other pages to /setup.
+      if (!databaseConfigured(env)) {
+        const path = new URL(request.url).pathname;
+        if ((request.method === 'GET' || request.method === 'HEAD') && isSetupAsset(path)) {
+          return env.ASSETS?.fetch(request) ?? new Response('not found', { status: 404 });
+        }
+        return await routeBeforeReady(request, env, ctx, 'deployment_incomplete');
+      }
       return await withDBScope(env, async (scopedEnv, scopedCtx) => {
         return handleDatabaseRequest(request, scopedEnv, scopedCtx ?? ctx);
       }, ctx);
@@ -110,6 +120,7 @@ export default {
   },
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    if (!databaseConfigured(env)) return;
     switch (controller.cron) {
       case CRON_TICK: {
         if (ticking) return;

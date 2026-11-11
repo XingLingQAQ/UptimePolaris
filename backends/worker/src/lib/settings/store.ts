@@ -101,9 +101,6 @@ export type SettingValue<K extends SettingKey> = (typeof SPECS)[K]['default'];
 
 export const SETTING_KEYS = Object.keys(SPECS) as SettingKey[];
 
-/** All declared runtime settings are currently writable through the console. / 当前所有声明的运行时设置均可通过控制台写入。 */
-export const WRITABLE_KEYS: ReadonlySet<SettingKey> = new Set(SETTING_KEYS);
-
 // Writes invalidate this isolate; other isolates refresh after the TTL.
 // 写入使当前 isolate 的缓存失效；其他 isolate 在 TTL 后刷新。
 const CACHE_TTL_MS = 15_000;
@@ -131,15 +128,8 @@ export async function readAll(env: Env, fresh = false): Promise<SettingsSnapshot
   for (const key of SETTING_KEYS) values[key] = SPECS[key].default;
 
   const invalid: Array<{ key: string; reason: string }> = [];
-  let rows: Array<{ key: string; value_json: string }> = [];
-  try {
-    const db = getDB(env);
-    rows = await db.query<{ key: string; value_json: string }>(settingsSQL[db.type].load);
-  } catch {
-    // A settings query failure yields the complete default configuration.
-    // 设置查询失败时返回完整默认配置。
-    return { values, invalid };
-  }
+  const db = getDB(env);
+  const rows = await db.query<{ key: string; value_json: string }>(settingsSQL[db.type].load);
 
   for (const row of rows) {
     if (!Object.hasOwn(SPECS, row.key)) {

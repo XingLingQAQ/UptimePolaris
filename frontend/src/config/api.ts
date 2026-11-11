@@ -2,15 +2,11 @@ import { requestJson } from '@/api/client';
 import { publicApiUrl } from '@/api/public-url';
 import type { PresentationView } from '@/components/context/PresentationViewContext';
 import type { GlobalConfig, PublicConfig, UiConfig } from '@/types/config';
-import type { PageTabMeta, PageTabsStatusMatrix } from '@/types/page';
 
 export interface PublicConfigResponse extends UiConfig, GlobalConfig {
   presentation: PresentationView;
-  pageTabs?: PageTabMeta[];
-  matrixStatus?: PageTabsStatusMatrix['status'];
-  success?: boolean;
-  status?: 'ok' | 'partial' | 'all_failed' | 'partial_failed';
-  failureType?: PageTabMeta['failureType'];
+  success: true;
+  status: 'ok';
   error?: string;
   timestamp?: number;
 }

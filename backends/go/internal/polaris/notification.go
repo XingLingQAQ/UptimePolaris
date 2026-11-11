@@ -602,9 +602,13 @@ func (a *App) deliverPending() {
 				if err != nil {
 					return
 				}
+				settings, err := a.settings(a.ctx)
+				if err != nil {
+					return
+				}
 				if channel == nil || !boolean(channel["active"]) {
 					latest["state"] = "cancelled"
-				} else if boolean(a.maintenance(a.ctx)["active"]) {
+				} else if boolean(maintenance(settings)["active"]) {
 					latest["next_at"] = now + 30
 				} else {
 					result := a.sendNotification(a.ctx, channel, object(latest["event"]))

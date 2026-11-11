@@ -11,6 +11,7 @@ import { initializePostgres } from '../db/setup-postgres';
 import { abandonDatabaseClaim, claimDatabase, completedOperation, d1HasUsers, databaseClaimActive, deployedDatabase, finishDatabaseClaim, markAccountStarted, pendingDatabase, pendingDatabaseUrl, releaseDatabaseClaim, resetAccountStarted, setupDatabaseOptions } from '../db/setup-control';
 import { visibilityRevisionWrite } from '../public/cache';
 import { MAX_AVATAR_BYTES, readAvatarImage, readAvatarInfo, removeAvatar, validAvatarImage, writeAvatar } from './avatar';
+import { databaseConfigured, setupRequirements } from './setup-requirements';
 import {
   clearFailures,
   clearLoginAttempts,
@@ -98,15 +99,27 @@ export { currentUser };
  * error instead of the login page.
  * 会话状态始终 200，让守卫区分匿名和故障。 */
 authRoutes.get('/api/auth/session', async (c) => {
-  const needsSetup = await pendingDatabase(c.env) || await isSetupRequired(c.env);
-  const { user } = needsSetup ? { user: null } : await currentUser(c);
-
   // A machine token is reported as an authenticated principal with no username,
   // so scripts and the SPA can share one endpoint.
   // 机器令牌报告为没有用户名的已认证主体，使脚本和 SPA 可以共用端点。
   const token = c.req.header('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
   const machine = Boolean(c.env.ADMIN_TOKEN) && safeEqual(token, c.env.ADMIN_TOKEN);
 
+  // 没有数据库时无法判断是否已初始化，只返回检查结果，让初始化页显示缺少的绑定。
+  // Without a database, setup state is unknown; report the check so the setup page can name the missing binding.
+  if (!databaseConfigured(c.env)) {
+    return c.json({
+      authenticated: machine,
+      user: null,
+      needsSetup: true,
+      setupCredential: installationCredentialSource(c.env),
+      setupDatabase: null,
+      setupRequirements: setupRequirements(c.env),
+    });
+  }
+
+  const needsSetup = await pendingDatabase(c.env) || await isSetupRequired(c.env);
+  const { user } = needsSetup ? { user: null } : await currentUser(c);
 
   return c.json({
     authenticated: Boolean(user) || machine,
@@ -115,11 +128,12 @@ authRoutes.get('/api/auth/session', async (c) => {
     /** Name of the setup secret, never its value; suppressed after setup. / 初始化密钥的名称，不返回值；初始化后不再返回。 */
     setupCredential: needsSetup ? installationCredentialSource(c.env) : null,
     setupDatabase: needsSetup ? await setupDatabaseOptions(c.env) : null,
-
+    setupRequirements: needsSetup ? setupRequirements(c.env) : null,
   });
 });
 
 authRoutes.post('/api/auth/setup', async (c) => {
+  if (!databaseConfigured(c.env)) return c.json({ error: 'deployment_incomplete' }, 503);
   let body: unknown;
   try {
     body = await c.req.json<unknown>();

@@ -24,7 +24,7 @@ const env = { db: { type: 'fixture', queryOne: async sql => sql.includes('FROM a
 async function report(network) {
   const raw = new Request('https://fixture/api/public/agent/push/token', { headers: { 'cf-connecting-ip': '203.0.113.1' } });
   raw.cf = { country: 'US', city: 'Proxy City', asOrganization: 'Proxy ISP' };
-  const frame = { method: 'basicReport', params: { name: 'fixture', os: 'Windows', arch: 'x86_64', cpu_model: 'fixture', cpu_cores: 2, ...network } };
+  const frame = { method: 'basicReport', params: { kernel: 'fixture-kernel', mem_total: 1024, version: '0.1.0', transport: 'ws', report_interval_secs: 60, capabilities: [], name: 'fixture', os: 'Windows', arch: 'x86_64', cpu_model: 'fixture', cpu_cores: 2, ...network } };
   const response = await handleAgentHttpPush({ env, req: { raw, param: () => 'token', query: () => undefined, json: async () => frame },
     json: (value, status = 200) => Response.json(value, { status }) });
   assert.equal(response.status, 200);

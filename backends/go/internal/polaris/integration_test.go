@@ -480,7 +480,7 @@ func TestThemeFilesystemLifecycle(t *testing.T) {
 }
 
 func reportParams(observed int64) Object {
-	return Object{"cpu": Object{"usage": 12}, "ram": Object{"total": 1000, "used": 400}, "swap": Object{"total": 0, "used": 0}, "load": Object{"load1": 0.5, "load5": 0.3, "load15": 0.2}, "disk": Object{"total": 1000, "used": 200}, "network": Object{"up": 123, "down": 456, "totalUp": 1000, "totalDown": 2000}, "connections": Object{"tcp": 3, "udp": 2}, "uptime": 100, "process": 20, "observed_at": observed, "message": "private machine message"}
+	return Object{"summaries": []any{}, "interfaces": nil, "mounts": nil, "cpu": Object{"usage": 12}, "ram": Object{"total": 1000, "used": 400}, "swap": Object{"total": 0, "used": 0}, "load": Object{"load1": 0.5, "load5": 0.3, "load15": 0.2}, "disk": Object{"total": 1000, "used": 200}, "network": Object{"up": 123, "down": 456, "totalUp": 1000, "totalDown": 2000}, "connections": Object{"tcp": 3, "udp": 2}, "uptime": 100, "process": 20, "observed_at": observed, "message": "private machine message"}
 }
 func TestAgentRPCQueuesConfigurationAndRedaction(t *testing.T) {
 	s := newTestServer(t)
@@ -488,7 +488,7 @@ func TestAgentRPCQueuesConfigurationAndRedaction(t *testing.T) {
 	expectStatus(t, code, 201, created)
 	id, secret := str(created, "id"), str(created, "token")
 	now := time.Now().Unix()
-	frames := []Object{{"jsonrpc": "2.0", "id": 1, "method": "basicReport", "params": Object{"name": "hostname", "os": "linux", "arch": "x86_64", "cpu_model": "CPU", "cpu_cores": 2, "publicIp": "198.51.100.88", "capabilities": []string{"probe_http", "commands"}, "report_interval_secs": 60}}, {"jsonrpc": "2.0", "id": 2, "method": "report", "params": reportParams(now)}}
+	frames := []Object{{"jsonrpc": "2.0", "id": 1, "method": "basicReport", "params": Object{"kernel": "fixture-kernel", "mem_total": 1024, "version": "0.1.0", "transport": "ws", "name": "hostname", "os": "linux", "arch": "x86_64", "cpu_model": "CPU", "cpu_cores": 2, "publicIp": "198.51.100.88", "capabilities": []string{"probe_http", "commands"}, "report_interval_secs": 60}}, {"jsonrpc": "2.0", "id": 2, "method": "report", "params": reportParams(now)}}
 	code, result := s.request(t, "POST", "/api/public/agent/push/"+secret, frames, false)
 	expectStatus(t, code, 200, result)
 	if integer(result, "accepted") != 2 {

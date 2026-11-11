@@ -275,7 +275,7 @@ interface AgentDetailContentProps {
 export function AgentDetailContent({ numId, monitorName, target }: AgentDetailContentProps) {
   // Top-level catalog: `detail.*` is not under the admin namespace. / 顶层词表：`detail.*` 不在 admin 命名空间。
   const t = useTranslations();
-  const { data, error, isLoading, mutate } = useSWR<AgentDetailResponse>(
+  const { data, error, isLoading } = useSWR<AgentDetailResponse>(
     `/api/public/agent/detail/${numId}?minutes=60`,
     fetcher,
     { refreshInterval: 15_000, revalidateOnFocus: false, dedupingInterval: 5_000, shouldRetryOnError: isRetryableApiError, errorRetryCount: 2 },

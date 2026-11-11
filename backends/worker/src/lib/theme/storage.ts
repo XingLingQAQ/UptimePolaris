@@ -32,8 +32,6 @@ export function contentTypeFor(file: string): string {
   return CONTENT_TYPES[extension] ?? 'application/octet-stream';
 }
 
-export function storageAvailable(env: Env): boolean { return !!env.THEMES; }
-
 export function themeStoragePrefix(id: string): string | null {
   return typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,62}$/.test(id) ? `themes/${id}/` : null;
 }

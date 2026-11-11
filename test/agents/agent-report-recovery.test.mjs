@@ -23,7 +23,7 @@ try {
   const env = { db: { type: 'fixture', queryOne: async () => ({ active: 1 }), execute: async (sql, args) => { writes.push({ sql, args }); } } };
   const monitor = { id: 'fixture' };
   const summary = (bucket_ts) => ({ bucket_ts, sample_count: 1, cpu_samples: 1, cpu_avg: 5, cpu_max: 5, mem_samples: 1, mem_pct_avg: 10, mem_pct_max: 10, load_1_avg: 0, load_5_avg: 0, net_up_bytes: 0, net_down_bytes: 0, network_duration_sec: 1, duration_sec: 1 });
-  const report = (observed_at, summaries) => ({ method: 'report', params: { observed_at, summaries,
+  const report = (observed_at, summaries) => ({ method: 'report', params: { interfaces: null, mounts: null, message: '', observed_at, summaries,
     cpu: { usage: 5 }, ram: { total: 100, used: 10 }, swap: { total: 0, used: 0 },
     load: { load1: 0, load5: 0, load15: 0 }, disk: { total: 100, used: 10 },
     network: { up: 0, down: 0, totalUp: 0, totalDown: 0 }, connections: { tcp: 0, udp: 0 }, uptime: 1, process: 1,
@@ -43,7 +43,7 @@ try {
   assert.equal(isSupportedFrame(report(now + 301, [])), true);
   assert.equal(isSupportedFrame(report(now + 300, [])), true);
   assert.equal(isSupportedFrame({ method: 'unknown' }), false);
-  const basic = { method: 'basicReport', params: { name: 'fixture', os: 'Windows 11', arch: 'x86_64', cpu_model: 'fixture', cpu_cores: 2 } };
+  const basic = { method: 'basicReport', params: { kernel: 'fixture-kernel', mem_total: 1024, version: '0.1.0', transport: 'ws', report_interval_secs: 60, capabilities: [], name: 'fixture', os: 'Windows 11', arch: 'x86_64', cpu_model: 'fixture', cpu_cores: 2 } };
   await dispatchRpc(env, monitor, basic);
   assert.equal(writes.at(-1).args[9], null, 'missing host geography stays unknown');
   assert.equal(writes.at(-1).args[6], null, 'the connection address is not a machine public IP');
@@ -51,6 +51,26 @@ try {
   await dispatchRpc(env, monitor, { ...basic, params: { ...basic.params, publicIp: '192.0.2.1', region: 'Shanghai, CN' } });
   assert.equal(writes.at(-1).args[9], 'Shanghai, CN');
   assert.equal(writes.at(-1).args[6], '192.0.2.1');
+  // 当前必填字段必须完整；显式 null 明细仍是有效上报。
+  // Require current wire fields while retaining explicit null detail collections.
+  for (const [frame, keys] of [
+    [basic, ['kernel', 'mem_total', 'version', 'transport', 'report_interval_secs', 'capabilities']],
+    [report(now, []), ['observed_at', 'summaries', 'interfaces', 'mounts', 'message']],
+  ]) {
+    for (const key of keys) {
+      const params = { ...frame.params };
+      delete params[key];
+      const before = writes.length;
+      assert.equal(isSupportedFrame({ ...frame, params }), false, key);
+      assert.deepEqual(await dispatchRpc(env, monitor, { ...frame, params }), { ack:false, ignored:false });
+      assert.equal(writes.length, before);
+    }
+  }
+  for (const patch of [{ summaries: {} }, { interfaces: {} }, { mounts: [1] }, { observed_at: 'now' }]) {
+    const frame = report(now, []);
+    assert.equal(isSupportedFrame({ ...frame, params: { ...frame.params, ...patch } }), false);
+  }
+  assert.equal(isSupportedFrame(report(now, [])), true);
 } finally {
   Date.now = originalNow;
 }

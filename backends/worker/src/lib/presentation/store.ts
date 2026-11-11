@@ -18,11 +18,9 @@ export async function loadPresentation(env: Env): Promise<PresentationState> {
     revision: string;
   }>("SELECT config_json,revision FROM presentation_state WHERE id='main'");
   if (!row) return { config: defaultPresentation(), revision: 'initial' };
-  return {
-    config:
-      parsePresentation(JSON.parse(row.config_json)) ?? defaultPresentation(),
-    revision: row.revision,
-  };
+  const config = parsePresentation(JSON.parse(row.config_json));
+  if (!config || typeof row.revision !== 'string' || !row.revision) throw new Error('invalid_presentation');
+  return { config, revision: row.revision };
 }
 export async function savePresentation(
   env: Env,

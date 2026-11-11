@@ -41,9 +41,9 @@ try {
   await success('/__clock?now=' + now);
   const machine = await success('/api/admin/agents', { name: 'Addon probe' }, true);
   const foreign = await success('/api/admin/agents', { name: 'Other probe' }, true);
-  const frames = { method: 'basicReport', params: { name: 'addon-node', os: 'linux', arch: 'x86_64', cpu_model: 'fixture', cpu_cores: 1,
+  const frames = { method: 'basicReport', params: { kernel: 'fixture-kernel', mem_total: 1024, transport: 'ws', name: 'addon-node', os: 'linux', arch: 'x86_64', cpu_model: 'fixture', cpu_cores: 1,
     version: '0.5.4', report_interval_secs: 60, capabilities: ['probe_http', 'probe_tcp', 'probe_ssl', 'probe_domain', 'probe_dns'] } };
-  const report = () => success('/api/public/agent/push/' + machine.token, [frames, { method: 'report', params: {
+  const report = () => success('/api/public/agent/push/' + machine.token, [frames, { method: 'report', params: { interfaces: null, mounts: null, message: '',
     observed_at: now, cpu: { usage: 5 }, ram: { total: 100, used: 10 }, swap: { total: 0, used: 0 },
     load: { load1: 0, load5: 0, load15: 0 }, disk: { total: 100, used: 10 }, network: { up: 0, down: 0, totalUp: 0, totalDown: 0 },
     connections: { tcp: 1, udp: 1 }, uptime: 1, process: 1, summaries: [] }, }]);

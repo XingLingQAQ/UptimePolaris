@@ -1,5 +1,6 @@
 node_modules/
 .wrangler/
+.wrangler-builds.jsonc
 .cloudflare/
 .dev.vars
 .dev.vars.*

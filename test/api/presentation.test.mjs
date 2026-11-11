@@ -78,5 +78,15 @@ try {
   await write('/api/admin/presentation', 'PUT', { revision: pruned.revision, config: pruned.config });
   const stale = await req('status.example.com', '/api/admin/presentation', { method: 'PUT', headers: auth, body: JSON.stringify({ revision: 'stale', config: pruned.config }) });
   assert.equal(stale.status, 409);
+  // 配置存在但损坏时拒绝公开请求，不能丢弃域名限制。
+  // Reject corrupt stored configuration instead of discarding its domain restrictions.
+  const stored = await db.prepare("SELECT config_json FROM presentation_state WHERE id='main'").first();
+  for (const config of ['{', JSON.stringify({ ...pruned.config, retiredField: true })]) {
+    await db.prepare("UPDATE presentation_state SET config_json=? WHERE id='main'").bind(config).run();
+    assert.equal((await req('unknown.example.com', '/api/public/status?fresh=1')).status, 500);
+    assert.equal((await req('status.example.com', '/api/admin/presentation', { headers: auth })).status, 500);
+  }
+  await db.prepare("UPDATE presentation_state SET config_json=? WHERE id='main'").bind(stored.config_json).run();
+  assert.equal((await req('status.example.com', '/api/admin/presentation', { headers: auth })).status, 200);
   console.log('PASS presentation domains, preview authentication, monitor scope and Agent publication');
 } finally { await mf.dispose(); }

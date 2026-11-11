@@ -40,7 +40,7 @@ export async function requestJson<T>(path: string, init: RequestInit = {}): Prom
     if (init.credentials !== 'omit') window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     throw new UnauthorizedError();
   }
-  if (!response.ok || body?.success === false || body?.status === 'all_failed') throw new ApiError(code, response.status, body);
+  if (!response.ok || body?.success === false) throw new ApiError(code, response.status, body);
   if (response.status === 204) return undefined as T;
   if (!payload) throw new ApiError('invalid_response', response.status);
   return payload as T;

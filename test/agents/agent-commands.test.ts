@@ -128,13 +128,18 @@ check('a prefix or substring does not satisfy the check', () => {
   其中一台失联主机不应掩盖其他结果。
 */
 const failingEnv = { DB: { prepare() { throw new Error('db down'); } } } as unknown as Parameters<typeof enqueueCommands>[0];
+const disabledEnv = { DB: { prepare() { return { bind() { return this; }, all: async () => ({ results: [], meta: {} }) }; } } } as unknown as Parameters<typeof enqueueCommands>[0];
 
 await checkAsync('a batch reports one verdict per id and does not abort', async () => {
-  const results = await enqueueCommands(failingEnv, ['a', 'b', 'c'], 'check_update', null, 0);
+  const results = await enqueueCommands(disabledEnv, ['a', 'b', 'c'], 'check_update', null, 0);
   assert.equal(results.length, 3);
   for (const id of ['a', 'b', 'c']) {
     assert.deepEqual(results.find((r) => r.id === id), { id, ok: false, error: 'commands_disabled' });
   }
+});
+
+await checkAsync('unreadable settings do not masquerade as a disabled command switch', async () => {
+  await assert.rejects(enqueueCommands(failingEnv, ['a'], 'check_update', null, 0), /db down/);
 });
 
 await checkAsync('a batch refuses an unknown action for every id', async () => {

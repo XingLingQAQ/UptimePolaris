@@ -1,7 +1,7 @@
 /**
  * Create or update an account from the CLI.
  *
- * Accounts are CLI-only: an open signup on a public URL is a liability. The
+ * The CLI supports account recovery without a public signup endpoint. The
  * PBKDF2 iteration count is read from the Worker's config, not chosen here:
  * a strong local cost like 600,000 would need ~760 ms to verify under the
  * Worker's 10 ms CPU budget, so every login would fail with a confusing error.
@@ -124,6 +124,8 @@ ON CONFLICT(username) DO UPDATE SET
   updated_at           = excluded.updated_at,
   failed_count         = 0,
   locked_until         = 0;
+UPDATE auth_setup_state SET completed=1, claim_id=NULL
+WHERE id=1 AND EXISTS (SELECT 1 FROM users);
 `;
 
 console.log(`[user] ${remote ? 'remote' : 'local'}: setting password for "${normalized}"`);

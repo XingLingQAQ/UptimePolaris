@@ -1,49 +1,7 @@
 import clsx from 'clsx';
 
-import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Tone } from '../../types/tone';
-
-/**
- * Change against a named period, signed and toned by whether the direction is
- * good. Latency going down is good; availability going down is not.
- *
- * 显示相对于指定周期的变化，依据变化方向是否有利设置符号和颜色；
- * 延迟下降是好事，可用率下降则不是。
- */
-export function Delta({
-  value,
-  goodWhen,
-  format = (v) => `${Math.abs(v).toFixed(1)}%`,
-  label,
-  className,
-}: {
-  value: number | null;
-  goodWhen: 'up' | 'down';
-  format?: (value: number) => string;
-  label?: string;
-  className?: string;
-}) {
-  if (value === null || !Number.isFinite(value)) return null;
-  const flat = Math.abs(value) < 0.05;
-  const rising = value > 0;
-  const good = goodWhen === 'up' ? rising : !rising;
-  const Icon = flat ? Minus : rising ? TrendingUp : TrendingDown;
-
-  return (
-    <span
-      className={clsx(
-        'polaris-num inline-flex items-center gap-1 text-[12px] font-medium',
-        flat ? 'text-[var(--polaris-ink-3)]' : good ? 'text-success-700' : 'text-danger-600',
-        className,
-      )}
-    >
-      <Icon size={13} aria-hidden="true" />
-      {flat ? format(0) : format(value)}
-      {label ? <span className="font-normal text-[var(--polaris-ink-4)]">{label}</span> : null}
-    </span>
-  );
-}
 
 /**
  * A row of figures in one frame, split by hairlines.

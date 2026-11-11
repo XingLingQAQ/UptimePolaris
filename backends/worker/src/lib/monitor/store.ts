@@ -77,14 +77,6 @@ export async function loadLiveFresh(env: Env): Promise<LiveState> {
   return state;
 }
 
-export async function saveLive(env: Env, state: LiveState): Promise<void> {
-  const now = Math.floor(Date.now() / 1000);
-  const db = getDB(env);
-  await db.execute(liveStateSQL[db.type].upsert, ['all', JSON.stringify(state), now]);
-
-  liveCache = { at: Date.now(), target: databaseIdentity(env), state };
-}
-
 /** Read daily history in chunks of at most 80 monitor IDs. / 分批读取每日历史，每批最多 80 个监控 ID。 */
 export async function loadUptime(
   env: Env,

@@ -58,21 +58,6 @@ function scopeIds(channel: NotificationChannel): string[] {
   return Array.isArray(channel.group_ids) ? channel.group_ids : [];
 }
 
-/** Badge for a list row; unknown types are marked, not guessed. / 列表行徽标；未知类型标记出来，不猜测。 */
-const TYPE_SHORT: Record<NotificationType, string> = {
-  telegram: 'TG',
-  feishu: 'FS',
-  slack: 'SLK',
-  discord: 'DC',
-  webhook: 'WH',
-  apprise: 'APR',
-  serverchan: 'SC',
-};
-
-function typeShort(type: string): string {
-  return TYPE_SHORT[type as NotificationType] ?? '???';
-}
-
 /**
  * Notification channels driven by NOTIFICATION_META.
  *
@@ -104,8 +89,6 @@ export function NotificationsPanel({ header = 'panel' }: { header?: 'panel' | 't
 
   /** Initial provider when the operator picked one from the empty-state gallery. / 从空状态画廊选择时新建渠道的初始提供商。 */
   const [initialType, setInitialType] = useState<NotificationType | null>(null);
-  const ago = useTimeAgo();
-
   /** Open the form for a new channel. Shared by every mode's Add button. / 打开新渠道表单，供各模式的添加按钮共用。 */
   const startCreate = (type?: NotificationType) => {
     formSession.current++;

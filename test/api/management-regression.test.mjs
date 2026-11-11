@@ -129,6 +129,7 @@ function callback(file, name) {
   const draftRef = { current: { 'site.title': 'first', 'security.loginMaxAttempts': 7 } };
   const draftVersions = { current: new Map() };
   const pendingSaves = { current: new Map() };
+  const invalidDrafts = { current: new Set() };
   const GROUP_KEYS = { site: ['site.title'], security: ['security.loginMaxAttempts'] };
   let values = { 'site.title': 'original', 'security.loginMaxAttempts': 8 }, draft;
   let saving = new Set();
@@ -165,6 +166,7 @@ function callback(file, name) {
 {
   const GROUP_KEYS = { site: ['site.title'] }, groups = ['site'];
   const pendingSaves = { current: new Map() }, timers = { current: new Map() };
+  const invalidDrafts = { current: new Set() };
   const draftRef = { current: { 'site.title': 'old draft' } };
   const draftVersions = { current: new Map() };
   let values = { 'site.title': 'original' }, specs = [{ key: 'site.title', stored: true }];

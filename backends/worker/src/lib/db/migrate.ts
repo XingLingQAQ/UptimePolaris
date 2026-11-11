@@ -115,30 +115,10 @@ export async function probeSchema(
   return { ok: missing.length === 0, applied, missing };
 }
 
-/**
- * The sentence an operator reads when the probe fails.
- *
- * Shared rather than inlined into each caller: this text names the exact command
- * that fixes the state, so two copies of it would eventually be two different
- * commands. `src/index.ts` puts it in the HTTP body, `assertSchemaReady` throws
- * it.
- * 探测失败时供管理员阅读的消息。统一复用而非在各调用方内联，因为文本包含修复状态的
- * 精确命令，多份副本最终可能产生不同命令。`src/index.ts` 将其放入 HTTP 响应体，
- * `assertSchemaReady` 将其作为异常抛出。
- */
+/** Shared migration guidance for failed schema probes. / 结构探测失败时共用的迁移提示。 */
 export function schemaBehindMessage(missing: string[]): string {
   return (
     `Postgres schema is behind: missing ${missing.join(', ')}. ` +
     `Run \`DATABASE_URL=... node scripts/db/db-migrate-postgres.mjs\` first.`
   );
-}
-
-/**
- * Fail-fast variant for Worker boot. Callers that want to log a structured
- * result instead of throwing can call `probeSchema` directly.
- * Worker 启动时快速失败的版本；希望记录结构化结果而非抛错的调用方可直接调用 `probeSchema`。
- */
-export async function assertSchemaReady(env: Env): Promise<void> {
-  const r = await probeSchema(env);
-  if (!r.ok) throw new Error(schemaBehindMessage(r.missing));
 }

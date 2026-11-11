@@ -5,7 +5,6 @@ import { installPs1, installSh } from './install-script';
 import { latestAgentRelease, PROBE_PLATFORMS, releaseUrl } from './release';
 
 export { PROBE_PLATFORMS } from './release';
-export function probeFileName(platform: string): string { return `polaris-agent-${platform}${PROBE_PLATFORMS[platform] ?? ''}`; }
 export function serveAgentInstaller(c: Context<{ Bindings: Env }>, file: 'install.sh' | 'install.ps1', compact = false) {
   const base = new URL(c.req.url).origin;
   c.header('content-type', file === 'install.sh' ? 'text/x-shellscript; charset=utf-8' : 'text/plain; charset=utf-8');

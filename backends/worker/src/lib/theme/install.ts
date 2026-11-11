@@ -239,7 +239,7 @@ export async function installPackage(env: Env, bytes: Uint8Array, sourceUrl: str
   } finally { try { await lease.release(); } catch { } }
 }
 
-export async function checkThemeUpdate(env: Env, source: string, currentVersion: string, currentDigest: string | null, expectedId: string): Promise<{ available: boolean; current: string; latest: string; digest: string } | InstallFailure> {
+export async function checkThemeUpdate(source: string, currentVersion: string, currentDigest: string | null, expectedId: string): Promise<{ available: boolean; current: string; latest: string; digest: string } | InstallFailure> {
   let url: URL;
   try { url = new URL(source); } catch { return failure('bad_url', 'source must be an HTTP(S) URL'); }
   if (!['http:', 'https:'].includes(url.protocol)) return failure('bad_url', 'source must be an HTTP(S) URL');

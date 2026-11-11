@@ -30,8 +30,6 @@ export function statusLabel(s: Status): string {
   return s === UP ? 'UP' : s === DOWN ? 'DOWN' : 'WARN';
 }
 
-export const TZ_OFFSET_MIN = 0;
-
 /** Day bucket key in UTC. Matches the 00:00 UTC D1/AE quota reset. / UTC 日期分桶键，与 D1/AE 配额在 UTC 00:00 重置的时间一致。 */
 export function dayKey(epochSec: number): string {
   return new Date(epochSec * 1000).toISOString().slice(0, 10);

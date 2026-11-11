@@ -8,6 +8,7 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSy
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { configOption, wrangler } from '../scripts/wrangler-cli.mjs';
 
 const root = resolve(import.meta.dirname, '..');
@@ -22,14 +23,15 @@ assert.deepEqual(config.compatibility_flags, tomlArray('compatibility_flags'));
 assert.equal(config.name, 'uptime-polaris');
 assert.equal(config.main, 'backends/worker/src/index.ts');
 assert.equal(config.compatibility_date, '2025-01-01');
-assert.deepEqual(config.vars, { PBKDF2_ITERATIONS: '3000', DATABASE_TYPE: 'd1' });
+assert.deepEqual(config.vars, { PBKDF2_ITERATIONS: '3000' });
+assert.equal(config.keep_vars, true);
 assert.equal(config.assets.binding, 'ASSETS');
 assert.equal(config.assets.directory, './public');
 assert.equal(config.assets.not_found_handling, 'single-page-application');
 assert.equal(config.assets.html_handling, 'auto-trailing-slash');
-assert.deepEqual(config.d1_databases, [{ binding: 'DB', database_name: 'uptime-polaris-db', database_id: '00000000-0000-4000-8000-000000000000', migrations_dir: 'database/schema/d1' }]);
-assert.notEqual(config.d1_databases[0].database_name, toml.match(/^database_name\s*=\s*"([^"]+)"/m)[1]);
-assert.notEqual(config.d1_databases[0].database_name, readFileSync(join(root, 'backends/worker/cloudflare.config.ts'), 'utf8').match(/DB:\s*bindings\.d1\(\{\s*name:\s*"([^"]+)"/)[1]);
+// Fork 和按钮部署由用户在控制台绑定资源，配置里不声明，部署时也不创建。
+// Fork and button deployments bind resources in the dashboard; the config declares none and deploys create none.
+assert.equal(config.d1_databases, undefined);
 assert.equal(config.r2_buckets, undefined);
 assert.equal(config.analytics_engine_datasets, undefined);
 assert.equal(readFileSync(join(root, '.dev.vars.example'), 'utf8').trim(), 'ADMIN_TOKEN=');
@@ -75,7 +77,7 @@ try {
   write(join(temp, 'scripts/dev/live-demo-data.mjs'), 'export function demoSkipReason() { return true; } export const DEMO_IDS = { monitors: {}, groups: {}, tags: {}, channels: {} }; export function buildSeedStatements() { throw new Error("unexpected seed"); }');
   // FAKE_CHECK_ENV records npm environment handling on --prefix calls.
   // FAKE_CHECK_ENV 在 --prefix 调用时记录 npm 环境变量的清理与保留情况。
-  const fake = "require('node:fs').appendFileSync(process.env.FIXTURE_LOG, JSON.stringify([process.env.FAKE_KIND || 'npm', ...process.argv.slice(2)])+'\\n'); if(process.env.FAKE_CHECK_ENV && process.argv[2]==='--prefix') require('node:fs').appendFileSync(process.env.FIXTURE_LOG, JSON.stringify(['env',Object.keys(process.env).some(k=>k.toLowerCase()==='npm_config_allow_scripts'),process.env.npm_config_fund])+'\\n'); process.exit(Number(process.env.FAKE_EXIT || 0));";
+  const fake = "require('node:fs').appendFileSync(process.env.FIXTURE_LOG, JSON.stringify([process.env.FAKE_KIND || 'npm', ...process.argv.slice(2)])+'\\n'); if(process.env.FAKE_CHECK_ENV && process.argv[2]==='--prefix') require('node:fs').appendFileSync(process.env.FIXTURE_LOG, JSON.stringify(['env',Object.keys(process.env).some(k=>k.toLowerCase()==='npm_config_allow_scripts'),process.env.npm_config_fund])+'\\n'); const configAt = process.argv.indexOf('--config'); if(process.env.FAKE_READ_CONFIG && configAt > 0) require('node:fs').appendFileSync(process.env.FIXTURE_LOG, JSON.stringify(['config', JSON.parse(require('node:fs').readFileSync(process.argv[configAt + 1], 'utf8'))])+'\\n'); process.exit(Number(process.env.FAKE_EXIT || 0));";
   write(join(temp, 'fake-npm.cjs'), fake);
   for (const name of ['wrangler', 'cf']) {
     write(join(temp, 'node_modules', name, 'package.json'), JSON.stringify({ name, version: '1.0.0', bin: { [name]: 'cli.cjs' } }));
@@ -107,31 +109,73 @@ try {
   reset();
   assert.equal(run('deploy.mjs', [], { PREFLIGHT_EXIT: '8' }).status, 8);
   assert.deepEqual(calls(), [['preflight']]);
+  // Workers Builds 下用调用记录桩代替 Cloudflare API，验证部署保留控制台里的绑定。
+  // Under Workers Builds, a logging stub replaces the Cloudflare API to check that deploys keep dashboard bindings.
+  write(join(temp, 'fake-fetch.mjs'), "import { appendFileSync } from 'node:fs'; const routes = JSON.parse(process.env.FAKE_API || '{}'); globalThis.fetch = async (input, init = {}) => { const url = new URL(String(input)); const key = url.pathname + url.search; appendFileSync(process.env.FIXTURE_LOG, JSON.stringify(['fetch', key, init.headers?.authorization ?? null]) + '\\n'); const [status, body] = routes[key] ?? [500, { success: false }]; return new Response(JSON.stringify(body), { status }); };");
+  const settingsPath = name => `/client/v4/accounts/fixture-account/workers/scripts/${name}/settings`;
+  const accountsPath = '/client/v4/accounts?per_page=50';
+  const builds = (args, api, extra = {}) => run('deploy.mjs', args, {
+    WORKERS_CI: '1', NODE_OPTIONS: `--import=${pathToFileURL(join(temp, 'fake-fetch.mjs')).href}`,
+    CLOUDFLARE_API_TOKEN: 'fixture-token', CLOUDFLARE_ACCOUNT_ID: 'fixture-account', WRANGLER_CI_OVERRIDE_NAME: '', FAKE_API: JSON.stringify(api), ...extra,
+  });
+  const generated = join(temp, '.wrangler-builds.jsonc');
+  const dashboard = { success: true, result: { bindings: [
+    { type: 'd1', name: 'DB', id: '11111111-1111-4111-8111-111111111111' },
+    { type: 'r2_bucket', name: 'THEMES', bucket_name: 'fixture-themes' },
+    { type: 'analytics_engine', name: 'UPTIME', dataset: 'fixture_heartbeats' },
+    { type: 'kv_namespace', name: 'DB_CACHE', namespace_id: 'unrelated' },
+    { type: 'd1', name: 'OTHER', id: '22222222-2222-4222-8222-222222222222' },
+    { type: 'secret_text', name: 'ADMIN_TOKEN' },
+  ] } };
+
+  // 首次部署时 Worker 还不存在，直接使用 wrangler.jsonc。 / On the first deploy the Worker does not exist, so wrangler.jsonc is used as is.
   reset();
-  const missing = run('deploy.mjs', [], { WORKERS_CI: '1' });
-  assert.notEqual(missing.status, 0);
-  assert.match(missing.stderr, /provisioned DB database_id/);
-  assert.deepEqual(calls(), []);
-  for (const invalid of ['', 'not-a-uuid', '00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000000']) {
-    config.d1_databases[0].database_id = invalid;
-    write(join(temp, 'wrangler.jsonc'), JSON.stringify(config));
+  assert.equal(builds(['--dry-run'], { [settingsPath('uptime-polaris')]: [404, { success: false, errors: [{ code: 10007 }] }] }).status, 0);
+  assert.deepEqual(calls(), [['fetch', settingsPath('uptime-polaris'), 'Bearer fixture-token'], ['wrangler', 'deploy', '--dry-run', '--config', join(temp, 'wrangler.jsonc')]]);
+
+  // 控制台绑定写入生成的配置，部署后删除；Worker 名称取控制台上的名称。
+  // Dashboard bindings go into a generated config that is removed afterwards; the Worker name comes from the dashboard.
+  reset();
+  assert.equal(builds([], { [settingsPath('uptimepolaris')]: [200, dashboard] }, { WRANGLER_CI_OVERRIDE_NAME: 'uptimepolaris', FAKE_READ_CONFIG: '1' }).status, 0);
+  assert.deepEqual(calls(), [
+    ['fetch', settingsPath('uptimepolaris'), 'Bearer fixture-token'],
+    ['wrangler', 'deploy', '--config', generated],
+    ['config', {
+      ...config,
+      d1_databases: [{ binding: 'DB', database_id: '11111111-1111-4111-8111-111111111111' }],
+      r2_buckets: [{ binding: 'THEMES', bucket_name: 'fixture-themes' }],
+      analytics_engine_datasets: [{ binding: 'UPTIME', dataset: 'fixture_heartbeats' }],
+    }],
+  ]);
+  assert.equal(existsSync(generated), false);
+
+  // 没有账号 ID 时使用令牌下唯一的账号。 / Without an account ID, use the token's only account.
+  reset();
+  assert.equal(builds(['--dry-run'], { [accountsPath]: [200, { success: true, result: [{ id: 'fixture-account' }] }], [settingsPath('uptime-polaris')]: [404, { success: false }] }, { CLOUDFLARE_ACCOUNT_ID: '' }).status, 0);
+  assert.deepEqual(calls().map(call => call.slice(0, 2)), [['fetch', accountsPath], ['fetch', settingsPath('uptime-polaris')], ['wrangler', 'deploy']]);
+
+  // 读不到绑定时不部署，避免删掉控制台里的绑定。 / Never deploy without reading the bindings, so dashboard bindings are not removed.
+  for (const [api, extra] of [
+    [{ [settingsPath('uptime-polaris')]: [500, { success: false }] }, {}],
+    [{ [settingsPath('uptime-polaris')]: [403, { success: false }] }, {}],
+    [{ [settingsPath('uptime-polaris')]: [200, { success: true, result: { bindings: [{ type: 'd1', name: 'DB' }] } }] }, {}],
+    [{}, { CLOUDFLARE_API_TOKEN: '' }],
+    [{ [accountsPath]: [200, { success: true, result: [{ id: 'one' }, { id: 'two' }] }] }, { CLOUDFLARE_ACCOUNT_ID: '' }],
+  ]) {
     reset();
-    assert.notEqual(run('deploy.mjs', [], { WORKERS_CI: '1' }).status, 0);
-    assert.deepEqual(calls(), []);
+    assert.notEqual(builds([], api, extra).status, 0);
+    assert.equal(calls().some(call => call[0] === 'wrangler'), false);
+    assert.equal(existsSync(generated), false);
   }
-  config.d1_databases[0].database_id = '11111111-1111-4111-8111-111111111111';
-  write(join(temp, 'wrangler.jsonc'), JSON.stringify(config));
-  reset();
-  assert.equal(run('deploy.mjs', ['--dry-run'], { WORKERS_CI: '1' }).status, 0);
-  assert.deepEqual(calls(), [['wrangler', 'deploy', '--dry-run', '--config', join(temp, 'wrangler.jsonc')]]);
   for (const override of [['--config=other.toml'], ['-c', 'other.toml'], ['--env=production'], ['-e', 'production'], ['--name', 'other'], ['-n', 'other'], ['--var', 'DATABASE_TYPE:postgres'], ['--'], ['--unknown']]) {
     reset();
-    assert.equal(run('deploy.mjs', override, { WORKERS_CI: '1' }).status, 1);
+    assert.equal(builds(override, {}).status, 1);
     assert.deepEqual(calls(), []);
   }
   reset();
-  assert.equal(run('deploy.mjs', [], { WORKERS_CI: '1', FAKE_EXIT: '9' }).status, 9);
-  assert.equal(calls()[0][0], 'wrangler');
+  assert.equal(builds([], { [settingsPath('uptime-polaris')]: [200, dashboard] }, { FAKE_EXIT: '9' }).status, 9);
+  assert.equal(calls()[1][0], 'wrangler');
+  assert.equal(existsSync(generated), false);
 
   for (const args of [['--config', 'custom.toml'], ['--config=custom.toml'], ['-c', 'custom.toml'], ['-c=custom.toml'], ['-ccustom.toml']]) {
     reset();

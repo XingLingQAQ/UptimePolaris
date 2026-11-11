@@ -1,6 +1,5 @@
 import { settingsApi } from '@/admin/settings/api';
 import { ApiError } from '@/api/errors';
-import { useBackendCapabilities } from '@/api/backend';
 import { ThemeSwitch } from '@/components/ui/ThemeSwitch';
 import { Select } from '@/components/ui/MotionOverlays';
 import { LocaleSwitch } from '@/i18n/LocaleSwitch';
@@ -16,6 +15,8 @@ import {
   AlertCircle,
   ArrowRight,
   Check,
+  CircleCheck,
+  CircleDashed,
   KeyRound,
   Loader2,
   Lock,
@@ -29,7 +30,7 @@ import { useTranslations } from 'use-intl';
 import { AuthSplash, useAuth } from './AuthContext';
 import { AuthProductPanel } from './AuthProductPanel';
 import { PasswordInput } from './PasswordInput';
-import type { SetupDatabaseType } from '../../../shared/setup';
+import type { SetupDatabaseType, SetupRequirement, SetupRequirementKey } from '../../../shared/setup';
 
 /** Brand mark, cropped to its ink - the same helper the sign-in page uses. / 裁去留白的品牌标记，与登录页使用相同辅助函数。 */
 const BRAND_ICON = buildIconProxyUrl(undefined, { tight: true });
@@ -61,6 +62,7 @@ export function SetupPage() {
   const [error, setError] = useState<string | null>(null);
   const [databaseType, setDatabaseType] = useState<SetupDatabaseType | null>(null);
   const [databaseUrl, setDatabaseUrl] = useState('');
+  const [stage, setStage] = useState<'check' | 'account'>('check');
   const submissionPending = useRef(false);
 
   /**
@@ -109,8 +111,16 @@ export function SetupPage() {
   const passwordMismatch = confirmPasswordTouched && password !== confirmPassword;
 
 
-  /** No setup secret bound means setup cannot succeed; show the fix, not the form. / 未绑定初始化密钥时初始化不可能成功；显示修复方法。 */
-  const credentialMissing = session.setupCredential === null && !session.authenticated;
+  /**
+   * Worker 先检查部署，必需项全部通过后才显示初始化表单；Go 后端不返回检查结果，直接进入表单。
+   * The Worker checks its deployment first and shows the form only after every required item passes; Go reports no check and goes straight to the form.
+   */
+  const requirements = session.setupRequirements ?? null;
+  const deploymentReady = requirements?.every((item) => !item.required || item.ok) ?? true;
+  const showCheck = requirements !== null && (stage === 'check' || !deploymentReady);
+
+  /** No setup key on Go means setup cannot succeed; show the fix, not the form. / Go 未配置初始化密钥时无法初始化；显示修复方法。 */
+  const credentialMissing = requirements === null && session.setupCredential === null && !session.authenticated;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -187,8 +197,11 @@ export function SetupPage() {
         <div className="flex flex-1 items-center justify-center px-6 pb-16">
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={CONTENT_TRANSITION} className="w-full max-w-[24rem]">
             <div className="mb-7">
+              {requirements ? (
+                <p className="mb-2 text-[12px] font-medium text-[var(--polaris-ink-4)]">{t('setup.stepLabel', { current: showCheck ? 1 : 2, total: 2 })}</p>
+              ) : null}
               <h1 className="text-[26px] leading-tight font-semibold tracking-[-0.025em]">{t('setup.title')}</h1>
-              <p className="mt-1.5 text-[13.5px] text-[var(--polaris-ink-3)]">{t('setup.subtitle')}</p>
+              <p className="mt-1.5 text-[13.5px] text-[var(--polaris-ink-3)]">{t(showCheck ? 'setup.checkSubtitle' : 'setup.subtitle')}</p>
             </div>
 
             {/*
@@ -204,7 +217,9 @@ export function SetupPage() {
               若仍显示字段、禁用按钮并在下方警告，页面看起来仍像需要填写；
               真正缺少的是在此页面之外设置密钥，而不是填写表单。
             */}
-            {credentialMissing ? (
+            {showCheck && requirements ? (
+              <DeploymentCheck requirements={requirements} ready={deploymentReady} onNext={() => setStage('account')} />
+            ) : credentialMissing ? (
               <NoCredential />
             ) : (
               <>
@@ -348,6 +363,17 @@ export function SetupPage() {
                   >
                     {submitting ? t('setup.creating') : t('login.setupSubmit')}
                   </Button>
+
+                  {requirements ? (
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => setStage('check')}
+                      className="self-center text-[12.5px] font-medium text-[var(--polaris-ink-3)] transition-colors hover:text-[var(--polaris-ink)] disabled:opacity-50"
+                    >
+                      {t('setup.checkBack')}
+                    </button>
+                  ) : null}
                 </form>
               </>
             )}
@@ -378,22 +404,89 @@ function DatabaseUnavailable() {
   );
 }
 
+const REQUIREMENT_TEXT: Record<SetupRequirementKey, { label: string; hint: string }> = {
+  database: { label: 'setup.checkDatabase', hint: 'setup.checkDatabaseHint' },
+  adminToken: { label: 'setup.checkAdminToken', hint: 'setup.checkAdminTokenHint' },
+  themes: { label: 'setup.checkThemes', hint: 'setup.checkThemesHint' },
+  analytics: { label: 'setup.checkAnalytics', hint: 'setup.checkAnalyticsHint' },
+};
+
 /**
- * The dead end, stated plainly.
+ * Worker 初始化的第一步：逐项列出绑定和密钥，未通过的项说明在 Cloudflare 控制台怎么配置。
+ * Step one of Worker setup: list each binding and secret, and say how to configure any that fail in the Cloudflare dashboard.
+ */
+function DeploymentCheck({ requirements, ready, onNext }: { requirements: SetupRequirement[]; ready: boolean; onNext: () => void }) {
+  const t = useTranslations('admin');
+  const { refresh } = useAuth();
+  const [checking, setChecking] = useState(false);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <ul className="divide-y divide-[var(--polaris-line)] overflow-hidden rounded-xl border border-[var(--polaris-line)] bg-[var(--polaris-card)]">
+        {requirements.map((item) => {
+          const text = REQUIREMENT_TEXT[item.key];
+          const Icon = item.ok ? CircleCheck : item.required ? AlertCircle : CircleDashed;
+          const tone = item.ok ? 'text-success-600' : item.required ? 'text-danger-600' : 'text-[var(--polaris-ink-4)]';
+          return (
+            <li key={item.key} className="flex gap-3 px-3.5 py-3">
+              <Icon size={16} className={`mt-0.5 shrink-0 ${tone}`} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[13px] font-medium">{t(text.label)}</span>
+                  <span className={`shrink-0 text-[12px] ${tone}`}>
+                    {t(item.ok ? 'setup.checkOk' : item.required ? 'setup.checkMissing' : 'setup.checkOptional')}
+                  </span>
+                </div>
+                {item.ok ? null : <p className="mt-1 text-[12px] leading-relaxed text-[var(--polaris-ink-3)]">{t(text.hint)}</p>}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {ready ? null : <p className="text-[12px] leading-relaxed text-[var(--polaris-ink-4)]">{t('setup.checkAfter')}</p>}
+
+      <div className="flex gap-2">
+        <Button
+          variant="bordered"
+          className="h-10 flex-1 text-[13.5px]"
+          isLoading={checking}
+          startContent={checking ? null : <RefreshCw size={15} />}
+          onPress={async () => {
+            setChecking(true);
+            try { await refresh(); } finally { setChecking(false); }
+          }}
+        >
+          {t('setup.checkRetry')}
+        </Button>
+        <Button
+          color="primary"
+          className="h-10 flex-1 text-[13.5px] font-medium"
+          isDisabled={!ready || checking}
+          endContent={<ArrowRight size={16} />}
+          onPress={onNext}
+        >
+          {t('setup.checkNext')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The dead end on the Go backend, stated plainly.
  *
- * Shown when no setup secret is bound: name `ADMIN_TOKEN`, show how to set it,
- * and offer a session re-check after the deployment changes. It does not offer
- * a setup form that cannot succeed.
- * 未绑定密钥时只显示修复方法，不显示无法成功的表单。
+ * Shown when no setup key is configured: show how to set `POLARIS_SETUP_KEY`
+ * and offer a session re-check after restarting. The Worker reports the same
+ * gap in its deployment check instead.
+ * Go 未配置初始化密钥时只显示修复方法；Worker 在部署检查里提示同一问题。
  */
 function NoCredential() {
-  const backend = useBackendCapabilities();
   const t = useTranslations('admin');
   const { refresh } = useAuth();
   const [retrying, setRetrying] = useState(false);
 
-  const isGo = backend.data?.runtime === 'go';
-  const command = isGo ? "POLARIS_SETUP_KEY='<setup-key>' ./polaris" : 'npx wrangler secret put ADMIN_TOKEN --config backends/worker/wrangler.toml';
+  const command = "POLARIS_SETUP_KEY='<setup-key>' ./polaris";
 
   return (
     <div
@@ -404,7 +497,7 @@ function NoCredential() {
         <AlertCircle size={15} className="mt-px shrink-0" />
         {t('setup.noCredentialTitle')}
       </p>
-      <p className="mt-2 leading-relaxed text-[var(--polaris-ink-3)]">{t(isGo ? 'setup.noCredentialGoBody' : 'setup.noCredentialBody')}</p>
+      <p className="mt-2 leading-relaxed text-[var(--polaris-ink-3)]">{t('setup.noCredentialGoBody')}</p>
 
       <button
         type="button"
@@ -456,6 +549,7 @@ function readableError(err: unknown, t: ReturnType<typeof useTranslations>): str
   if (code === 'invalid_setup_credential') return t('login.setupCredentialInvalid');
   /** Secret absent, not wrong; reachable when the tab's session is stale. / 密钥缺失而非错误；标签页会话过期时也可能到达。 */
   if (code === 'credential_unconfigured') return t('setup.noCredentialTitle');
+  if (code === 'deployment_incomplete') return t('setup.deploymentIncomplete');
   if (code === 'invalid_username') return t('login.setupUsernameInvalid');
   if (code === 'username_taken') return t('login.setupUsernameTaken');
   if (code === 'password_too_short') return t('login.setupPasswordShort');

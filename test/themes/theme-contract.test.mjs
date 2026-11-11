@@ -66,7 +66,7 @@ export default { async fetch(request, env, ctx) {
       const priorFetch = globalThis.fetch;
       globalThis.fetch = async () => new Response(bytes);
       try {
-        const result = await checkThemeUpdate(env, 'https://fixture.invalid/theme.zip', url.searchParams.get('version') ?? '1.0.0', url.searchParams.get('digest'), 'sample-theme');
+        const result = await checkThemeUpdate('https://fixture.invalid/theme.zip', url.searchParams.get('version') ?? '1.0.0', url.searchParams.get('digest'), 'sample-theme');
         return Response.json(result);
       } finally { globalThis.fetch = priorFetch; }
     }
@@ -118,6 +118,7 @@ CREATE TABLE presentation_state (id TEXT PRIMARY KEY,config_json TEXT NOT NULL,r
 CREATE TABLE theme_operations (id TEXT PRIMARY KEY,token TEXT NOT NULL,expires_at INTEGER NOT NULL);
 CREATE TABLE monitors (id TEXT PRIMARY KEY, name TEXT NOT NULL);
 CREATE TABLE live_state (id TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at INTEGER NOT NULL);
+CREATE TABLE app_settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at INTEGER NOT NULL);
 INSERT INTO monitors (id, name) VALUES ('00000000-0000-4000-8000-000000000001', 'Fixture monitor');
 `);
 const origin = 'http://localhost';
@@ -263,5 +264,13 @@ try {
   const examples = await json(await req('/api/themes', { headers: authHeaders }));
   const shipped = examples.themes.find(theme => theme.id === example.id);
   assert.deepEqual(shipped.versions[0].themes.map(theme => [theme.target, theme.available]).sort(), [['agent', true], ['monitor', true]]);
+  // 没有当前 ID 的注册记录不得通过虚拟旧版 ID 参与删除。
+  // A registry row without a current ID must not acquire a synthetic legacy lease.
+  await db.prepare('INSERT INTO themes(short,name,version,manifest_json,installed_at,updated_at) VALUES(?,?,?,?,?,?)').bind('missing-id','Invalid','1.0.0','{}',1,1).run();
+  const invalidDelete = await req('/api/themes/missing-id', { method:'DELETE', headers:authHeaders });
+  assert.equal(invalidDelete.status, 409);
+  assert.equal((await json(invalidDelete)).error, 'theme_delete_invalid_path');
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM themes WHERE short='missing-id'").first()).n, 1);
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM theme_operations WHERE id LIKE 'legacy:%'").first()).n, 0);
   console.log('theme schema 2 contract: passed');
 } finally { await mf.dispose(); }

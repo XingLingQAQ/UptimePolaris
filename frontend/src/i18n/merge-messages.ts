@@ -30,8 +30,3 @@ export function mergeMessages(base: MessageTree, override: MessageTree): Message
   }
   return out;
 }
-
-/** fold a chain [lowest ← ... ← highest] into one catalog. / 将优先级链 [最低 ← ... ← 最高] 合并为一个语言包。 */
-export function mergeChain(chain: MessageTree[]): MessageTree {
-  return chain.reduce<MessageTree>((acc, layer) => mergeMessages(acc, layer), {});
-}

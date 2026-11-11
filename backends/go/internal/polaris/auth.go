@@ -83,9 +83,13 @@ func (a *App) setCookie(w http.ResponseWriter, r *http.Request, value string, ag
 // Keep the random session token in the client cookie; store only its digest and expiry.
 func (a *App) createSession(w http.ResponseWriter, r *http.Request, id string) (int64, error) {
 	secret := token(32)
-	age := int(number(a.settings(r.Context())["security.sessionTtlDays"])) * 86400
+	settings, err := a.settings(r.Context())
+	if err != nil {
+		return 0, err
+	}
+	age := int(number(settings["security.sessionTtlDays"])) * 86400
 	expires := time.Now().Unix() + int64(age)
-	err := a.store.put(r.Context(), "session", digest(secret), Object{"user_id": id, "expires_at": expires})
+	err = a.store.put(r.Context(), "session", digest(secret), Object{"user_id": id, "expires_at": expires})
 	if err == nil {
 		a.setCookie(w, r, secret, age)
 	}
@@ -163,7 +167,10 @@ func (a *App) authRoutes() {
 		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 		keys := []string{digest("ip:" + ip), digest("account:" + name)}
 		now := time.Now().Unix()
-		settings := a.settings(r.Context())
+		settings, e := a.settings(r.Context())
+		if e != nil {
+			return e
+		}
 		window := int64(number(settings["security.loginWindowSec"]))
 		max := int64(number(settings["security.loginMaxAttempts"]))
 		locked := false

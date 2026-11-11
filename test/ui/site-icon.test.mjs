@@ -295,6 +295,11 @@ try {
      */
     eq('the default site.icon is the public icon route', body.values['site.icon'], '/api/public/icon');
   }
+  // 缺表是读取故障，不能伪装成“尚未上传”而返回默认图标。
+  // A missing table is a read failure, not an absent uploaded icon.
+  await db.prepare('ALTER TABLE site_icon RENAME TO unavailable_icon').run();
+  assert.equal((await mf.dispatchFetch(`${origin}/api/public/icon?fresh=1`)).status, 500);
+  await db.prepare('ALTER TABLE unavailable_icon RENAME TO site_icon').run();
 } finally {
   await mf.dispose();
   clearTimeout(watchdog);

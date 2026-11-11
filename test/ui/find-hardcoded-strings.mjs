@@ -54,9 +54,6 @@ const ALLOWED = [
   // Dev-only style harness, never part of a build a user sees.
   // 仅供开发使用的样式工具，不进入用户构建。
   /src[\\/]dev[\\/]/,
-  // Chart tooltip fallback for an invalid timestamp.
-  // 无效时间戳的图表提示回退文本。
-  /components[\\/]ui[\\/]ChartTooltip\.tsx$/,
 ];
 
 function walk(dir, out = []) {

@@ -55,6 +55,12 @@ try {
   const initial = await request(instance, '/api/auth/session');
   assert.equal(initial.body.needsSetup, true);
   assert.equal(initial.body.setupCredential, 'ADMIN_TOKEN');
+  assert.deepEqual(initial.body.setupRequirements, [
+    { key: 'database', required: true, ok: true },
+    { key: 'adminToken', required: true, ok: true },
+    { key: 'themes', required: false, ok: false },
+    { key: 'analytics', required: false, ok: false },
+  ]);
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM users').first()).n, 0);
   assert.match(initial.response.headers.get('cache-control'), /private, no-store/);
   for (const malformed of ['null', '[]', '3']) assert.equal((await request(instance, '/api/auth/setup', malformed)).response.status, 400);
@@ -75,6 +81,7 @@ try {
   assert.equal(session.body.authenticated, true);
   assert.equal(session.body.user.username, owner.username);
   assert.equal(session.body.setupCredential, null);
+  assert.equal(session.body.setupRequirements, null);
   assert.equal(session.body.needsSetup, false);
   assert.equal(Object.hasOwn(session.body, 'mustChangePassword'), false);
   assert.equal((await request(instance, '/api/auth/setup', { credential: 'setup-secret', username: 'extra', password: 'extra-password' })).response.status, 409);
@@ -102,10 +109,25 @@ try {
 
 const bare = await worker({});
 try {
-  assert.equal((await request(bare.instance, '/api/auth/session')).body.setupCredential, null);
+  const bareSession = (await request(bare.instance, '/api/auth/session')).body;
+  assert.equal(bareSession.setupCredential, null);
+  assert.deepEqual(bareSession.setupRequirements.find(item => item.key === 'adminToken'), { key: 'adminToken', required: true, ok: false });
   const rejected = await request(bare.instance, '/api/auth/setup', { credential: 'anything', username: 'owner', password: 'private-password' });
   assert.equal(rejected.response.status, 503);
   assert.equal(rejected.body.error, 'credential_unconfigured');
   assert.equal((await request(bare.instance, '/_derive-count')).body.calls, 0);
-} finally { await bare.instance.dispose(); clearTimeout(watchdog); }
+} finally { await bare.instance.dispose(); }
+
+const recovered = await worker({});
+try {
+  // 执行恢复脚本的实际 SQL；创建首个账户时也必须完成初始化状态。
+  // Execute the recovery script's SQL; creating the first account must also complete setup.
+  const source = readFileSync('scripts/db/create-user.mjs', 'utf8');
+  const template = source.match(/const sql = `([\s\S]*?)`;/)[1];
+  const values = { id:'cli-owner', normalized:'cli-owner', hash:'fixture-hash', now:'1' };
+  const sql = template.replace(/\$\{(id|normalized|hash|now)\}/g, (_, key) => values[key]);
+  for (const statement of sql.split(';').map(value => value.trim()).filter(Boolean)) await recovered.db.prepare(statement).run();
+  assert.equal((await recovered.db.prepare('SELECT COUNT(*) AS n FROM users').first()).n, 1);
+  assert.equal((await request(recovered.instance, '/api/auth/session')).body.needsSetup, false);
+} finally { await recovered.instance.dispose(); clearTimeout(watchdog); }
 console.log('First-run setup, account changes and login protection passed');

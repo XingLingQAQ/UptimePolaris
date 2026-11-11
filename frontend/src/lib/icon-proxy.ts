@@ -46,12 +46,3 @@ export const resolveSiteIconUrl = (
   }
   return fallback;
 };
-
-/** The favicon / app-icon form: padded, optionally with its own surface. / favicon 或应用图标版本：保留留白，可选底板。 */
-export const buildIconAssetUrl = (opts: { size?: number; container?: boolean } = {}): string => {
-  const params = new URLSearchParams();
-  params.set('v', String(ICON_VERSION));
-  if (opts.size) params.set('size', String(opts.size));
-  if (opts.container) params.set('container', '1');
-  return `${ICON_PATH}?${params.toString()}`;
-};

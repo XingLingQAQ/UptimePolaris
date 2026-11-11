@@ -3,26 +3,11 @@ import clsx from 'clsx';
 import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
-import { StatusDot, TONE_TEXT } from '../../components/ui/StatusDot';
+import { StatusDot } from '../../components/ui/StatusDot';
 import { useLocale } from '../../i18n/IntlProvider';
 import type { Tone } from '../../types/tone';
 import { toneForStatus, TYPE_LABEL } from './presentation';
 import type { AddonReading, DnsReading, MonitorType, RingHeartbeat } from './types';
-
-/** Status as a word plus a light. The word carries the meaning; colour only speeds up scanning. / 状态以文字和指示灯表示；文字承载含义，颜色用于加快浏览。 */
-export function StatusTag({ tone, label, pulse }: { tone: Tone; label: string; pulse?: boolean }) {
-  return (
-    <span
-      className={clsx(
-        'inline-flex items-center gap-1.5 text-[13px] font-medium',
-        tone === 'up' ? 'text-[var(--polaris-ink-2)]' : TONE_TEXT[tone],
-      )}
-    >
-      <StatusDot tone={tone} pulse={pulse} />
-      {label}
-    </span>
-  );
-}
 
 /** Status badge: neutral ink for healthy, coloured word for other states. / 状态徽标：正常用中性色，其他状态文字着色。 */
 export function StatusPill({

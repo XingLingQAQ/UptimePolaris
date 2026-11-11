@@ -8,8 +8,6 @@ import {
   rollingAvailability,
   unpackMinutes,
 } from '../../backends/worker/src/lib/monitor/availability';
-import { calculateLatencyMetrics, calculateLatencyStats } from '../../frontend/src/components/charts/metrics';
-import type { Heartbeat } from '../../frontend/src/types/monitor';
 
 const makeState = (): LiveState => ({ monitor: { st: UP, ts: 0, v: 1, code: 0, msg: '', fails: 0 } });
 const point = (t: number, up: number, ms: number | null = 10) => ({ t, up, ms });
@@ -59,17 +57,6 @@ const ended = closeEndedAvailabilityDays(endedState, '2026-01-02').get('monitor'
 assert.deepEqual(ended, { d: '2026-01-01', t: 1, u: 1, w: 0, avg: null, exact: true });
 assert.equal(endedState.monitor.availability?.daily, null);
 
-const heartbeats: Heartbeat[] = [
-  { status: 1, time: '2026-01-01T00:00:00.000Z', msg: '', ping: 0 },
-  { status: 2, time: '2026-01-01T00:01:00.000Z', msg: '', ping: 20 },
-  { status: 0, time: '2026-01-01T00:02:00.000Z', msg: '', ping: null },
-];
-assert.deepEqual(calculateLatencyMetrics(heartbeats), { latestPing: null, avgPing: 10, trimmedAvgPing: 10 });
-assert.deepEqual(calculateLatencyStats(heartbeats), { min: 0, p25: 0, p50: 20, p75: 20, max: 20 });
-assert.deepEqual(calculateLatencyMetrics([
-  { ...heartbeats[0]!, status: 0, ping: null },
-]), null);
-
 {
   const allValues = Array.from({ length: 1440 }, (_, i) => i % 5);
   assert.deepEqual(unpackMinutes(packMinutes(allValues)), allValues, 'every status round-trips');
@@ -107,4 +94,4 @@ assert.deepEqual(calculateLatencyMetrics([
   assert.equal(packedCarried.availability?.minutes, packedPrevious.availability.minutes, 'packed string is immutable and shared');
 }
 
-console.log('PASS rolling availability windows, coverage, UTC days, duplicate and late samples, packed encoding round-trip, and nullable ping metrics');
+console.log('PASS rolling availability windows, coverage, UTC days, duplicate and late samples, packed encoding round-trip');

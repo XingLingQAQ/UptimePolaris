@@ -11,11 +11,6 @@ import { BOOTSTRAP_FILES, LEDGER_DDL } from './schema-bootstrap';
 // Cache per binding, not per isolate alone. / 按数据库绑定缓存，而非仅按 isolate 缓存。
 let bootstrapped = new WeakSet<D1Database>();
 
-/** Test hook: forget that this isolate already bootstrapped. / 测试钩子：清除当前 isolate 已初始化的记忆。 */
-export function resetSchemaBootstrapCache(): void {
-  bootstrapped = new WeakSet<D1Database>();
-}
-
 export interface BootstrapResult {
   /** True when this call applied at least one migration. / 本次调用应用了至少一个迁移时为 true。 */
   created: boolean;

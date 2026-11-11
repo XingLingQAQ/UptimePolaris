@@ -294,7 +294,10 @@ func (a *App) overview(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return integer(rows[i], "num_id") < integer(rows[j], "num_id") })
-	settings := a.settings(r.Context())
+	settings, e := a.settings(r.Context())
+	if e != nil {
+		return e
+	}
 	respond(w, 200, Object{"monitors": rows, "counts": counts, "now": time.Now().Unix(), "defaults": Object{"interval_sec": settings["monitor.defaultIntervalSec"], "timeout_ms": settings["monitor.defaultTimeoutMs"]}})
 	return nil
 }
@@ -433,7 +436,11 @@ func (a *App) publicRoutes() {
 		return nil
 	})
 	a.route("GET /api/public/maintenance", true, func(w http.ResponseWriter, r *http.Request) error {
-		respond(w, 200, a.maintenance(r.Context()))
+		settings, e := a.settings(r.Context())
+		if e != nil {
+			return e
+		}
+		respond(w, 200, maintenance(settings))
 		return nil
 	})
 	a.route("GET /api/public/config", true, a.publicConfig)
@@ -504,14 +511,17 @@ func (a *App) publicConfig(w http.ResponseWriter, r *http.Request) error {
 	if e != nil {
 		return e
 	}
-	s := a.settings(r.Context())
+	s, e := a.settings(r.Context())
+	if e != nil {
+		return e
+	}
 	meta := Object{"title": s["site.title"], "description": s["site.description"], "icon": s["site.icon"], "iconCandidates": []any{s["site.icon"]}}
 	pageID := r.URL.Query().Get("pageId")
 	if pageID == "" {
 		pageID = "default"
 	}
-	maintenance := a.maintenance(r.Context())
-	notices := a.maintenanceNotices(r.Context())
+	maintenance := maintenance(s)
+	notices := maintenanceNotices(s)
 	layout := "list"
 	if kind == "agent" {
 		layout = "cards"
@@ -657,9 +667,8 @@ func (a *App) publicMonitorDetail(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
-func (a *App) maintenanceNotices(ctx context.Context) []Object {
+func maintenanceNotices(s Object) []Object {
 	out := []Object{}
-	s := a.settings(ctx)
 	if !boolean(s["maintenance.scheduleEnabled"]) {
 		return out
 	}
@@ -713,7 +722,11 @@ func (a *App) publicIcon(w http.ResponseWriter, r *http.Request) error {
 	return e
 }
 func (a *App) monitorIcon(w http.ResponseWriter, r *http.Request) error {
-	if !boolean(a.settings(r.Context())["site.syncMonitorIcons"]) {
+	settings, e := a.settings(r.Context())
+	if e != nil {
+		return e
+	}
+	if !boolean(settings["site.syncMonitorIcons"]) {
 		return failure("not_found", 404)
 	}
 	monitors, e := a.pageMonitors(r)

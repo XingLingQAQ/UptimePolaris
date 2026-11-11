@@ -6,8 +6,7 @@
   </picture>
 </h1>
 
-<p align="center"><strong>HTTP/TCP 检查、Push 心跳、主机指标</strong><br>运行在 Cloudflare Worker 或自托管的 Go 后端上。</p>
-
+<p align="center"><strong>自托管的状态页与服务监控</strong><br>可部署在 Cloudflare Workers 上，也可以在自有服务器上运行 Go 后端</p>
 
 <p align="center">
   <a href="README.md">English</a> · <strong>简体中文</strong> · <a href="README-zh-TW.md">繁體中文（台灣）</a> · <a href="README-zh-HK.md">繁體中文（香港）</a> · <a href="README-ja-JP.md">日本語</a> · <a href="README-ko-KR.md">한국어</a> · <a href="README-fr-FR.md">Français</a> · <a href="README-pt-BR.md">Português (Brasil)</a> · <a href="README-ru-RU.md">Русский</a>
@@ -17,7 +16,7 @@
   <a href="https://developers.cloudflare.com/workers/"><img src="https://img.shields.io/badge/Cloudflare-Workers-F38020?style=flat-square&amp;logo=cloudflare&amp;logoColor=white" height="20" alt="运行于 Cloudflare Workers"></a>
   <a href="backends/go/README.md"><img src="https://img.shields.io/badge/Go-Backend-00ADD8?style=flat-square&amp;logo=go&amp;logoColor=white" height="20" alt="Go backend"></a>
   <a href="frontend/README.md"><img src="https://img.shields.io/badge/React-TypeScript-3178C6?style=flat-square&amp;logo=react&amp;logoColor=white" height="20" alt="前端使用 React 和 TypeScript"></a>
-  <a href="agent/README.md"><img src="https://img.shields.io/badge/Rust-Agent-93450A?style=flat-square&amp;logo=rust&amp;logoColor=white" height="20" alt="Polaris Agent 使用 Rust"></a>
+  <a href="https://github.com/XingLingQAQ/polaris-agent"><img src="https://img.shields.io/badge/Rust-Agent-93450A?style=flat-square&amp;logo=rust&amp;logoColor=white" height="20" alt="Polaris Agent 使用 Rust"></a>
   <a href="docs/configuration.md"><img src="https://img.shields.io/badge/Storage-D1%20%2F%20SQLite%20%2F%20PostgreSQL-4169E1?style=flat-square&amp;logo=postgresql&amp;logoColor=white" height="20" alt="Storage: D1, SQLite, PostgreSQL"></a>
 </p>
 
@@ -28,75 +27,95 @@
   <a href="#文档">文档</a>
 </p>
 
-Uptime Polaris 在一个应用里提供公开状态页、管理后台和定时检查。它执行 HTTP/TCP 检查，接收 Push 心跳，通过 `polaris-agent` 采集主机指标，并在监控状态变化时发送通知。
+Uptime Polaris 定时检查网站和端口，接收定时任务发送的心跳，采集服务器的 CPU、内存和磁盘指标，并在监控状态变化时发送通知。项目自带公开状态页和管理后台。
 
 ## 选择后端
 
-每次部署选一种后端。Go 不需要 Cloudflare 账号、D1 或 R2。
+每次部署选择一种后端，两种后端使用相同的界面。
 
-存储：Worker 用 D1 或 PostgreSQL，R2 主题存储可选；Go 用 SQLite 或 PostgreSQL，主题存在数据目录。探测：Go 后端另支持 UDP、ICMP、DNS、TLS 和 WebSocket 原生探测；Worker 不能直接执行这些探测，UDP 和 ICMP 要交给在线 Agent。
+| | Cloudflare Worker | Go |
+| --- | --- | --- |
+| 运行环境 | Cloudflare | 自有服务器或容器 |
+| 数据库 | D1 或 PostgreSQL | SQLite 或 PostgreSQL |
+| 直接探测 | HTTP、TCP（UDP、ICMP 需通过 Agent） | HTTP、TCP、UDP、ICMP、DNS、TLS、WebSocket |
+| 最短检查间隔 | 60 秒 | 5 秒 |
+| 主题文件 | R2（可选） | 数据目录 |
 
-[后端对比与启动方式](docs/backends.md)
+不想维护服务器时建议使用 Worker；需要探测内网服务、使用更多协议或更短的检查间隔时，请选择 Go。详细对比见[选择后端](docs/backends.md)。
 
-## 能做什么
+## 功能
 
 <p align="center">
   <img src="assets/readme/check.svg" width="24" height="24" alt="服务检查图标"><br>
   <strong>服务检查与心跳</strong><br>
-  HTTP 和 TCP 检查，以及响应、证书、域名和 DNS 断言。Push 监控接收定时任务发送的心跳。
+  支持 HTTP 和 TCP 检查，并可附加响应内容、证书、域名到期和 DNS 检查。Push 监控适用于定时任务和备份脚本，超过设定时间未收到心跳即判定为异常。
 </p>
 
 <p align="center">
   <img src="assets/readme/host.svg" width="24" height="24" alt="主机监控图标"><br>
-  <strong>主机指标与探测</strong><br>
-  <code>polaris-agent</code> 上报 CPU、内存、磁盘和网络指标，也能从主机发起 HTTP/TCP 检查。
+  <strong>服务器监控</strong><br>
+  <code>polaris-agent</code> 上报 CPU、内存、磁盘、负载和网络指标，也可以从所在主机发起 HTTP/TCP 检查，用于探测内网服务。
 </p>
 
 <p align="center">
   <img src="assets/readme/bell.svg" width="24" height="24" alt="状态通知图标"><br>
   <strong>状态页与通知</strong><br>
-  公开状态页显示当前状态和事件历史。分组、维护窗口和通知渠道决定展示范围和通知对象。
+  状态页展示当前状态和事件历史，支持分组和维护窗口。通知渠道包括 Telegram、飞书、Slack、Discord、Webhook、Apprise 和 Server酱，每个渠道可以限定负责的监控分组。
 </p>
 
 <p align="center">
   <img src="assets/readme/layers.svg" width="24" height="24" alt="存储和主题图标"><br>
   <strong>存储与主题</strong><br>
-  Worker 把数据存在 D1 或 PostgreSQL，把主题资产存在 R2；Go 把数据存在 SQLite 或 PostgreSQL，主题存放在数据目录。
+  Worker 使用 D1 或 PostgreSQL 存储数据，主题存放在 R2；Go 使用 SQLite 或 PostgreSQL，主题存放在数据目录。
 </p>
-
-Push 监控不测延迟，公开延迟字段为 `null`。各后端能执行的探测类型见[后端对比](docs/backends.md)。配置和限制见[使用手册](docs/usage.md)。
 
 ## 快速开始
 
-选一个后端，按对应指南部署。打开 `/setup` 创建管理员，再到 `/admin` 添加第一个监控。
-
-### Cloudflare Worker
-
-[部署到 Cloudflare](#部署到-cloudflare)
-
-### Go
-
-Go 可执行文件包含内置界面。到 Releases 页面下载对应系统的版本，再按 [Go 指南](backends/go/README.md)启动。
+1. 将服务部署到 [Cloudflare](#部署到-cloudflare) 或[自有服务器](#deploy-go)。
+2. 打开站点的 `/setup` 页面。Worker 会先检查绑定和密钥，通过后输入 `ADMIN_TOKEN`；Go 输入启动日志中的初始化密钥。
+3. 创建管理员账号，然后在 `/admin` 添加监控。
 
 ## 部署到 Cloudflare
 
+1. Fork 本仓库。
+2. 进入 **Workers & Pages → Create application → GitHub**，选择 fork 后的仓库。构建命令填写 `npm run build`，部署命令填写 `npm run deploy`。
+3. 部署完成后打开站点，初始化页面会先检查部署。按页面提示完成以下配置：
+   - 在 Worker 的 **Settings → Bindings** 中添加 D1 数据库，变量名填写 `DB`。
+   - 在 **Settings → Variables and Secrets** 中添加 Secret `ADMIN_TOKEN`，值使用足够长的随机字符串，例如 `openssl rand -hex 32` 的输出。
+4. 检查通过后，输入 `ADMIN_TOKEN` 并创建管理员账号。
+
+R2 主题存储（变量名 `THEMES`）和 Analytics Engine（变量名 `UPTIME`）为可选项，同样在 **Settings → Bindings** 中添加。
+
+升级时，在 GitHub 上执行 Sync fork，Workers Builds 会自动重新部署，控制台中添加的绑定会保留。
+
+也可以通过下方按钮部署。按钮部署生成的仓库不是 fork，之后无法直接通过 Sync fork 同步更新；数据库同样需要按初始化页面的提示绑定。
+
 [![部署到 Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris)
 
-按钮会 fork 仓库并开始部署。给 Worker 和数据库起新名字，把 `ADMIN_TOKEN` 设为足够长的随机值，并保存为 Worker Secret。如果缺数据库 ID，到 Cloudflare 找到或新建 D1 数据库，替换 fork 仓库里 `wrangler.jsonc` 的 `database_id` 占位值，再重新部署。具体步骤见[部署指南](docs/deployment.md#通过-cloudflare-按钮部署)。
-
-按钮模板只绑定 D1、静态资产和调度，不含 R2 主题存储和 Analytics Engine。Agent 安装需要能访问 GitHub Release 下载。
+命令行部署见[部署指南](docs/deployment.md)。
 
 <a id="deploy-go"></a>
 
 ## 部署 Go 后端
 
-到 [Releases](https://github.com/XingLingQAQ/UptimePolaris/releases) 页面下载对应系统的版本，按 [Go 安装指南](backends/go/README.md#安装与启动)启动。程序包含内置界面。数据目录要持久保存并限制访问权限；备份时连同数据库一起备份。
+从 [Releases](https://github.com/XingLingQAQ/UptimePolaris/releases) 下载对应系统和架构的程序，重命名为 `polaris`（Windows 为 `polaris.exe`）后启动：
+
+```sh
+chmod +x polaris   # Linux / macOS
+./polaris --data-dir ./data
+```
+
+```powershell
+.\polaris.exe --data-dir .\data
+```
+
+程序默认监听 `127.0.0.1:8080`。如需对外访问，请修改 `--addr` 或配置反向代理。所有数据保存在 `./data` 目录，该目录需要持久化存储、限制访问权限并定期备份。更多配置见 [Go 后端说明](backends/go/README.md#安装与启动)。
 
 ## 监控主机
 
-在控制台的 Agent 页面创建机器，选好平台和安装模式，再到目标机器执行生成的安装命令。安装器下载所选平台的最新稳定版。
+在后台的 Agent 页面添加机器，选择平台和安装方式，然后在目标机器上执行生成的安装命令。目标机器需要能够访问 GitHub。
 
-安装器会注册 `polaris-agent` 服务和 `pa` 命令。两个命令操作同一套程序、配置和服务：
+安装完成后，可使用 `pa`（`polaris-agent` 的简写）管理服务：
 
 ```sh
 pa status
@@ -104,29 +123,31 @@ pa restart
 pa logs -f
 ```
 
-`pa start`、`stop`、`restart` 需要服务管理器；手动安装以前台进程运行。`pa logs` 读取安装产生的日志文件。安装命令会写入当前站点的协议、域名和端口，请从准备长期使用的站点地址生成。安装模式、平台限制、配置、更新和卸载见 [Agent 手册](docs/agents.md)。
+- 安装命令包含站点地址和该机器的 Token，请在正式域名下生成，并避免公开。
+- 添加机器不会自动创建监控，需要在监控页面新增 Agent 类型的监控。
+- 手动安装模式没有服务管理器，`pa start`、`stop`、`restart` 不可用。
+
+更多说明见 [Agent 手册](docs/agents.md)。
 
 ## 使用与公开信息
 
-公开状态页允许匿名访问。添加监控前，确认名称、目标路径、主机名和内网地址不含敏感信息。公开接口会移除认证信息，但不会检查名称和路径里是否写了敏感内容。公开范围见[公开数据说明](docs/usage.md#公开数据)。
-
-通知渠道有 Telegram、飞书、Slack、Discord、Webhook、Apprise 和 Server酱。渠道可按监控分组限定范围。配置与投递排查见[通知指南](docs/notifications.md)。
+状态页无需登录即可访问，监控名称、目标路径和主机名可能出现在公开页面和公开接口中，请勿在其中填写内网地址或密钥。公开范围详见[公开数据](docs/usage.md#公开数据)，通知配置见[通知指南](docs/notifications.md)。
 
 ## 文档
 
-| 任务 | 文档 |
+| 文档 | 内容 |
 | --- | --- |
-| 部署站点、配置域名或 PostgreSQL | [部署指南](docs/deployment.md) |
-| 比较后端 | [Worker / Go](docs/backends.md) · [Go](backends/go/README.md) |
-| 创建监控、查看状态与公开数据 | [使用手册](docs/usage.md) |
-| 安装和管理主机 Agent | [Agent 手册](docs/agents.md) |
-| 配置绑定、环境变量和后台设置 | [配置参考](docs/configuration.md) |
-| 设置通知渠道和范围 | [通知指南](docs/notifications.md) |
-| 安装或配置状态页主题 | [主题指南](docs/themes.md) |
-| 调用接口或接入 Push | [API 参考](docs/api.md) |
-| 备份、升级与排查故障 | [运维指南](docs/operations.md) · [常见问题](docs/troubleshooting.md) |
-
-完整索引见 [docs/README.md](docs/README.md)。
+| [选择后端](docs/backends.md) | Worker 与 Go 的区别 |
+| [部署指南](docs/deployment.md) | Fork 部署、按钮部署、手动部署、域名、PostgreSQL、D1 迁移到 PostgreSQL |
+| [Go 后端](backends/go/README.md) | 启动参数、环境变量、SQLite 迁移到 PostgreSQL |
+| [使用手册](docs/usage.md) | 监控配置、Push、状态与可用率 |
+| [Agent 手册](docs/agents.md) | 安装、管理、配置、更新、卸载 |
+| [通知指南](docs/notifications.md) | 渠道配置、分组范围、投递记录 |
+| [主题指南](docs/themes.md) | 安装、配置、预览 |
+| [配置参考](docs/configuration.md) | 绑定、环境变量、后台设置 |
+| [API 参考](docs/api.md) | 接口、认证、示例 |
+| [运维指南](docs/operations.md) | 备份、恢复、升级、数据保留 |
+| [常见问题](docs/troubleshooting.md) | 按故障现象排查 |
 
 ## 许可证
 

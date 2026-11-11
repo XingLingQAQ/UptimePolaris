@@ -106,11 +106,11 @@ try {
   assert.equal(agentMonitor.status, 201);
   const agentMonitorId = agentMonitor.body.id;
   const frames = [
-    { jsonrpc: '2.0', id: 1, method: 'basicReport', params: {
+    { jsonrpc: '2.0', id: 1, method: 'basicReport', params: { kernel: 'fixture-kernel', mem_total: 1024, transport: 'ws',
       name: 'probe-node', os: 'linux', arch: 'x86_64', cpu_model: 'fixture', cpu_cores: 2,
       version: '0.3.0', capabilities: ['probe_http', 'probe_tcp'], report_interval_secs: 60,
     } },
-    { jsonrpc: '2.0', id: null, method: 'report', params: {
+    { jsonrpc: '2.0', id: null, method: 'report', params: { summaries: [], interfaces: null, mounts: null, message: '',
       cpu: { usage: 2 }, ram: { total: 1000, used: 100 }, swap: { total: 0, used: 0 },
       load: { load1: 0, load5: 0, load15: 0 }, disk: { total: 1000, used: 100 },
       network: { up: 0, down: 0, totalUp: 0, totalDown: 0 }, connections: { tcp: 1, udp: 0 },

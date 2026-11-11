@@ -1,9 +1,7 @@
 
 import { usePageConfig } from '@/components/context/PageConfigContext';
 import { usePresentationView } from '@/components/context/PresentationViewContext';
-import Analytics from '@/components/status-page/Analytics';
 import { Footer } from '@/components/status-page/Footer';
-import { PageTabs } from '@/components/status-page/PageTabs';
 import { useConfig } from '@/components/status-page/useStatusPageData';
 import { ThemeSwitch } from '@/components/ui/ThemeSwitch';
 import { LocaleSwitch } from '@/i18n/LocaleSwitch';
@@ -13,7 +11,6 @@ import { statusPagePath } from '@/lib/public-navigation';
 import { applyDefaultTheme } from '@/lib/browser-preferences';
 import { CONTENT_TRANSITION } from '@/lib/motion';
 import type { SiteConfig } from '@/types/config';
-import type { PageTabMeta } from '@/types/page';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
 import { useTheme } from 'next-themes';
@@ -24,12 +21,10 @@ import { useTranslations } from 'use-intl';
 interface StatusPageShellProps {
   children: React.ReactNode;
   footerConfig?: SiteConfig;
-  pageTabs?: PageTabMeta[];
 }
 
-/** Public page frame: quiet bar, page tabs, content column, footer. / 公开页面框架：简洁顶栏、页面标签、内容列和页脚。 */
-export function StatusPageShell({ children, footerConfig, pageTabs }: StatusPageShellProps) {
-  const t = useTranslations();
+/** Public page frame: header, content and footer. / 公开页面框架：页头、内容与页脚。 */
+export function StatusPageShell({ children, footerConfig }: StatusPageShellProps) {
   const { pageId } = usePageConfig();
   const { pathname } = useLocation();
   const { setTheme } = useTheme();
@@ -37,9 +32,6 @@ export function StatusPageShell({ children, footerConfig, pageTabs }: StatusPage
   const { config: liveConfig } = useConfig();
   const presentation = usePresentationView();
   const resolvedFooterConfig = liveConfig?.config ?? footerConfig;
-  const resolvedPageTabs = liveConfig?.pageTabs ?? pageTabs;
-  const failedTabs = (resolvedPageTabs ?? []).filter((tab) => tab.health === 'unavailable');
-  const hasPartialFailure = failedTabs.length > 0 && failedTabs.length < (resolvedPageTabs?.length ?? 0);
 
   // The site's configured theme applies until the visitor picks one of their own. / 访客自行选择主题前使用站点配置的主题。
   useEffect(() => {
@@ -72,19 +64,7 @@ export function StatusPageShell({ children, footerConfig, pageTabs }: StatusPage
 
   return (
     <div className="polaris relative flex min-h-dvh flex-col bg-[var(--polaris-canvas)] text-[var(--polaris-ink)]" style={presentation ? { '--polaris-accent': presentation.accent, '--polaris-chart': presentation.accent, '--polaris-page-width': `${presentation.width}px` } as React.CSSProperties : undefined}>
-      {liveConfig?.config.googleAnalyticsId ? <Analytics id={liveConfig.config.googleAnalyticsId} /> : null}
       <SiteHeader />
-      <PageTabs tabs={resolvedPageTabs} />
-      {hasPartialFailure ? (
-        <div className="mx-auto w-full max-w-[var(--polaris-page-width,1120px)] px-4 pt-4 sm:px-6">
-          <div className="flex items-center gap-2.5 rounded-[10px] border border-warning/30 bg-warning/[0.06] px-4 py-2.5 text-[13px] text-warning-700">
-            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-warning" />
-            <span>
-              {t.rich('statusPage.unavailablePages', { pages: failedTabs.map((tab) => tab.id).join(', '), strong: (chunks) => <span className="font-medium">{chunks}</span> })}
-            </span>
-          </div>
-        </div>
-      ) : null}
       <motion.main
         key={`${pageId}:${pathname}`}
         initial={{ opacity: 0, y: 10 }}

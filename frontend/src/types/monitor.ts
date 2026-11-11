@@ -88,24 +88,6 @@ export interface MonitoringData {
 }
 
 /**
- * Incident Message (Maintenance) / 事件消息（维护）
- */
-export interface Incident {
-  id: number;
-  style: 'info' | 'warning' | 'danger' | 'primary' | 'light' | 'dark';
-  // info -> primary
-  // light -> default
-  // dark -> secondary
-  title: string;
-  content: string;
-  pin: number | boolean;
-  createdDate: string;
-  lastUpdatedDate: string | null;
-  active?: boolean;
-  status_page_id?: number;
-}
-
-/**
  * Monitor Response / 监控项响应
  */
 export interface MonitorResponse {

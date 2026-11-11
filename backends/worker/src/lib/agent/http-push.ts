@@ -1,6 +1,5 @@
 import type { Context } from 'hono';
-import type { Agent, Env } from '../../types';
-import { getDB } from '../db/factory';
+import type { Env } from '../../types';
 import { findAgentByToken } from './registry';
 import type { AgentRpcFrame } from './protocol';
 import { dispatchRpc, isSupportedFrame } from './report';

@@ -58,9 +58,9 @@ try {
   assert.equal((await success('/api/agents/probe-sources')).agents[0].installed, false);
 
   const now = Math.floor(Date.now() / 1000);
-  const frames = [{ method: 'basicReport', params: { name: 'fixture', os: 'Linux', arch: 'x86_64', cpu_model: 'CPU', cpu_cores: 2,
+  const frames = [{ method: 'basicReport', params: { kernel: 'fixture-kernel', mem_total: 1024, transport: 'ws', name: 'fixture', os: 'Linux', arch: 'x86_64', cpu_model: 'CPU', cpu_cores: 2,
     version: '0.5.4', report_interval_secs: 60, capabilities: ['probe_http', 'probe_tcp', 'probe_ssl', 'probe_dns', 'probe_domain', 'commands'] } },
-  { method: 'report', params: { observed_at: now, cpu: { usage: 5 }, ram: { total: 100, used: 20 }, swap: { total: 0, used: 0 },
+  { method: 'report', params: { interfaces: null, mounts: null, message: '', observed_at: now, cpu: { usage: 5 }, ram: { total: 100, used: 20 }, swap: { total: 0, used: 0 },
     load: { load1: 0, load5: 0, load15: 0 }, disk: { total: 100, used: 10 }, network: { up: 0, down: 0, totalUp: 0, totalDown: 0 },
     connections: { tcp: 1, udp: 1 }, uptime: 1, process: 1, summaries: [] } }];
   await success('/api/public/agent/push/' + machine.token, 'POST', frames, false);

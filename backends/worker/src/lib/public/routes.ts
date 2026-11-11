@@ -259,8 +259,7 @@ publicRoutes.get('/api/public/config', async (c) => {
 });
 
 publicRoutes.get('/api/public/monitors', async (c) => {
-  const pageId = c.req.query('pageId') ?? 'default';
-  const payload = await buildPublicMonitorPayload(c.env, pageId, c.req.raw);
+  const payload = await buildPublicMonitorPayload(c.env, c.req.raw);
   return c.json(payload, 200, { 'cache-control': UI_CACHE });
 });
 

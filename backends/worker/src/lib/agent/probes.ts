@@ -363,13 +363,6 @@ export async function latestAgentProbeObservation(env: Env, monitor: Monitor, af
   };
 }
 
-export async function consumeAgentProbeResult(env: Env, runId: string, now: number): Promise<void> {
-  const db = getDB(env);
-  await db.execute(db.type === 'postgres'
-    ? "UPDATE agent_probe_jobs SET consumed_at=$1 WHERE run_id=$2 AND state='completed' AND consumed_at IS NULL"
-    : "UPDATE agent_probe_jobs SET consumed_at=? WHERE run_id=? AND state='completed' AND consumed_at IS NULL", [now, runId]);
-}
-
 export async function pruneAgentProbeJobs(env: Env, now: number): Promise<void> {
   const db = getDB(env);
   await db.execute(db.type === 'postgres'

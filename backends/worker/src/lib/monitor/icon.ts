@@ -12,15 +12,6 @@ import { isPrivateHost } from '../http/private-host';
 const MAX_BYTES = 256 * 1024;
 const TIMEOUT_MS = 4000;
 
-const RASTER_TYPES = new Set([
-  'image/png',
-  'image/x-icon',
-  'image/vnd.microsoft.icon',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-]);
-
 export interface SiteIcon {
   bytes: ArrayBuffer;
   contentType: string;

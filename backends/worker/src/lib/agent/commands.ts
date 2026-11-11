@@ -215,11 +215,5 @@ export async function listCommandsForAgent(
 /** Drop finished commands past the retention window. / 删除超出保留期的已完成命令。 */
 export async function pruneCommands(env: Env, olderThan: number): Promise<void> {
   const db = getDB(env);
-  try {
-    await db.execute(commandsSQL[db.type].pruneOld, [olderThan]);
-  } catch {
-    // Same tolerance as every other prune: a missing table on a deployment that
-    // has not applied 0029 yet must not fail the sync that did the real work.
-    // 与其他清理任务一样容忍缺表：尚未应用 0029 的部署不能因此使已完成实际工作的同步失败。
-  }
+  await db.execute(commandsSQL[db.type].pruneOld, [olderThan]);
 }

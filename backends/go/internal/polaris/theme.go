@@ -590,7 +590,11 @@ func (a *App) themeRoutes() {
 		for _, v := range array(object(version["manifest"])["themes"]) {
 			definition := object(v)
 			if str(definition, "id") == r.URL.Query().Get("theme") {
-				page := object(object(object(a.presentation(r.Context())["config"])["pages"])[str(definition, "target")])
+				state, e := a.presentation(r.Context())
+				if e != nil {
+					return e
+				}
+				page := object(object(object(state["config"])["pages"])[str(definition, "target")])
 				if str(object(page["theme"]), "short") != str(theme, "short") || str(object(page["theme"]), "version") != str(version, "versionKey") || str(object(page["theme"]), "theme") != str(definition, "id") {
 					page = Object{"themeOptions": Object{}}
 				}
@@ -776,7 +780,12 @@ func (a *App) serveThemePage(w http.ResponseWriter, r *http.Request) bool {
 	if r.Method != "GET" && r.Method != "HEAD" || !regexp.MustCompile(`^/(?:|monitor/[^/]+|server/[^/]+|status/[^/]+)/?$`).MatchString(r.URL.Path) || r.URL.Query().Get("preview") != "" {
 		return false
 	}
-	maintenance := a.maintenance(r.Context())
+	settings, e := a.settings(r.Context())
+	if e != nil {
+		respond(w, 503, Object{"error": "database_unavailable"})
+		return true
+	}
+	maintenance := maintenance(settings)
 	if boolean(maintenance["active"]) {
 		if r.URL.Path != "/" {
 			http.Redirect(w, r, "/", 302)
@@ -788,7 +797,11 @@ func (a *App) serveThemePage(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 	kind, enabled, configured, page, e := a.pageContext(r)
-	if e != nil || !enabled || !configured {
+	if e != nil {
+		respond(w, 503, Object{"error": "presentation_unavailable"})
+		return true
+	}
+	if !enabled || !configured {
 		return false
 	}
 	_, version, definition, e := a.selectedTheme(r.Context(), kind, page)

@@ -10,7 +10,6 @@ const d1 = {
     SELECT ?, ?, ?, ?, ?, 0, 0 WHERE NOT EXISTS (SELECT 1 FROM users)
     AND EXISTS (SELECT 1 FROM auth_setup_state WHERE id = 1 AND claim_id = ?)`,
   finishSetup: 'UPDATE auth_setup_state SET completed = 1, claim_id = NULL WHERE id = 1 AND claim_id = ? AND EXISTS (SELECT 1 FROM users WHERE id = ?)',
-  insertUser: 'INSERT INTO users (id, username, password_hash, created_at, updated_at, failed_count, locked_until) VALUES (?, ?, ?, ?, ?, 0, 0)',
   updatePassword: 'UPDATE users SET password_hash = ?, updated_at = ?, failed_count = 0, locked_until = 0 WHERE id = ?',
   renameUser: 'UPDATE users SET username = ?, updated_at = ? WHERE id = ?',
   recordFailure:
@@ -45,8 +44,6 @@ const d1 = {
       WHERE s.token_hash = ?`,
   deleteSessionByHash: 'DELETE FROM sessions WHERE token_hash = ?',
   deleteSessionsForUser: 'DELETE FROM sessions WHERE user_id = ?',
-  listSessionsForUser:
-    'SELECT created_at, expires_at, user_agent FROM sessions WHERE user_id = ? ORDER BY created_at DESC',
 } as const;
 
 type AuthSQL = {
@@ -69,7 +66,6 @@ const postgres: AuthSQL = {
   findUserIdByName: 'SELECT id FROM users WHERE LOWER(username) = LOWER($1)',
   insertFirstUser: 'INSERT INTO users (id, username, password_hash, created_at, updated_at, failed_count, locked_until) SELECT $1, $2, $3, $4, $5, 0, 0 WHERE NOT EXISTS (SELECT 1 FROM users)',
   finishSetup: 'UPDATE auth_setup_state SET completed = 1, claim_id = NULL WHERE id = 1 AND claim_id = $1 AND EXISTS (SELECT 1 FROM users WHERE id = $1)',
-  insertUser: 'INSERT INTO users (id, username, password_hash, created_at, updated_at, failed_count, locked_until) VALUES ($1, $2, $3, $4, $5, 0, 0)',
   updatePassword: 'UPDATE users SET password_hash = $1, updated_at = $2, failed_count = 0, locked_until = 0 WHERE id = $3',
   renameUser: 'UPDATE users SET username = $1, updated_at = $2 WHERE id = $3',
   recordFailure:
@@ -96,8 +92,6 @@ const postgres: AuthSQL = {
       WHERE s.token_hash = $1`,
   deleteSessionByHash: 'DELETE FROM sessions WHERE token_hash = $1',
   deleteSessionsForUser: 'DELETE FROM sessions WHERE user_id = $1',
-  listSessionsForUser:
-    'SELECT created_at, expires_at, user_agent FROM sessions WHERE user_id = $1 ORDER BY created_at DESC',
 };
 
 export const authSQL: Record<'d1' | 'postgres', AuthSQL> = {

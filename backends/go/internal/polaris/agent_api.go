@@ -115,7 +115,11 @@ func (a *App) agentRoutes() {
 				return failure("visibility_invalid", 400)
 			}
 		}
-		if boolean(b["is_public"]) && !boolean(object(a.presentation(r.Context())["config"])["agentEnabled"]) {
+		state, e := a.presentation(r.Context())
+		if e != nil {
+			return e
+		}
+		if boolean(b["is_public"]) && !boolean(object(state["config"])["agentEnabled"]) {
 			return failure("agent_page_disabled", 409)
 		}
 		id, secret := uuid(), token(32)
@@ -131,7 +135,11 @@ func (a *App) agentRoutes() {
 		return nil
 	})
 	a.route("POST /api/admin/agents/visibility", false, func(w http.ResponseWriter, r *http.Request) error {
-		if !boolean(object(a.presentation(r.Context())["config"])["agentEnabled"]) {
+		state, e := a.presentation(r.Context())
+		if e != nil {
+			return e
+		}
+		if !boolean(object(state["config"])["agentEnabled"]) {
 			return failure("agent_page_disabled", 409)
 		}
 		return a.visibility(w, r, "agent")
@@ -502,7 +510,11 @@ func (a *App) agentConfiguration(w http.ResponseWriter, r *http.Request) error {
 	if agent == nil {
 		return failure("agent_not_found", 404)
 	}
-	allowed := boolean(a.settings(r.Context())["security.allowAgentCommands"])
+	settings, e := a.settings(r.Context())
+	if e != nil {
+		return e
+	}
+	allowed := boolean(settings["security.allowAgentCommands"])
 	if r.Method == "GET" {
 		row, e := a.store.get(r.Context(), "runtime_config", id)
 		if e != nil {

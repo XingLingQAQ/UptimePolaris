@@ -409,6 +409,13 @@ try {
       check(`${key} is present in the GET payload`, key in r.body.values, Object.keys(r.body.values));
     }
   }
+  // 查询失败与未配置是不同状态；缓存清空后不得返回默认维护状态。
+  // A query failure is distinct from unset values; do not return default maintenance state.
+  await db.prepare('ALTER TABLE app_settings RENAME TO unavailable_settings').run();
+  await req('/__reset-cache');
+  eq('unreadable settings reject public maintenance', (await req('/api/public/maintenance')).status, 500);
+  await db.prepare('ALTER TABLE unavailable_settings RENAME TO app_settings').run();
+  eq('settings recover after the table is restored', (await req('/api/admin/settings', { headers: authed })).status, 200);
 } finally {
   await mf.dispose();
   clearTimeout(watchdog);

@@ -94,7 +94,7 @@ themeRoutes.get('/api/themes/:short/update-check', async c => {
   const db = getDB(c.env);
   const versions = await db.query<{ digest: string; manifest_json: string }>(themeSQL[db.type].versionsById, [theme.id]);
   const current = versions.find(item => { try { const parsed = parseManifest(JSON.parse(item.manifest_json)); return parsed.ok && parsed.manifest.version === theme.version; } catch { return false; } });
-  const result = await checkThemeUpdate(c.env, theme.source_url, theme.version, current?.digest ?? null, theme.id);
+  const result = await checkThemeUpdate(theme.source_url, theme.version, current?.digest ?? null, theme.id);
   if ('ok' in result) return c.json({ error: result.error, message: result.message }, 502);
   return c.json(result, 200, { 'cache-control': 'no-store' });
 });

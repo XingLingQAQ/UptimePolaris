@@ -14,7 +14,6 @@ import { getProbeSourceState } from './probe-source';
 import { publicTarget } from './redaction';
 
 /** Local constants use the same status encoding as types.ts. / 本地常量使用与 types.ts 相同的状态编码。 */
-const DOWN = 0;
 const WARN = 2;
 
 /** Include the UTC suffix so clients do not parse heartbeat timestamps as local time. / 添加 UTC 后缀，避免客户端将心跳时间戳解析为本地时间。 */
@@ -100,7 +99,6 @@ export function buildPublicConfig(
  */
 export async function buildPublicMonitorPayload(
   env: Env,
-  pageId: string,
   request: Request,
 ): Promise<{
   success: true;

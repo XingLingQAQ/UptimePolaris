@@ -4,7 +4,6 @@ import { usePresentationView } from '@/components/context/PresentationViewContex
 import { GroupSection, GroupSkeleton, type PageGroup } from '@/components/status-page/GroupSection';
 import { filterMonitorByStatus } from '@/components/status-page/monitor-filters';
 import { useMonitorFilters } from '@/components/status-page/MonitorFilterContext';
-import { IncidentNotice } from '@/components/status-page/Notices';
 import { StatusHero } from '@/components/status-page/StatusHero';
 import { Toolbar, type ViewMode } from '@/components/status-page/Toolbar';
 import { useRefreshTimer } from '@/components/status-page/useRefreshTimer';
@@ -132,13 +131,6 @@ export function StatusPage() {
         </p>
       ) : null}
 
-      {globalConfig?.incidents?.length ? (
-        <div className="mb-8 flex flex-col gap-3">
-          {globalConfig?.incidents?.map((incident) => (
-            <IncidentNotice key={incident.id} incident={incident} />
-          ))}
-        </div>
-      ) : null}
 
       <Toolbar counts={counts} view={view} onView={changeView} matched={matched} />
 

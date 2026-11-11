@@ -182,14 +182,6 @@ export function AgentsPage() {
     });
   }, [agents, query, stateFilter, taxonomy.enabled, groupFilter, tagFilter]);
 
-  const versionCounts = useMemo(() => {
-    const list = agents ?? [];
-    return {
-      current: list.filter((agent) => agent.version_state === 'current').length,
-      behind: list.filter((agent) => agent.version_state === 'behind').length,
-      unknown: list.filter((agent) => agent.version_state === 'unknown' || agent.version_state === 'not_reported').length,
-    };
-  }, [agents]);
 
   const allSelected = rows.length > 0 && rows.every((agent) => selected.has(agent.id));
 

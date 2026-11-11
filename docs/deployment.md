@@ -9,6 +9,7 @@ Cloudflare 步骤针对 Worker。自有服务器可选 [Go 后端](backends.md#�
 ## 目录
 
 - [准备环境](#准备环境)
+- [Fork 后部署到 Cloudflare](#fork-后部署到-cloudflare)
 - [通过 Cloudflare 按钮部署](#通过-cloudflare-按钮部署)
 - [手动部署到 Cloudflare](#手动部署到-cloudflare)
 - [准备 Cloudflare 资源](#准备-cloudflare-资源)
@@ -22,29 +23,47 @@ Cloudflare 步骤针对 Worker。自有服务器可选 [Go 后端](backends.md#�
 
 ## 准备环境
 
-按钮部署需要一个有 Workers 和 D1 权限的 Cloudflare 账号，以及一个 GitHub 账号。手动部署还需要 Node.js 24 和 npm。
+Fork 部署和按钮部署需要一个 Cloudflare 账号和一个 GitHub 账号。手动部署还需要 Node.js 24 和 npm。
 
 ```sh
 npm ci
 npm --prefix frontend ci
 ```
 
+## Fork 后部署到 Cloudflare
+
+1. Fork 本仓库。
+2. 在 Cloudflare 控制台进入 **Workers & Pages → Create application → GitHub**，选择 fork 后的仓库。构建命令填写 `npm run build`，部署命令填写 `npm run deploy`。
+3. 部署完成后打开站点。初始化页面的第一步是部署检查，未通过的项会写明配置方法：
+   - **数据库（必需）**：在 Worker 的 **Settings → Bindings** 中添加 D1 数据库，变量名填写 `DB`。还没有数据库时，先在 **Storage & Databases → D1** 中新建。
+   - **`ADMIN_TOKEN`（必需）**：在 **Settings → Variables and Secrets** 中添加 Secret，值使用足够长的随机字符串。
+   - **`THEMES`（可选）**：安装第三方主题时，在 **Settings → Bindings** 中添加 R2 存储桶。
+   - **`UPTIME`（可选）**：先在控制台启用 Analytics Engine，再添加数据集绑定。
+
+   在控制台保存后，Worker 会自动部署新版本，然后在页面上点击“重新检查”。
+4. 必需项全部通过后点击“下一步”，输入 `ADMIN_TOKEN` 并创建管理员账号。要求见[完成初始化](#完成初始化)。
+
+使用 PostgreSQL 时可以不绑定 D1，改为添加变量 `DATABASE_TYPE`（值为 `postgres`）和 Secret `DATABASE_URL`。如果要在初始化页面填写新的 PostgreSQL 地址，仍需绑定 D1，原因见[完成初始化](#完成初始化)。
+
+根目录的 `wrangler.jsonc` 不声明 D1、R2 和 Analytics Engine 绑定，部署时不会创建任何资源。`wrangler deploy` 会用配置文件覆盖 Worker 的绑定，因此 `npm run deploy` 在 Workers Builds 中会先通过 Cloudflare API 读取 Worker 现有的 `DB`、`THEMES`、`UPTIME` 绑定，带上它们再部署；读取失败时部署会停止，不会删除已有绑定。这一步使用 Workers Builds 提供的 `CLOUDFLARE_API_TOKEN`。如果构建环境中没有 `CLOUDFLARE_ACCOUNT_ID`，且该令牌能访问多个账号，请在构建变量中设置 `CLOUDFLARE_ACCOUNT_ID`。
+
+`wrangler.jsonc` 启用了 `keep_vars`，在控制台添加的普通变量在重新部署后保留；Secret 不受部署影响。
+
+升级时，在 GitHub 上执行 Sync fork，Workers Builds 会自动重新部署。
+
 ## 通过 Cloudflare 按钮部署
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris)
 
-按钮使用 GitHub 上的公开仓库版本，先确认仓库里有你需要的版本。
+按钮使用 GitHub 上的公开仓库版本。Cloudflare 会在你的 GitHub 账号下新建一个仓库并部署；这个仓库不是 fork，之后无法通过 Sync fork 同步更新。
 
-1. 点击按钮，登录 Cloudflare 并连接 GitHub，按页面提示创建自己的仓库和 Worker。
-2. 在 Cloudflare 配置页面核对目标账号、仓库名、Worker 名和 D1 数据库名。Worker 和数据库都要用和现有资源不同的名字，免得更新了已有 Worker 或连上已有数据库。
-3. 页面提供构建和部署命令设置时，确认分别是 `npm run build` 和 `npm run deploy`；需要调整就在可编辑的位置改。
-4. 生成一个长随机值，把 `ADMIN_TOKEN` 设为 Worker Secret。部署页面没有输入项时，先到 Worker 的 Variables & Secrets 里设置，再做初始化。不要把密钥提交到仓库。
-5. 页面显示数据库绑定时，确认它指向新数据库。检查 fork 后的 `wrangler.jsonc`，确认 `DB` 的 `database_id` 和 Cloudflare 控制台里的目标数据库 ID 一致。
-6. 部署成功后打开站点的 `/setup`，输入 `ADMIN_TOKEN`，创建登录账号。完整要求见[完成初始化](#完成初始化)。
+1. 点击按钮，登录 Cloudflare 并连接 GitHub。
+2. 核对目标账号、仓库名和 Worker 名。Worker 名不要与账号中已有的 Worker 重复，以免覆盖已有 Worker。
+3. 构建命令和部署命令保持为 `npm run build` 和 `npm run deploy`。
+4. 页面要求填写 `ADMIN_TOKEN` 时，填入足够长的随机值。不要把密钥提交到仓库。
+5. 部署成功后打开站点，按初始化页面的检查结果绑定 D1 数据库，再完成初始化。绑定方法与 [Fork 后部署](#fork-后部署到-cloudflare)相同。
 
-如果部署提示数据库 ID 未配置，先在 Cloudflare 控制台确认账号和目标 D1 数据库；数据库还没创建就先建一个。打开 fork 后的仓库，用控制台里的数据库 ID 替换 `wrangler.jsonc` 中 `database_id` 的占位值 `00000000-0000-4000-8000-000000000000`，提交修改后重试。同时核对 Worker 名、数据库名和账号；配置指向已有数据库时，先确认目标再继续。
-
-按钮模板只配置 D1、静态资产和调度，不包含 R2 主题存储或 Analytics Engine。需要时先创建相应资源，再给按钮部署的配置加绑定。Agent 安装需要访问 GitHub 下载服务，要求见 [Agent 下载](#agent-下载)。
+Agent 安装需要访问 GitHub 下载服务，要求见 [Agent 下载](#agent-下载)。
 
 ## 手动部署到 Cloudflare
 
@@ -85,7 +104,7 @@ npx cf r2 buckets create --name uptime-polaris-themes
 | `backends/worker/cloudflare.config.ts` | CF CLI 部署 | Worker 名称、D1 名称与 ID、R2 名称、AE 数据集、变量与调度 |
 | `backends/worker/wrangler.toml` | 迁移与数据库工具 | 同一套资源绑定和数据库后端 |
 
-根目录的 `wrangler.jsonc` 是按钮部署模板，和上面的手动配置互不相干。两种格式同时存在时，直接运行 `npx wrangler` 默认读 JSONC。数据库 npm 脚本默认显式使用 `backends/worker/wrangler.toml`；直接用 Wrangler 操作原有环境时，加上 `--config backends/worker/wrangler.toml`，并在操作前确认目标账号、数据库名称和 ID。按钮部署的数据库操作要用 fork 后仓库里的 `wrangler.jsonc`，先核对目标绑定。
+根目录的 `wrangler.jsonc` 用于 Fork 部署和按钮部署，和上面的手动配置互不相干。两种格式同时存在时，直接运行 `npx wrangler` 默认读 JSONC。数据库 npm 脚本默认显式使用 `backends/worker/wrangler.toml`；直接用 Wrangler 操作原有环境时，加上 `--config backends/worker/wrangler.toml`，并在操作前确认目标账号、数据库名称和 ID。
 
 绑定名 `DB`、`ASSETS`、`THEMES`、`UPTIME` 保持不变；资源名称可自行命名。D1 工具通过 `DB` 绑定选择数据库。
 
@@ -119,7 +138,7 @@ npx cf r2 buckets create --name uptime-polaris-themes
 npm run deploy -- --secrets-file .secrets/production.json
 ```
 
-手动部署用 CF CLI；按钮部署用根目录的 `wrangler.jsonc` 和 Wrangler。两条路径的账号认证和资源配置要分别核对。
+手动部署用 CF CLI；Fork 部署和按钮部署由 Workers Builds 使用根目录的 `wrangler.jsonc` 和 Wrangler。两条路径的账号认证和资源配置要分别核对。
 
 空 D1 会在首次请求时建表。已有迁移记录的 D1，Worker 请求也可能自动应用还没记录的迁移。升级前先备份，在隔离环境审阅并验证迁移；确认目标后，可在部署新 Worker 之前先跑迁移：
 
@@ -130,21 +149,17 @@ npm run db:init
 
 Wrangler 要能访问 `backends/worker/wrangler.toml` 指向的同一个账号和数据库。迁移不会创建默认账号。
 
-按钮部署如果要手动应用迁移，先在 fork 后的仓库里核对 `wrangler.jsonc` 指向的账号和数据库，再执行：
-
-```sh
-npx wrangler d1 migrations apply DB --remote --config wrangler.jsonc
-```
+Fork 部署和按钮部署的 D1 由 Worker 在请求时建表并应用迁移，不需要手动执行迁移命令。
 
 ### 完成初始化
 
-打开部署地址，进入 `/setup`：
+打开部署地址，进入 `/setup`。Worker 会先显示部署检查，必需项全部通过后才进入下面的表单：
 
 1. 输入刚配置的 `ADMIN_TOKEN` 作为安装凭据。
 2. 设置用户名和密码。
 3. 初始化完成后进入控制台，之后从 `/login` 登录。
 
-用户名为 2–32 个字母、数字或 `._-`，会统一转成小写；密码至少 8 位。没有公开注册入口，初始化完成后不能再用初始化接口创建账号。安装凭据没配置时，页面会提示缺少配置。
+用户名为 2–32 个字母、数字或 `._-`，会统一转成小写；密码至少 8 位。没有公开注册入口，初始化完成后不能再用初始化接口创建账号。Worker 在部署检查中提示缺少的 `ADMIN_TOKEN`；Go 后端没有配置初始化密钥时，页面会提示缺少配置。
 
 初始化时，Worker 可选 D1 或 PostgreSQL，Go 可选 SQLite 或 PostgreSQL。新选 PostgreSQL 要填连接 URL；只有已部署的连接对应当前 PostgreSQL 时才能留空复用。不做选择就沿用当前后端配置。Worker 要在页面填新的 PostgreSQL URL，必须保留 D1 绑定：D1 保存引导选择和加密 URL，业务数据在 PostgreSQL。没有 D1 的纯 PostgreSQL 部署必须预设 `DATABASE_TYPE=postgres` 和 `DATABASE_URL`，初始化复用这个连接，页面不能换 URL。成功后管理员和会话建在目标库，后续请求和重启继续用它。不要把连接 URL 放进截图或公开日志。字段和错误码见 [API 初始化契约](api.md#初始化数据库契约)。
 
@@ -211,15 +226,42 @@ This guide covers a new installation. For an existing deployment, keep its datab
 
 ### Prerequisites
 
-Button deployment requires GitHub and a Cloudflare account with Workers and D1 permissions. Manual deployment also needs Node.js 24 and npm. Install the site dependencies with `npm ci` and `npm --prefix frontend ci`.
+Fork and button deployments require a Cloudflare account and a GitHub account. Manual deployment also needs Node.js 24 and npm. Install the site dependencies with `npm ci` and `npm --prefix frontend ci`.
+
+### Deploy a fork to Cloudflare
+
+1. Fork this repository.
+2. In the Cloudflare dashboard, open **Workers & Pages → Create application → GitHub** and select your fork. Set the build command to `npm run build` and the deploy command to `npm run deploy`.
+3. When the deployment finishes, open the site. The first step of setup is a deployment check, and each item that fails says how to configure it:
+   - **Database (required)**: in the Worker's **Settings → Bindings**, add a D1 database with the variable name `DB`. Create one under **Storage & Databases → D1** first if you have none.
+   - **`ADMIN_TOKEN` (required)**: in **Settings → Variables and Secrets**, add a secret with a long random value.
+   - **`THEMES` (optional)**: to install third-party themes, add an R2 bucket in **Settings → Bindings**.
+   - **`UPTIME` (optional)**: enable Analytics Engine in the dashboard, then add a dataset binding.
+
+   Saving a change in the dashboard deploys a new version of the Worker. Then select **Re-check** on the page.
+4. Once every required item passes, select **Next**, enter `ADMIN_TOKEN` and create the administrator account. See [database setup and initialization](#database-setup-and-initialization).
+
+For PostgreSQL you can skip the D1 binding and add the variable `DATABASE_TYPE` (value `postgres`) and the secret `DATABASE_URL` instead. To enter a new PostgreSQL URL on the setup page, you still need the D1 binding; see [database setup and initialization](#database-setup-and-initialization).
+
+The root `wrangler.jsonc` declares no D1, R2 or Analytics Engine binding, so deploys never create resources. `wrangler deploy` replaces the Worker's bindings with those in the configuration file. Under Workers Builds, `npm run deploy` therefore reads the Worker's existing `DB`, `THEMES` and `UPTIME` bindings through the Cloudflare API and deploys with them. If they cannot be read, the deploy stops instead of removing them. This uses the `CLOUDFLARE_API_TOKEN` that Workers Builds provides. If the build has no `CLOUDFLARE_ACCOUNT_ID` and the token can reach more than one account, set `CLOUDFLARE_ACCOUNT_ID` in the build variables.
+
+`wrangler.jsonc` enables `keep_vars`, so plain variables added in the dashboard survive redeploys. Secrets are not affected by deploys.
+
+To upgrade, select **Sync fork** on GitHub; Workers Builds redeploys automatically.
 
 ### Deploy with the Cloudflare button
 
-Use the [Deploy to Cloudflare button](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris). It uses the public GitHub repository version. Connect GitHub and choose a new Worker and D1 database; verify the account, Worker name, database name and ID before deployment. The build and deploy commands are `npm run build` and `npm run deploy`.
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/XingLingQAQ/UptimePolaris)
 
-Set a long random `ADMIN_TOKEN` as a Worker Secret before opening `/setup`. Confirm the forked repository's `wrangler.jsonc` has the new database ID, not the placeholder. If it still contains `00000000-0000-4000-8000-000000000000`, create or select the intended D1 database, replace the placeholder with its ID, commit the change and retry. Never put secrets in the repository.
+The button uses the public GitHub repository. Cloudflare creates a new repository in your GitHub account and deploys it. That repository is not a fork, so it cannot be updated with Sync fork.
 
-The button template binds D1, static assets and schedules, but not R2 or Analytics Engine. Add those bindings only after creating the resources. Agent installation requires access to GitHub downloads. See [Agent downloads](#agent-downloads).
+1. Select the button, sign in to Cloudflare and connect GitHub.
+2. Check the account, repository name and Worker name. Do not reuse the name of an existing Worker, or it will be overwritten.
+3. Keep the build and deploy commands as `npm run build` and `npm run deploy`.
+4. If the page asks for `ADMIN_TOKEN`, enter a long random value. Never commit secrets to the repository.
+5. After deployment, open the site, bind a D1 database as the setup check describes, then finish setup. The bindings are the same as for a [fork deployment](#deploy-a-fork-to-cloudflare).
+
+Agent installation requires access to GitHub downloads. See [Agent downloads](#agent-downloads).
 
 ### Manual Cloudflare deployment
 
@@ -227,7 +269,7 @@ Authenticate the CF CLI with `npx cf auth login`. For a new installation create 
 
 Keep `backends/worker/cloudflare.config.ts` (CF CLI deployment) and `backends/worker/wrangler.toml` (database tools) aligned on the intended resources, variables and schedules. Keep bindings `DB`, `ASSETS`, `THEMES` and `UPTIME` unchanged where used. `ASSETS` serves `public/`; R2 stores third-party theme files, while Analytics Engine provides raw observations and SQL backfill. Without the optional bindings, the built-in UI and database-backed status and availability still work.
 
-The root `wrangler.jsonc` is independent and belongs to button deployment. Direct Wrangler commands prefer it when both formats exist. For the manual environment, explicitly use `--config backends/worker/wrangler.toml` with direct database commands and check the account, database name and ID. For button deployments, use the forked repository's `wrangler.jsonc` and verify its target instead. Preserve SPA fallback and the configured worker-first routes, including `/api/*` and the installers.
+The root `wrangler.jsonc` is used by fork and button deployments and is independent of the manual configuration. Direct Wrangler commands prefer it when both formats exist. For the manual environment, explicitly use `--config backends/worker/wrangler.toml` with direct database commands and check the account, database name and ID. Preserve SPA fallback and the configured worker-first routes, including `/api/*` and the installers.
 
 Create an ignored `.secrets/production.json` containing a long random `ADMIN_TOKEN`; add `DATABASE_URL` for PostgreSQL and the Analytics Engine query credentials when needed. See [configuration](configuration.md#english). Then deploy:
 
@@ -235,7 +277,7 @@ Create an ignored `.secrets/production.json` containing a long random `ADMIN_TOK
 npm run deploy -- --secrets-file .secrets/production.json
 ```
 
-Manual deployment uses CF CLI; button deployment uses the root JSONC and Wrangler. Verify authentication and resources separately for each path.
+Manual deployment uses CF CLI; fork and button deployments run Wrangler with the root JSONC in Workers Builds. Verify authentication and resources separately for each path.
 
 ### Agent downloads
 
@@ -245,9 +287,9 @@ Installation and updates require the target machine to reach the GitHub API and 
 
 ### Database setup and initialization
 
-An empty D1 can establish its schema on the first request. A Worker request can also apply pending migrations to a D1 with a migration ledger. Before upgrading, back up and review migrations in an isolated environment. To apply them before deploying to the manual target, authenticate Wrangler and run `npm run db:init` after confirming the TOML account and database. For a button target, confirm its forked JSONC and run `npx wrangler d1 migrations apply DB --remote --config wrangler.jsonc`. Migrations do not create an account.
+An empty D1 can establish its schema on the first request. A Worker request can also apply pending migrations to a D1 with a migration ledger. Before upgrading, back up and review migrations in an isolated environment. To apply them before deploying to the manual target, authenticate Wrangler and run `npm run db:init` after confirming the TOML account and database. For fork and button deployments, the Worker creates tables and applies migrations on request; no migration command is needed. Migrations do not create an account.
 
-Open `/setup`, enter `ADMIN_TOKEN`, and create a username and password. The username is 2–32 letters, digits or `._-` and is normalized to lowercase; the password has at least 8 characters. Later logins use `/login`. Setup cannot create another account after initialization.
+Open `/setup`. The Worker shows the deployment check first and moves on to the form only after every required item passes. Enter `ADMIN_TOKEN`, and create a username and password. The username is 2–32 letters, digits or `._-` and is normalized to lowercase; the password has at least 8 characters. Later logins use `/login`. Setup cannot create another account after initialization. A missing `ADMIN_TOKEN` shows up in the Worker's deployment check; the Go backend shows a separate notice when no setup key is configured.
 
 Worker setup offers D1 or PostgreSQL; Go offers SQLite or PostgreSQL. A new PostgreSQL selection requires its URL. A blank URL reuses the deployed connection only if it corresponds to the current PostgreSQL database. Omitting the selection keeps the current configuration. To enter a new PostgreSQL URL in Worker setup, retain the D1 binding: D1 stores the bootstrap selection and encrypted URL, while business data remains in PostgreSQL. A PostgreSQL-only Worker without D1 must be deployed with `DATABASE_TYPE=postgres` and `DATABASE_URL`; setup reuses that connection and cannot replace the URL. Successful setup creates the administrator and session in the target, which remains active for later requests and restarts. Keep connection URLs out of screenshots and public logs. See the [setup API contract](api.md#setup-database-contract).
 

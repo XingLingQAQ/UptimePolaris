@@ -2,7 +2,7 @@ import { UnauthorizedError } from '@/api/errors';
 import { useApiErrorMessage } from '@/api/useApiErrorMessage';
 import { useAuth } from '@/auth/AuthContext';
 import { Button, Input, Skeleton } from '@heroui/react';
-import { Database, KeyRound, Loader2, RefreshCw, ShieldAlert, UserRound } from 'lucide-react';
+import { Database, KeyRound, Loader2, RefreshCw, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { toast } from '@/components/ui/toast';
@@ -136,8 +136,6 @@ export function SettingsPage() {
   const usernameChanged =
     normalizedUsername(username) !== '' && normalizedUsername(username) !== signedInAs;
   const passwordChanged = next.length > 0;
-  const canSubmit =
-    !pwBusy && current.length > 0 && (usernameChanged || passwordChanged) && !usernameProblem;
 
   /** Save name and password together; the Worker applies them atomically and reissues this session. / 同时保存名称和密码；Worker 原子处理并重发当前会话。 */
   async function saveAccount() {

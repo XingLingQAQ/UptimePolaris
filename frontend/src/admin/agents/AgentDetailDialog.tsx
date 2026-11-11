@@ -54,10 +54,6 @@ function usedPercent(mount: AgentMount): number | null {
   return percentOf(mount.used, mount.total);
 }
 
-function barTone(t: Tone): string {
-  return t === 'down' ? 'bg-danger' : t === 'warn' ? 'bg-warning' : t === 'up' ? 'bg-[var(--polaris-ink)] opacity-80' : 'bg-default-300';
-}
-
 /** Relative time with the same buckets as the fleet row. / 相对时间，与 Agent 列表行使用相同区间。 */
 function formatAgo(
   seconds: number | null,

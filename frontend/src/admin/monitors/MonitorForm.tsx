@@ -27,7 +27,7 @@ import { monitorsApi } from './api';
 import { MonitorCheckFeedback } from './MonitorCheckFeedback';
 import { probeSourceReadiness } from './presentation';
 import { DEFAULT_DOH_RESOLVER, parseOptions, pushEndpointUrl, tagKey } from './options';
-import type { CheckResult, DnsOptions, HttpOptions, Monitor, MonitorInput, MonitorType, ProbeAgentSource, TcpOptions } from './types';
+import type { CheckResult, DnsOptions, HttpOptions, Monitor, MonitorInput, MonitorType, TcpOptions } from './types';
 import { hostOfTarget, isIpAddress, validateAgentOptions, validateTarget } from './validation';
 
 /** Per-type labels and targets; Push and Agent have no target input. / 各类型的标签与目标字段；Push 和 Agent 无目标输入。 */
@@ -257,7 +257,6 @@ export function MonitorForm({ monitor, onSaved, onCancel, onVocabChanged, defaul
   const [tags, setTags] = useState<Tag[] | null>(null);
 
   /** Create and select groups/tags inline; group management also lives on /admin/groups. / 在表单内创建并选择分组或标签；分组管理也位于 /admin/groups。 */
-  const [vocabBusy, setVocabBusy] = useState(false);
   const [vocabError, setVocabError] = useState<string | null>(null);
 
   /**
@@ -296,7 +295,6 @@ export function MonitorForm({ monitor, onSaved, onCancel, onVocabChanged, defaul
   async function createGroupFromQuery() {
     const name = groupQuery.trim();
     if (!name) return;
-    setVocabBusy(true);
     setVocabError(null);
     try {
       const { id } = await groupsApi.createGroup({ name });
@@ -305,8 +303,6 @@ export function MonitorForm({ monitor, onSaved, onCancel, onVocabChanged, defaul
       setGroupQuery('');
     } catch (e) {
       setVocabError(apiErrorMessage(e));
-    } finally {
-      setVocabBusy(false);
     }
   }
 
@@ -318,7 +314,6 @@ export function MonitorForm({ monitor, onSaved, onCancel, onVocabChanged, defaul
   async function createTagFromQuery() {
     const name = tagQuery.trim();
     if (!name) return;
-    setVocabBusy(true);
     setVocabError(null);
     try {
       const { id } = await tagsApi.createTag({ name });
@@ -327,8 +322,6 @@ export function MonitorForm({ monitor, onSaved, onCancel, onVocabChanged, defaul
       setTagQuery('');
     } catch (e) {
       setVocabError(apiErrorMessage(e));
-    } finally {
-      setVocabBusy(false);
     }
   }
 

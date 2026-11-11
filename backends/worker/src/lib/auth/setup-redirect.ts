@@ -7,10 +7,6 @@ import { isSetupAsset, isSetupEndpoint, setupRequiredResponse } from '../../../.
 // 只按数据库身份记住已完成状态；初始化失败或尚未完成的结果不缓存。
 let initialized: string | D1Database | null = null;
 
-export function resetSetupRedirectCache(): void {
-  initialized = null;
-}
-
 export async function setupRedirect(request: Request, env: Env): Promise<Response | null> {
   const path = new URL(request.url).pathname;
   if (isSetupEndpoint(request.method, path) || (request.method === 'GET' || request.method === 'HEAD') && isSetupAsset(path)) return null;

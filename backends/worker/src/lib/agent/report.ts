@@ -7,11 +7,7 @@ export function isSupportedFrame(frame: unknown): frame is AgentRpcFrame {
   if (!frame || typeof frame !== 'object') return false;
   const value = frame as AgentRpcFrame;
   if (value.method === 'basicReport') return asBasicReportParams(value.params) !== null;
-  if (value.method === 'report') {
-    const params = asReportParams(value.params);
-    if (!params) return false;
-    return params.observed_at === undefined || Number.isInteger(params.observed_at);
-  }
+  if (value.method === 'report') return asReportParams(value.params) !== null;
   return value.method === 'event';
 }
 
@@ -37,8 +33,8 @@ export async function dispatchRpc(
         return { ack: false, ignored: false };
       }
       const now = Math.floor(Date.now() / 1000);
-      if (p.observed_at !== undefined && p.observed_at > now + 300) return { ack: true, ignored: false, deferred: true };
-      if (p.observed_at !== undefined && p.observed_at < now - 86_400) return { ack: true, ignored: true };
+      if (p.observed_at > now + 300) return { ack: true, ignored: false, deferred: true };
+      if (p.observed_at < now - 86_400) return { ack: true, ignored: true };
       return { ack: true, ignored: !(await handleReport(env, monitor.id, p)) };
     }
     case 'event':
@@ -82,7 +78,7 @@ async function persistBasicReport(
     monitorId,
     p.os,
     p.arch,
-    p.kernel ?? null,
+    p.kernel,
     p.cpu_model,
     p.cpu_cores,
     p.publicIp ?? null,
@@ -90,12 +86,10 @@ async function persistBasicReport(
     p.isp ?? null,
     p.region ?? null,
     p.virtualization ?? null,
-    // Missing transport is stored as unknown.
-    // 未上报传输方式时保存为未知。
-    p.transport ?? null,
-    p.version ?? null,
-    p.report_interval_secs ?? null,
-    p.capabilities ? JSON.stringify(p.capabilities) : null,
+    p.transport,
+    p.version,
+    p.report_interval_secs,
+    JSON.stringify(p.capabilities),
     now,
   ]);
   return true;
@@ -117,7 +111,7 @@ async function persistReport(
   const now = Math.floor(Date.now() / 1000);
   const db = getDB(env);
   if (!(await db.queryOne<{ active: number }>(agentLiveSQL[db.type].isActive, [monitorId]))?.active) return false;
-  const observedAt = p.observed_at ?? now;
+  const observedAt = p.observed_at;
   if (!Number.isInteger(observedAt) || observedAt < now - 86_400 || observedAt > now + 300) return false;
   /**
    * Per-NIC / per-mount snapshots land as TEXT JSON. The guard already
@@ -157,7 +151,7 @@ async function persistReport(
     now, // updated_at / 更新时间
   ]);
 
-  for (const summary of p.summaries ?? []) {
+  for (const summary of p.summaries) {
     // 仅接收对齐分钟且不晚于当前上报的有效历史摘要。
     // Accept only valid historical summaries aligned to a minute and no later than the current report.
     if (!Number.isInteger(summary.bucket_ts) || summary.bucket_ts % 60 !== 0 ||

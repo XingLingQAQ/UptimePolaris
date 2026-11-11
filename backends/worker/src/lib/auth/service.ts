@@ -31,9 +31,6 @@ export const PBKDF2_ITERATIONS = DEFAULT_PBKDF2_ITERATIONS;
 export const SESSION_TTL_SEC = 60 * 60 * 24 * 14;
 
 export const SESSION_COOKIE = 'polaris_session';
-
-/** Login throttle defaults; keep aligned with security.loginMaxAttempts and security.loginWindowSec in settings.ts. / 登录限流默认值；须与 settings.ts 中的 security.loginMaxAttempts 和 security.loginWindowSec 保持一致。 */
-const MAX_FAILED = 8;
 const LOCKOUT_SEC = 5 * 60;
 const LOGIN_LIMIT_TTL_SEC = 15 * 60;
 const LOGIN_LIMIT_PRUNE_INTERVAL_SEC = 5 * 60;
@@ -173,7 +170,11 @@ export async function isSetupRequired(env: Env): Promise<boolean> {
   const db = getDB(env);
   if (db.type === 'postgres' && await postgresIsEmpty(env)) return true;
   const row = await db.queryOne<{ completed: number }>(authSQL[db.type].getSetupState);
-  return row?.completed === 0 && await countUsers(env) === 0;
+  if (!row || (row.completed !== 0 && row.completed !== 1)) throw new Error('invalid_setup_state');
+  const users = await countUsers(env);
+  if (row.completed === 1 && users > 0) return false;
+  if (row.completed === 0 && users === 0) return true;
+  throw new Error('invalid_setup_state');
 }
 
 export async function finishSetup(env: Env, username: string, password: string, operation?: string): Promise<string | null> {
@@ -202,27 +203,6 @@ export async function finishSetup(env: Env, username: string, password: string, 
     });
     if (!claimed) return null;
   }
-  return id;
-}
-
-export async function createUser(
-  env: Env,
-  username: string,
-  password: string,
-): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  const id = crypto.randomUUID();
-  const normalized = normalizeUsername(username);
-  if (!normalized) throw new Error('invalid_username');
-
-  const db = getDB(env);
-  await db.execute(authSQL[db.type].insertUser, [
-    id,
-    normalized,
-    await hashPassword(password, pbkdf2Iterations(env)),
-    now,
-    now,
-  ]);
   return id;
 }
 
@@ -332,17 +312,6 @@ export async function deleteSession(env: Env, token: string): Promise<void> {
 export async function deleteUserSessions(env: Env, userId: string): Promise<void> {
   const db = getDB(env);
   await db.execute(authSQL[db.type].deleteSessionsForUser, [userId]);
-}
-
-export async function listSessions(
-  env: Env,
-  userId: string,
-): Promise<Array<{ created_at: number; expires_at: number; user_agent: string | null }>> {
-  const db = getDB(env);
-  return db.query<{ created_at: number; expires_at: number; user_agent: string | null }>(
-    authSQL[db.type].listSessionsForUser,
-    [userId],
-  );
 }
 
 // ---------------------------------------------------------------- throttle
