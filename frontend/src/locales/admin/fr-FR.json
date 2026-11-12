@@ -1040,7 +1040,7 @@
     "stepLabel": "Étape {current} sur {total}",
     "checkSubtitle": "Vérifiez d’abord les liaisons et le secret du Worker. La configuration continue lorsque tous les éléments requis sont validés.",
     "checkDatabase": "Base de données",
-    "checkDatabaseHint": "Dans Settings → Bindings du Worker, ajoutez une base D1 avec le nom de variable DB. Pour utiliser PostgreSQL, définissez plutôt la variable DATABASE_TYPE sur postgres et ajoutez le secret DATABASE_URL.",
+    "checkDatabaseHint": "Configurez l’une des deux bases dans Settings du Worker. Pour D1, ajoutez une base D1 dans Bindings avec le nom de variable DB. Pour PostgreSQL, ajoutez le secret DATABASE_URL ; DATABASE_TYPE est facultatif car un Worker sans D1 utilise PostgreSQL.",
     "checkAdminToken": "Clé d’initialisation",
     "checkAdminTokenHint": "Dans Settings → Variables and Secrets du Worker, ajoutez un secret nommé ADMIN_TOKEN avec une longue valeur aléatoire.",
     "checkThemes": "Stockage des thèmes (R2)",

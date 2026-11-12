@@ -1040,7 +1040,7 @@
     "stepLabel": "Etapa {current} de {total}",
     "checkSubtitle": "Primeiro, verifique as vinculações e o segredo do Worker. A configuração continua quando todos os itens obrigatórios forem aprovados.",
     "checkDatabase": "Banco de dados",
-    "checkDatabaseHint": "Em Settings → Bindings do Worker, adicione um banco D1 com o nome de variável DB. Para usar PostgreSQL, defina a variável DATABASE_TYPE como postgres e adicione o segredo DATABASE_URL.",
+    "checkDatabaseHint": "Configure um dos bancos em Settings do Worker. Para D1, adicione um banco D1 em Bindings com o nome de variável DB. Para PostgreSQL, adicione o segredo DATABASE_URL; DATABASE_TYPE é opcional, pois um Worker sem D1 usa PostgreSQL.",
     "checkAdminToken": "Chave de configuração",
     "checkAdminTokenHint": "Em Settings → Variables and Secrets do Worker, adicione um segredo chamado ADMIN_TOKEN com um valor aleatório longo.",
     "checkThemes": "Armazenamento de temas (R2)",

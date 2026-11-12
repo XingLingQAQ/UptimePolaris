@@ -5,7 +5,7 @@ import { bootstrapSchema } from './lib/db/bootstrap';
 import { withDBScope } from './lib/db/factory';
 import { ensureSchemaReady } from './lib/db/schema-guard';
 import { postgresIsEmpty } from './lib/db/setup-postgres';
-import { DatabaseConfigurationError, pendingDatabase, requireReadyDatabase } from './lib/db/setup-control';
+import { DatabaseConfigurationError, databaseType, pendingDatabase, requireReadyDatabase } from './lib/db/setup-control';
 import { internalErrorResponse } from './lib/http/errors';
 import { runSync } from './lib/jobs/daily-sync';
 import { CRON_SYNC, CRON_TICK } from './lib/jobs/schedules';
@@ -70,7 +70,7 @@ async function handleDatabaseRequest(request: Request, env: Env, ctx: ExecutionC
   const pending = await pendingDatabase(env);
   if (!pending) await bootstrapSchema(env);
   let emptyPostgres = false;
-  if (!pending && (env.DATABASE_TYPE ?? 'd1') === 'postgres') {
+  if (!pending && databaseType(env) === 'postgres') {
     try { emptyPostgres = await postgresIsEmpty(env); }
     catch { return Response.json({ error: 'database_connection_failed' }, { status: 503, headers: { 'cache-control': 'private, no-store' } }); }
   }

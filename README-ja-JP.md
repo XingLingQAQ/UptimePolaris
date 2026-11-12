@@ -79,8 +79,9 @@ Uptime Polaris は、Web サイトとポートを定期的にチェックし、�
 1. このリポジトリを Fork します。
 2. Cloudflare ダッシュボードで **Workers & Pages → Create application → GitHub** を開き、fork したリポジトリを選択します。ビルドコマンドに `npm run build`、デプロイコマンドに `npm run deploy` を設定します。
 3. デプロイ後にサイトを開きます。初期設定ページがバインディングとシークレットを確認するので、Worker の **Settings** で以下を設定します。
-   - **Bindings**: 変数名 `DB` で D1 データベースを追加します。サードパーティのテーマを使う場合は変数名 `THEMES` で R2 バケットを追加し、生データとバックフィルが必要な場合は Analytics Engine を有効にして変数名 `UPTIME` でデータセットを追加します。
-   - **Variables and Secrets**: Secret `ADMIN_TOKEN` を追加し、十分に長いランダムな値（例: `openssl rand -hex 32` の出力）を設定します。
+   - **データベース（どちらか一方）**: D1 を使う場合は **Bindings** で変数名 `DB` のデータベースを追加します。PostgreSQL を使う場合は **Variables and Secrets** で Secret `DATABASE_URL` を追加します。D1 をバインドしていない場合は自動的に PostgreSQL として扱われます。
+   - **初期設定キー**: **Variables and Secrets** で Secret `ADMIN_TOKEN` を追加し、十分に長いランダムな値（例: `openssl rand -hex 32` の出力）を設定します。
+   - **任意**: サードパーティのテーマを使う場合は変数名 `THEMES` で R2 バケットを、生データとバックフィルが必要な場合は Analytics Engine を有効にして変数名 `UPTIME` でデータセットを追加します。
 4. 初期設定ページで「再確認」を押し、次へ進んで `ADMIN_TOKEN` を入力し、管理者アカウントを作成します。
 
 更新は GitHub の Sync fork だけで完了します。Workers Builds が自動で再デプロイし、ダッシュボードで追加したバインディングも保持されます。

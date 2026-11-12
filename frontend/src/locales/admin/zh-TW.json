@@ -1040,7 +1040,7 @@
     "stepLabel": "第 {current} 步，共 {total} 步",
     "checkSubtitle": "先檢查 Worker 的繫結和密鑰，必要項目全部通過後才能繼續初始化。",
     "checkDatabase": "資料庫",
-    "checkDatabaseHint": "在 Worker 的 Settings → Bindings 中新增 D1 資料庫，變數名稱填寫 DB。如需使用 PostgreSQL，請改為將變數 DATABASE_TYPE 設為 postgres，並新增 Secret DATABASE_URL。",
+    "checkDatabaseHint": "在 Worker 的 Settings 中綁定其中一種資料庫。用 D1 時，在 Bindings 中新增 D1 資料庫，變數名稱填 DB；用 PostgreSQL 時，新增 Secret DATABASE_URL 即可，DATABASE_TYPE 可以省略，未綁定 D1 時按 PostgreSQL 處理。",
     "checkAdminToken": "初始化金鑰",
     "checkAdminTokenHint": "在 Worker 的 Settings → Variables and Secrets 中新增 Secret，名稱為 ADMIN_TOKEN，值使用夠長的隨機字串。",
     "checkThemes": "主題儲存空間（R2）",

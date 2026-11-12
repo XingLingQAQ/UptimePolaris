@@ -47,7 +47,7 @@ Worker 在 `needsSetup` 为 `true` 时还会返回 `setupRequirements` 数组（
 
 | `key` | `required` | 含义 |
 | --- | --- | --- |
-| `database` | `true` | 已绑定 `DB`（D1），或已配置 `DATABASE_TYPE=postgres` 与 `DATABASE_URL` |
+| `database` | `true` | 已绑定 `DB`（D1），或已配置 `DATABASE_URL`（未绑定 D1 时自动按 PostgreSQL 处理，`DATABASE_TYPE` 可省略） |
 | `adminToken` | `true` | 已配置 `ADMIN_TOKEN` |
 | `themes` | `false` | 已绑定 `THEMES`（R2 主题存储） |
 | `analytics` | `false` | 已绑定 `UPTIME`（Analytics Engine） |
@@ -335,7 +335,7 @@ While `needsSetup` is `true`, the Worker also returns `setupRequirements` (an ar
 
 | `key` | `required` | Meaning |
 | --- | --- | --- |
-| `database` | `true` | `DB` (D1) is bound, or `DATABASE_TYPE=postgres` and `DATABASE_URL` are configured |
+| `database` | `true` | `DB` (D1) is bound, or `DATABASE_URL` is configured (without D1 the deployment is PostgreSQL and `DATABASE_TYPE` may be omitted) |
 | `adminToken` | `true` | `ADMIN_TOKEN` is configured |
 | `themes` | `false` | `THEMES` (R2 theme storage) is bound |
 | `analytics` | `false` | `UPTIME` (Analytics Engine) is bound |

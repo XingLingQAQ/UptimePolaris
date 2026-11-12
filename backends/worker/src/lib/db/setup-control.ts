@@ -36,8 +36,20 @@ export function deployedDatabase(env: Env): Pick<Env, 'DATABASE_TYPE' | 'DATABAS
   return { DATABASE_TYPE: original.DATABASE_TYPE, DATABASE_URL: original.DATABASE_URL };
 }
 
+/**
+ * 未绑定 D1 时只能使用 PostgreSQL，因此 DATABASE_TYPE 可以省略，由 DATABASE_URL 推断。
+ * Without a D1 binding only PostgreSQL is possible, so DATABASE_TYPE may be omitted and inferred from DATABASE_URL.
+ */
+export function databaseType(env: Pick<Env, 'DATABASE_TYPE' | 'DB'>): DatabaseType {
+  return env.DATABASE_TYPE ?? (env.DB ? 'd1' : 'postgres');
+}
+
+export function deployedDatabaseType(env: Env): DatabaseType {
+  return databaseType(deploymentEnv(env));
+}
+
 export function databaseIdentity(env: Env): string | D1Database {
-  return (env.DATABASE_TYPE ?? 'd1') === 'postgres' ? `postgres:${env.DATABASE_URL ?? ''}` : env.DB;
+  return databaseType(env) === 'postgres' ? `postgres:${env.DATABASE_URL ?? ''}` : env.DB;
 }
 
 async function controlRow(db: D1Database): Promise<ControlRow | null> {
@@ -139,10 +151,12 @@ export async function d1HasUsers(env: Env): Promise<boolean> {
 export async function setupDatabaseOptions(env: Env): Promise<SetupDatabaseOptions> {
   const deployed = deployedDatabase(env);
   const pending = await pendingDatabase(env);
-  const configured = pending ? env.DATABASE_TYPE === 'postgres' : (deployed.DATABASE_TYPE ?? 'd1') === 'postgres' && Boolean(deployed.DATABASE_URL);
+  const configured = pending ? env.DATABASE_TYPE === 'postgres' : deployedDatabaseType(env) === 'postgres' && Boolean(deployed.DATABASE_URL);
+  // 没有 D1 绑定时不提供 D1 选项，默认只能是 PostgreSQL。
+  // D1 is not offered without its binding, so the default can only be PostgreSQL.
   return {
-    types: pending ? [(env.DATABASE_TYPE ?? 'd1')] : env.DB ? ['d1', 'postgres'] : ['postgres'],
-    defaultType: (env.DATABASE_TYPE ?? 'd1') === 'postgres' ? 'postgres' : 'd1',
+    types: pending ? [databaseType(env)] : env.DB ? ['d1', 'postgres'] : ['postgres'],
+    defaultType: databaseType(env),
     postgresConfigured: configured,
     postgresUrlEditable: Boolean(env.DB) && !pending,
   };
@@ -157,7 +171,7 @@ export async function claimDatabase(env: Env, type: DatabaseType, url: string | 
   const lease = crypto.randomUUID();
   const now = Math.floor(Date.now() / 1000);
   const deployed = deployedDatabase(env);
-  const source = type === (deployed.DATABASE_TYPE ?? 'd1') && (type === 'd1' || deployed.DATABASE_URL === url) ? 'deployment' : 'selected';
+  const source = type === deployedDatabaseType(env) && (type === 'd1' || deployed.DATABASE_URL === url) ? 'deployment' : 'selected';
   const encrypted = type === 'postgres' && url ? await encryptUrl(url, env.ADMIN_TOKEN) : null;
   const users = await db.prepare("SELECT 1 AS n FROM sqlite_schema WHERE type = 'table' AND name = 'users'").first();
   const setupState = await db.prepare("SELECT 1 AS n FROM sqlite_schema WHERE type = 'table' AND name = 'auth_setup_state'").first();

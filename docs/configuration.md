@@ -33,7 +33,7 @@ postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full
 
 URL 需包含协议（`postgres://` 或 `postgresql://`）、用户名、密码、主机名和数据库名，密码中的特殊字符需进行 URL 编码；查询参数仅支持 `sslmode`（`verify-full` 或 `require`，Go 本机回环测试可用 `disable`）。只有已部署的 PostgreSQL 连接对应当前数据库时才能留空复用。初始化成功后，管理员账号和会话保存在目标数据库中，后续请求和重启继续使用该数据库。
 
-会话状态会返回可选类型、默认类型、PostgreSQL 是否已配置、URL 是否可编辑，但不返回 URL。Worker 要在页面填新的 PostgreSQL URL，必须保留 D1 绑定：D1 保存引导选择和加密 URL，业务数据仍在 PostgreSQL。纯 PostgreSQL 且没有 D1 绑定时，部署必须预设 `DATABASE_TYPE=postgres` 和 `DATABASE_URL`，初始化只能复用这个连接，页面不能换 URL。Go 可以在页面填新 URL。不要在日志或截图里暴露 URL。请求字段和错误码见[初始化数据库契约](api.md#初始化数据库契约)。
+会话状态会返回可选类型、默认类型、PostgreSQL 是否已配置、URL 是否可编辑，但不返回 URL。Worker 要在页面填新的 PostgreSQL URL，必须保留 D1 绑定：D1 保存引导选择和加密 URL，业务数据仍在 PostgreSQL。纯 PostgreSQL 且没有 D1 绑定时，部署只需配置 `DATABASE_URL`（`DATABASE_TYPE` 可省略，未绑定 D1 时自动按 PostgreSQL 处理），初始化只能复用这个连接，页面不能换 URL。Go 可以在页面填新 URL。不要在日志或截图里暴露 URL。请求字段和错误码见[初始化数据库契约](api.md#初始化数据库契约)。
 
 Worker 有 D1 绑定、初始化又使用 PostgreSQL 时（包括复用预配置连接），都会在 D1 里保存活动加密 URL，密钥由 `ADMIN_TOKEN` 派生。要保留原 `ADMIN_TOKEN` 和 D1 绑定；直接换 Token 会让已保存的 URL 无法解密。目前没有重加密或 Token 轮换命令，不要直接轮换。维护连接配置前，先停业务写入，备份 D1 控制记录、PostgreSQL 和原 Token。不要删除控制记录，也不要回退到空 D1。如果已经误换了 Token，用受保护的部署密钥机制恢复原 Token，并保留原 D1 绑定；无法取得原 Token 时，保留现有数据和备份，不要猜密钥或清空记录。
 
@@ -58,7 +58,7 @@ Go 显式选过数据库后，数据目录里的 `database.json` 优先于 `POLA
 
 | 绑定 | 类型 | 说明 |
 | --- | --- | --- |
-| `DB` | D1 | `DATABASE_TYPE=d1` 时必需 |
+| `DB` | D1，可选 | 绑定后初始化可选择 D1；未绑定时按 PostgreSQL 处理 |
 | `ASSETS` | Workers Assets | 服务前端资源 |
 | `THEMES` | R2，可选 | 第三方主题版本与资源；内置界面不依赖它 |
 | `UPTIME` | Analytics Engine，可选 | 原始观测写入；SQL 回填另需查询凭据 |
@@ -70,7 +70,7 @@ Go 显式选过数据库后，数据目录里的 `database.json` 优先于 `POLA
 | 名称 | 默认或范围 | 配置方式与用途 |
 | --- | --- | --- |
 | `ADMIN_TOKEN` | 无默认值 | Secret；首次初始化凭据，也是管理 API 的 Bearer Token |
-| `DATABASE_TYPE` | `d1`，可选 `postgres` | 普通变量；部署数据库类型，活动覆盖记录优先 |
+| `DATABASE_TYPE` | 有 D1 时为 `d1`，否则为 `postgres`；也可显式设为 `postgres` | 普通变量；部署数据库类型，可省略，活动覆盖记录优先 |
 | `DATABASE_URL` | 无默认值 | Secret；PostgreSQL 连接 URL，形如 `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`（网页指定的连接另存于 D1 控制记录） |
 | `CF_ACCOUNT_ID` | 无默认值 | AE SQL 回填使用的账号 ID |
 | `CF_API_TOKEN` | 无默认值 | Secret；AE SQL 查询所需的账号 Analytics Read 凭据 |
@@ -170,7 +170,7 @@ On the Worker, `/setup` has two steps: it first checks the database binding and 
 
 Setup offers D1 or PostgreSQL on Worker, and SQLite or PostgreSQL on Go. Omitting the selection retains the current backend configuration. A newly selected PostgreSQL database requires a connection URL such as `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`; percent-encode special characters in the password, and keep only a supported `sslmode` in the query string. A blank URL reuses the deployed PostgreSQL connection only when it corresponds to the current database. On successful setup, the administrator and session are created in the target database, which remains active for later requests and restarts.
 
-Session status returns supported types, the default, whether PostgreSQL is configured, and whether its URL is editable; it never returns the URL. To enter a new PostgreSQL URL during Worker setup, keep the D1 binding: D1 stores the bootstrap selection and encrypted URL, while business data remains in PostgreSQL. A PostgreSQL-only Worker without D1 must be deployed with `DATABASE_TYPE=postgres` and `DATABASE_URL`; setup can reuse that connection but cannot accept a different URL. Go can accept a new URL. Keep URLs out of logs and screenshots. See the [setup database contract](api.md#setup-database-contract) for fields and errors.
+Session status returns supported types, the default, whether PostgreSQL is configured, and whether its URL is editable; it never returns the URL. To enter a new PostgreSQL URL during Worker setup, keep the D1 binding: D1 stores the bootstrap selection and encrypted URL, while business data remains in PostgreSQL. A Worker without D1 only needs `DATABASE_URL`; `DATABASE_TYPE` may be omitted because PostgreSQL is then the only option. Setup can reuse that connection but cannot accept a different URL. Go can accept a new URL. Keep URLs out of logs and screenshots. See the [setup database contract](api.md#setup-database-contract) for fields and errors.
 
 When Worker has a D1 binding and setup uses PostgreSQL, including a preconfigured connection, it keeps an active encrypted URL in D1. The key is derived from `ADMIN_TOKEN`. Retain the original token and D1 binding: replacing the token directly makes the saved URL unreadable. There is currently no re-encryption or token-rotation command; do not rotate the token directly. Before maintaining the connection configuration, stop business writes and back up the D1 control record, PostgreSQL and the original token. Do not delete the control record or fall back to an empty D1 database. If the token was changed, restore the original through the protected deployment secret mechanism and retain the D1 binding. If the original token is unavailable, preserve the data and backups; do not guess the key or clear the record.
 
@@ -184,7 +184,7 @@ On Go, an explicit setup selection writes `database.json` in the data directory.
 
 | Binding | Resource | Purpose |
 | --- | --- | --- |
-| `DB` | D1 | Required for `DATABASE_TYPE=d1` |
+| `DB` | D1, optional | Selecting D1 during setup requires it; without it the deployment is PostgreSQL |
 | `ASSETS` | Workers Assets | Frontend assets |
 | `THEMES` | R2, optional | Third-party theme versions and assets; not required for the built-in interface |
 | `UPTIME` | Analytics Engine, optional | Raw observations; SQL backfill also requires query credentials |
@@ -196,7 +196,7 @@ Manual deployment uses `backends/worker/cloudflare.config.ts`; database npm scri
 | Name | Default or range | Purpose |
 | --- | --- | --- |
 | `ADMIN_TOKEN` | No default | Secret for initial setup and management API Bearer authentication |
-| `DATABASE_TYPE` | `d1`; also `postgres` | Deployed database type; an active override takes precedence |
+| `DATABASE_TYPE` | `d1` with D1 bound, otherwise `postgres`; may also be set to `postgres` | Deployed database type; may be omitted, and an active override takes precedence |
 | `DATABASE_URL` | No default | Secret PostgreSQL URL such as `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`; a page-selected connection is stored separately in the D1 control record |
 | `CF_ACCOUNT_ID` | No default | Account ID for Analytics Engine SQL backfill |
 | `CF_API_TOKEN` | No default | Secret with account Analytics Read access for SQL backfill |

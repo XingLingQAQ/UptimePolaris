@@ -12,6 +12,7 @@ import { Hono } from 'hono';
 import type { Env } from '../../types';
 import { getDB } from '../db/factory';
 import { migrateData, MigrationError, parseTargetUrl } from '../db/data-migration';
+import { databaseType } from '../db/setup-control';
 import { bytesToBase64, readBoundedBody } from '../http/binary';
 import { settingsSQL } from '../db/sql/settings';
 import { invalidateConfig } from '../monitor/store';
@@ -24,7 +25,7 @@ settingsRoutes.post('/api/admin/database-migration/:action', async (c) => {
   c.header('cache-control', 'private, no-store');
   const action = c.req.param('action');
   if (action !== 'preview' && action !== 'execute') return c.json({ error: 'invalid_request' }, 400);
-  if ((c.env.DATABASE_TYPE ?? 'd1') !== 'd1' || !c.env.DB) return c.json({ error: 'source_unavailable' }, 409);
+  if (databaseType(c.env) !== 'd1' || !c.env.DB) return c.json({ error: 'source_unavailable' }, 409);
   let body: unknown;
   try {
     const bytes = await readBoundedBody(c.req.raw.body, 8192);

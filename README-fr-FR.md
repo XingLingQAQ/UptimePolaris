@@ -79,8 +79,9 @@ Utilisez Worker si vous ne souhaitez pas exploiter un serveur. Choisissez Go pou
 1. Forkez ce dépôt.
 2. Dans le tableau de bord Cloudflare, ouvrez **Workers & Pages → Create application → GitHub** et choisissez votre fork. Indiquez `npm run build` comme commande de build et `npm run deploy` comme commande de déploiement.
 3. Ouvrez le site après le déploiement. La page d'initialisation vérifie d'abord les liaisons et les secrets ; configurez ce qu'elle signale dans les **Settings** du Worker :
-   - **Bindings** : ajoutez une base D1 avec le nom de variable `DB`. Pour les thèmes tiers, ajoutez un bucket R2 nommé `THEMES` ; pour les observations brutes et le backfill, activez Analytics Engine puis ajoutez un jeu de données nommé `UPTIME`.
-   - **Variables and Secrets** : ajoutez le secret `ADMIN_TOKEN` avec une longue valeur aléatoire, par exemple la sortie de `openssl rand -hex 32`.
+   - **Base de données (au choix)** : pour D1, ajoutez une base dans **Bindings** avec le nom de variable `DB` ; pour PostgreSQL, ajoutez le secret `DATABASE_URL` dans **Variables and Secrets**. Sans D1, le déploiement utilise PostgreSQL automatiquement.
+   - **Clé d’initialisation** : ajoutez le secret `ADMIN_TOKEN` dans **Variables and Secrets** avec une longue valeur aléatoire, par exemple la sortie de `openssl rand -hex 32`.
+   - **Facultatif** : pour les thèmes tiers, ajoutez un bucket R2 nommé `THEMES` ; pour les observations brutes et le backfill, activez Analytics Engine et ajoutez un jeu de données nommé `UPTIME`.
 4. Sélectionnez **Re-check** sur la page d'initialisation, passez à l'étape suivante et saisissez `ADMIN_TOKEN` pour créer le compte administrateur.
 
 Les mises à jour se font avec **Sync fork** sur GitHub ; Workers Builds redéploie automatiquement et conserve les liaisons ajoutées dans le tableau de bord.

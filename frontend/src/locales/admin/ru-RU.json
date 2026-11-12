@@ -1040,7 +1040,7 @@
     "stepLabel": "Шаг {current} из {total}",
     "checkSubtitle": "Сначала проверьте привязки и секрет Worker. Настройка продолжится, когда все обязательные пункты будут выполнены.",
     "checkDatabase": "База данных",
-    "checkDatabaseHint": "В разделе Settings → Bindings вашего Worker добавьте базу D1 с именем переменной DB. Чтобы использовать PostgreSQL, задайте переменную DATABASE_TYPE со значением postgres и добавьте секрет DATABASE_URL.",
+    "checkDatabaseHint": "Настройте одну из баз в Settings воркера. Для D1 добавьте базу D1 в Bindings с именем переменной DB. Для PostgreSQL добавьте секрет DATABASE_URL; DATABASE_TYPE можно не задавать, так как воркер без D1 использует PostgreSQL.",
     "checkAdminToken": "Ключ настройки",
     "checkAdminTokenHint": "В разделе Settings → Variables and Secrets вашего Worker добавьте секрет ADMIN_TOKEN с длинным случайным значением.",
     "checkThemes": "Хранилище тем (R2)",

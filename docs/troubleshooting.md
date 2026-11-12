@@ -24,12 +24,12 @@
 ## 初始化页面无法继续
 
 1. **Worker 部署检查未通过**：初始化页面第一步会列出数据库和 `ADMIN_TOKEN` 的配置状态：
-   - **数据库未配置**：在 Worker 的 **Settings → Bindings** 中添加 D1 数据库，变量名填写 `DB`；或将变量 `DATABASE_TYPE` 设为 `postgres` 并添加 Secret `DATABASE_URL`。
+   - **数据库未配置**：配置 D1 或 PostgreSQL 其中之一。D1 在 Worker 的 **Settings → Bindings** 中添加，变量名填写 `DB`；PostgreSQL 只需在 **Settings → Variables and Secrets** 中添加 Secret `DATABASE_URL`，未绑定 D1 时会自动按 PostgreSQL 处理。
    - **初始化密钥未配置**：在 **Settings → Variables and Secrets** 中添加 Secret `ADMIN_TOKEN`。
    - 在控制台保存修改后，Worker 会自动部署新版本，回到页面点击“重新检查”，全部通过后才能点击“下一步”。
 2. **Go 后端提示未配置密钥**：检查工作目录 `.env` 或进程环境变量中的 `POLARIS_SETUP_KEY`（未设置时回退到 `POLARIS_ADMIN_TOKEN`）。两者均未设置且尚未初始化时，请查看本次进程启动日志中的 `setup_key` 字段。修改后需重启进程。
 3. 请确认输入的是初始化密钥，而不是管理员登录密码或 Agent Token。
-4. 核对所选数据库：Worker 支持 D1 或 PostgreSQL，Go 支持 SQLite 或 PostgreSQL。新选 PostgreSQL 需填写连接地址；已部署的 PostgreSQL 连接可留空复用，页面不会回显原地址。
+4. 核对所选数据库：Worker 在绑定 D1 时可选 D1 或 PostgreSQL，未绑定 D1 时只有 PostgreSQL；Go 支持 SQLite 或 PostgreSQL。新选 PostgreSQL 需填写连接地址；已部署的 PostgreSQL 连接可留空复用，页面不会回显原地址。
 5. 已有数据库提示表结构缺失时，请按对应后端执行迁移，不要反复重输凭据。首次初始化仅为空数据库建表，不会接管未知的表结构。
 
 Worker 未绑定 D1 时，只能复用部署密钥 `DATABASE_URL` 中的 PostgreSQL 连接，页面不提供新地址输入框；如需在网页中填写新地址，请保留 D1 绑定。Go 的 `database.json` 保存后优先于启动参数和环境变量，排查连接问题时请一并检查，并避免公开其中的地址。
@@ -40,7 +40,7 @@ Worker 未绑定 D1 时，只能复用部署密钥 `DATABASE_URL` 中的 Postgre
 
 | 错误码 | 处理方式 |
 | --- | --- |
-| `deployment_incomplete` | 在 Worker 的 **Settings → Bindings** 中绑定 `DB`，或配置 `DATABASE_TYPE=postgres` 与 `DATABASE_URL` |
+| `deployment_incomplete` | 绑定 `DB`（D1），或添加 Secret `DATABASE_URL`（PostgreSQL） |
 | `invalid_database_type` | 重新加载页面，选择当前后端提供的数据库类型 |
 | `invalid_database_url` | 检查 PostgreSQL 连接地址格式（如 `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`），确认包含用户名、密码和数据库名，密码特殊字符已做 URL 编码，且查询参数仅含支持的 `sslmode` |
 | `database_connection_failed` | 检查连接地址、数据库访问权限、网络和证书后重试 |
@@ -159,17 +159,17 @@ First identify the complete site URL, backend, and database. Different deploymen
 ### Setup and accounts
 
 - **Worker deployment check not passed:** the first step of setup lists the database and `ADMIN_TOKEN` state.
-  - **Database missing:** under **Settings → Bindings**, add a D1 database named `DB`; or set the variable `DATABASE_TYPE` to `postgres` and add the secret `DATABASE_URL`.
+  - **Database missing:** configure either D1 or PostgreSQL. Add a D1 database named `DB` under **Settings → Bindings**, or add the secret `DATABASE_URL` under **Settings → Variables and Secrets**; without D1 the deployment is treated as PostgreSQL.
   - **Setup key missing:** under **Settings → Variables and Secrets**, add the secret `ADMIN_TOKEN`.
   - Saving a change deploys a new Worker version; select **Re-check** on the page and continue only after every required item passes.
 - **Go reports no setup key:** check `POLARIS_SETUP_KEY` in the working directory's `.env` or the process environment (falling back to `POLARIS_ADMIN_TOKEN`). If neither is set and the server is uninitialized, use the `setup_key` field in the current startup log. Restart after changing the environment or `.env`. `credential_unconfigured` means no setup credential is available; `invalid_setup_credential` means the supplied value does not match. A restart invalidates the previous automatically generated key.
-- **Database choice:** Worker supports D1 or PostgreSQL; Go supports SQLite or PostgreSQL. Enter a PostgreSQL URL when selecting a new connection, for example `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`. Leave it blank only to reuse a deployment-configured PostgreSQL connection; the original URL is never shown. Setup initializes a fresh database, not an unknown existing schema.
+- **Database choice:** Worker offers D1 and PostgreSQL when D1 is bound and PostgreSQL only otherwise; Go supports SQLite or PostgreSQL. Enter a PostgreSQL URL when selecting a new connection, for example `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`. Leave it blank only to reuse a deployment-configured PostgreSQL connection; the original URL is never shown. Setup initializes a fresh database, not an unknown existing schema.
 - **Persistent selection:** without a D1 binding, Worker uses its deployment-configured PostgreSQL `DATABASE_URL` and does not offer URL editing. Keep the D1 binding for browser-configured database selection. Go's saved `database.json` takes precedence over flags and environment variables; inspect it securely when diagnosing the active connection.
 - **Forgotten password:** manual Worker D1 deployments provide `npm run user:list -- --remote` and `npm run user:create -- --remote --username your-name --password 'a-new-strong-password'`. These commands use `backends/worker/wrangler.toml`: confirm the target and back it up first. Fork and button deployments keep no `database_id` in `wrangler.jsonc`; fill in the target D1 `database_id` locally before using the tool. Passwords passed on the command line can appear in process listings and shell history. This tool does not support Worker PostgreSQL or Go. Go has no password recovery command; preserve a backup and check available administrative credentials rather than resetting the database.
 
 | Setup error | Action |
 | --- | --- |
-| `deployment_incomplete` | Bind `DB` under the Worker's **Settings → Bindings**, or configure `DATABASE_TYPE=postgres` and `DATABASE_URL` |
+| `deployment_incomplete` | Bind `DB` (D1), or add the secret `DATABASE_URL` (PostgreSQL) |
 | `invalid_database_type` | Reload and select a database supported by the active backend |
 | `invalid_database_url` | Check the PostgreSQL URL format (`postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`), that it includes a username, password and database name, that special characters in the password are percent-encoded, and that the query string contains only a supported `sslmode` |
 | `database_connection_failed` | Check connectivity, access permissions and certificates, then retry |

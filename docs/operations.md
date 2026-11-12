@@ -100,7 +100,7 @@ Fork 部署和按钮部署的 `wrangler.jsonc` 不记录 `database_id`。备份�
 
 ## 切换数据库后端
 
-首次部署在 `/setup` 选数据库：Worker 支持 D1 或 PostgreSQL，Go 支持 SQLite 或 PostgreSQL。选 PostgreSQL 后填写连接地址；初始化会把管理员账号和会话写进所选数据库，后续业务也用它。初始化选择只适用于还没创建管理员的环境，不能用来切换已有业务数据。
+首次部署在 `/setup` 选数据库：Worker 在绑定 D1 时提供 D1 和 PostgreSQL 两种选项，未绑定 D1 时只有 PostgreSQL；Go 支持 SQLite 或 PostgreSQL。选 PostgreSQL 后填写连接地址；初始化会把管理员账号和会话写进所选数据库，后续业务也用它。初始化选择只适用于还没创建管理员的环境，不能用来切换已有业务数据。
 
 下面的步骤只适用于 Worker 的 D1 → PostgreSQL。Go 的 SQLite → PostgreSQL 必须走 [Go 离线迁移流程](../backends/go/README.md#数据库迁移)，从复制前到切换完成都要让旧服务停写；两种后端的数据结构和迁移工具不能混用。
 
@@ -183,7 +183,7 @@ Fork and button deployments keep no database ID in `wrangler.jsonc`; confirm whi
 
 ### Database migration and retention
 
-For a new installation, choose the database at `/setup`: Worker supports D1 or PostgreSQL, and Go supports SQLite or PostgreSQL. Enter a connection URL for PostgreSQL, for example `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`. The Worker shows its deployment check first; the Go backend goes straight to the setup form. Setup creates the administrator and session in the selected database, which also serves subsequent business requests. This initial choice is not a migration path for an existing installation.
+For a new installation, choose the database at `/setup`: Worker offers D1 and PostgreSQL when D1 is bound and PostgreSQL only otherwise; Go supports SQLite or PostgreSQL. Enter a connection URL for PostgreSQL, for example `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`. The Worker shows its deployment check first; the Go backend goes straight to the setup form. Setup creates the administrator and session in the selected database, which also serves subsequent business requests. This initial choice is not a migration path for an existing installation.
 
 Worker can copy D1 to an empty PostgreSQL database from the settings page; copying does not switch the active database. Stop all source writes, including scheduler, Push, Agent and administrative writes, and keep them stopped through the switch. Back up both databases, keep the target exclusive, verify the copied data, then configure `DATABASE_TYPE=postgres` and `DATABASE_URL`. Default D1 setup leaves no active selection pointer. If setup explicitly selected D1 from a PostgreSQL deployment, also handle the active D1 selection as described in [deployment](deployment.md#database-setup-and-initialization); never delete a pending record. External R2 and Analytics Engine data are not copied.
 

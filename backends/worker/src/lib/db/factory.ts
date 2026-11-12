@@ -3,7 +3,7 @@ import type { Env } from '../../types';
 import type { DBAdapter } from './adapter';
 import { D1Adapter } from './d1';
 import { PostgresAdapter } from './postgres';
-import { deploymentEnv, pendingDatabase, rememberDeployment, resolveDatabase } from './setup-control';
+import { databaseType, deploymentEnv, pendingDatabase, rememberDeployment, resolveDatabase } from './setup-control';
 
 interface Scope {
   adapter?: DBAdapter;
@@ -16,7 +16,7 @@ interface Scope {
 const scopes = new WeakMap<Env, Scope>();
 
 function createDB(env: Env): DBAdapter {
-  const dbType = env.DATABASE_TYPE ?? 'd1';
+  const dbType = databaseType(env);
 
   switch (dbType) {
     case 'd1':

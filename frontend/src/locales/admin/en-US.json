@@ -1040,7 +1040,7 @@
     "stepLabel": "Step {current} of {total}",
     "checkSubtitle": "Check the Worker’s bindings and secret first. Setup continues once every required item passes.",
     "checkDatabase": "Database",
-    "checkDatabaseHint": "In the Worker’s Settings → Bindings, add a D1 database with the variable name DB. To use PostgreSQL instead, set the variable DATABASE_TYPE to postgres and add the secret DATABASE_URL.",
+    "checkDatabaseHint": "Bind either database under the Worker’s Settings. For D1, add a D1 database in Bindings with the variable name DB. For PostgreSQL, add the secret DATABASE_URL; DATABASE_TYPE=postgres is optional because a Worker without D1 uses PostgreSQL.",
     "checkAdminToken": "Setup key",
     "checkAdminTokenHint": "In the Worker’s Settings → Variables and Secrets, add a secret named ADMIN_TOKEN with a long random value.",
     "checkThemes": "Theme storage (R2)",

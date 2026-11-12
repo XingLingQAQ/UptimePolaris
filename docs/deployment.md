@@ -35,7 +35,9 @@ npm --prefix frontend ci
 1. Fork 本仓库。
 2. 在 Cloudflare 控制台进入 **Workers & Pages → Create application → GitHub**，选择 fork 后的仓库。构建命令填写 `npm run build`，部署命令填写 `npm run deploy`。
 3. 部署完成后打开站点。初始化页面的第一步是部署检查，未通过的项会写明配置方法：
-   - **数据库（必需）**：在 Worker 的 **Settings → Bindings** 中添加 D1 数据库，变量名填写 `DB`。还没有数据库时，先在 **Storage & Databases → D1** 中新建。
+   - **数据库（必需，二选一）**：
+     - **D1**：在 Worker 的 **Settings → Bindings** 中添加 D1 数据库，变量名填写 `DB`。还没有数据库时，先在 **Storage & Databases → D1** 中新建。
+     - **PostgreSQL**：在 **Settings → Variables and Secrets** 中添加 Secret `DATABASE_URL`。未绑定 D1 时数据库类型会自动按 PostgreSQL 处理，`DATABASE_TYPE` 可以省略。
    - **`ADMIN_TOKEN`（必需）**：在 **Settings → Variables and Secrets** 中添加 Secret，值使用足够长的随机字符串。
    - **`THEMES`（可选）**：安装第三方主题时，在 **Settings → Bindings** 中添加 R2 存储桶。
    - **`UPTIME`（可选）**：先在控制台启用 Analytics Engine，再添加数据集绑定。
@@ -43,7 +45,7 @@ npm --prefix frontend ci
    在控制台保存后，Worker 会自动部署新版本，然后在页面上点击“重新检查”。
 4. 必需项全部通过后点击“下一步”，输入 `ADMIN_TOKEN` 并创建管理员账号。要求见[完成初始化](#完成初始化)。
 
-使用 PostgreSQL 时可以不绑定 D1，改为添加变量 `DATABASE_TYPE`（值为 `postgres`）和 Secret `DATABASE_URL`。如果要在初始化页面填写新的 PostgreSQL 地址，仍需绑定 D1，原因见[完成初始化](#完成初始化)。
+两种数据库只配置一种即可。只配置 `DATABASE_URL` 时，初始化表单只提供 PostgreSQL 选项；绑定 D1 时两种都可以选。如果要在初始化页面填写新的 PostgreSQL 地址而不是复用已配置的连接，仍需绑定 D1，原因见[完成初始化](#完成初始化)。
 
 根目录的 `wrangler.jsonc` 不声明 D1、R2 和 Analytics Engine 绑定，部署时不会创建任何资源。`wrangler deploy` 会用配置文件覆盖 Worker 的绑定，因此 `npm run deploy` 在 Workers Builds 中会先通过 Cloudflare API 读取 Worker 现有的 `DB`、`THEMES`、`UPTIME` 绑定，带上它们再部署；读取失败时部署会停止，不会删除已有绑定。这一步使用 Workers Builds 提供的 `CLOUDFLARE_API_TOKEN`。如果构建环境中没有 `CLOUDFLARE_ACCOUNT_ID`，且该令牌能访问多个账号，请在构建变量中设置 `CLOUDFLARE_ACCOUNT_ID`。
 
@@ -246,7 +248,9 @@ Fork and button deployments require a Cloudflare account and a GitHub account. M
 1. Fork this repository.
 2. In the Cloudflare dashboard, open **Workers & Pages → Create application → GitHub** and select your fork. Set the build command to `npm run build` and the deploy command to `npm run deploy`.
 3. When the deployment finishes, open the site. The first step of setup is a deployment check, and each item that fails says how to configure it:
-   - **Database (required)**: in the Worker's **Settings → Bindings**, add a D1 database with the variable name `DB`. Create one under **Storage & Databases → D1** first if you have none.
+   - **Database (required, choose one)**:
+     - **D1**: in the Worker's **Settings → Bindings**, add a D1 database with the variable name `DB`. Create one under **Storage & Databases → D1** first if you have none.
+     - **PostgreSQL**: in **Settings → Variables and Secrets**, add the secret `DATABASE_URL`. Without a D1 binding the deployment is treated as PostgreSQL, so `DATABASE_TYPE` may be omitted.
    - **`ADMIN_TOKEN` (required)**: in **Settings → Variables and Secrets**, add a secret with a long random value.
    - **`THEMES` (optional)**: to install third-party themes, add an R2 bucket in **Settings → Bindings**.
    - **`UPTIME` (optional)**: enable Analytics Engine in the dashboard, then add a dataset binding.
@@ -254,7 +258,7 @@ Fork and button deployments require a Cloudflare account and a GitHub account. M
    Saving a change in the dashboard deploys a new version of the Worker. Then select **Re-check** on the page.
 4. Once every required item passes, select **Next**, enter `ADMIN_TOKEN` and create the administrator account. See [database setup and initialization](#database-setup-and-initialization).
 
-For PostgreSQL you can skip the D1 binding and add the variable `DATABASE_TYPE` (value `postgres`) and the secret `DATABASE_URL` instead. To enter a new PostgreSQL URL on the setup page, you still need the D1 binding; see [database setup and initialization](#database-setup-and-initialization).
+Configure one of the two databases. With only `DATABASE_URL` set, setup offers PostgreSQL only; with D1 bound, both are offered. To enter a new PostgreSQL URL on the setup page instead of reusing the configured connection, the D1 binding is still required; see [database setup and initialization](#database-setup-and-initialization).
 
 The root `wrangler.jsonc` declares no D1, R2 or Analytics Engine binding, so deploys never create resources. `wrangler deploy` replaces the Worker's bindings with those in the configuration file. Under Workers Builds, `npm run deploy` therefore reads the Worker's existing `DB`, `THEMES` and `UPTIME` bindings through the Cloudflare API and deploys with them. If they cannot be read, the deploy stops instead of removing them. This uses the `CLOUDFLARE_API_TOKEN` that Workers Builds provides. If the build has no `CLOUDFLARE_ACCOUNT_ID` and the token can reach more than one account, set `CLOUDFLARE_ACCOUNT_ID` in the build variables.
 

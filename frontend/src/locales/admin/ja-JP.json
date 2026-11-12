@@ -1040,7 +1040,7 @@
     "stepLabel": "ステップ {current} / {total}",
     "checkSubtitle": "まず Worker のバインディングとシークレットを確認します。必須項目がすべて揃うと初期設定に進めます。",
     "checkDatabase": "データベース",
-    "checkDatabaseHint": "Worker の Settings → Bindings で D1 データベースを追加し、変数名に DB を指定してください。PostgreSQL を使う場合は、変数 DATABASE_TYPE を postgres に設定し、シークレット DATABASE_URL を追加します。",
+    "checkDatabaseHint": "Worker の Settings でどちらかのデータベースを設定します。D1 を使う場合は Bindings で D1 データベースを追加し、変数名に DB を指定します。PostgreSQL を使う場合はシークレット DATABASE_URL を追加するだけで、D1 をバインドしていなければ PostgreSQL として扱われるため DATABASE_TYPE は省略できます。",
     "checkAdminToken": "初期設定キー",
     "checkAdminTokenHint": "Worker の Settings → Variables and Secrets で ADMIN_TOKEN という名前のシークレットを追加し、十分に長いランダムな値を設定してください。",
     "checkThemes": "テーマストレージ（R2）",

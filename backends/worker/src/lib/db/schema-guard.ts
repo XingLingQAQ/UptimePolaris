@@ -7,6 +7,7 @@
 
 import type { Env } from '../../types';
 import { probeSchema, schemaBehindMessage } from './migrate';
+import { databaseType } from './setup-control';
 
 /** How long a passing probe is trusted, in milliseconds. / 成功探测结果的可信时长（毫秒）。 */
 const OK_TTL_MS = 5 * 60_000;
@@ -35,7 +36,7 @@ export type SchemaCheck =
 
 /** D1 直接通过；PostgreSQL 返回结构状态或查询失败信息。 / Pass D1 through; return PostgreSQL schema status or a probe failure. */
 export async function ensureSchemaReady(env: Env): Promise<SchemaCheck> {
-  if ((env.DATABASE_TYPE ?? 'd1') !== 'postgres') return { ok: true };
+  if (databaseType(env) !== 'postgres') return { ok: true };
 
   const now = Date.now();
   const target = env.DATABASE_URL ?? '';

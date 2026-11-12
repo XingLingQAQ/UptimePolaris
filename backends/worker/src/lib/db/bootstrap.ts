@@ -6,6 +6,7 @@
 
 import type { Env } from '../../types';
 import { getDB } from './factory';
+import { databaseType } from './setup-control';
 import { BOOTSTRAP_FILES, LEDGER_DDL } from './schema-bootstrap';
 
 // Cache per binding, not per isolate alone. / 按数据库绑定缓存，而非仅按 isolate 缓存。
@@ -20,7 +21,7 @@ export interface BootstrapResult {
 
 /** Apply missing D1 migrations; PostgreSQL is handled separately. / 应用缺失的 D1 迁移；PostgreSQL 单独处理。 */
 export async function bootstrapSchema(env: Env): Promise<BootstrapResult> {
-  if ((env.DATABASE_TYPE ?? 'd1') === 'postgres') return { created: false, applied: [] };
+  if (databaseType(env) === 'postgres') return { created: false, applied: [] };
   if (bootstrapped.has(env.DB)) return { created: false, applied: [] };
 
   const db = getDB(env);

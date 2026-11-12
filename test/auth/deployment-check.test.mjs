@@ -100,4 +100,44 @@ try {
   assert.equal(bearer.body.error, 'deployment_incomplete');
 } finally { await tokenOnly.dispose(); clearTimeout(watchdog); }
 
+// 只配置 PostgreSQL 也满足数据库要求，DATABASE_TYPE 可以省略；没有 D1 时初始化只能选 PostgreSQL。
+// A PostgreSQL URL alone satisfies the database requirement, DATABASE_TYPE is optional, and D1 is not offered without its binding.
+const pgOnly = await build({
+  stdin: {
+    contents: [
+      "import { databaseConfigured, setupRequirements } from './backends/worker/src/lib/auth/setup-requirements.ts';",
+      "import { setupDatabaseOptions } from './backends/worker/src/lib/db/setup-control.ts';",
+      'export default { async fetch(request, env) {',
+      "  if (new URL(request.url).pathname === '/fixture/pg-only') {",
+      '    const session = { DATABASE_URL: env.DATABASE_URL };',
+      '    return Response.json({ configured: databaseConfigured(session), requirements: setupRequirements(session), options: await setupDatabaseOptions(session) });',
+      '  }',
+      '  return new Response(null, { status: 404 });',
+      '} };',
+    ].join('\n'),
+    resolveDir: process.cwd(),
+    loader: 'ts',
+  },
+  bundle: true,
+  format: 'esm',
+  platform: 'neutral',
+  target: 'es2022',
+  write: false,
+  external: ['cloudflare:sockets', 'postgres'],
+});
+const pgOnlyWorker = new Miniflare({
+  modules: true,
+  script: pgOnly.outputFiles[0].text,
+  compatibilityDate: '2025-01-01',
+  compatibilityFlags: ['nodejs_compat'],
+  bindings: { DATABASE_URL: 'postgres://fixture:fixture@db.example.com/polaris?sslmode=verify-full' },
+});
+try {
+  const response = await pgOnlyWorker.dispatchFetch('http://localhost/fixture/pg-only');
+  const body = await response.json();
+  assert.equal(body.configured, true);
+  assert.deepEqual(body.requirements.find((item) => item.key === 'database'), { key: 'database', required: true, ok: true });
+  assert.deepEqual(body.options, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: true, postgresUrlEditable: false });
+} finally { await pgOnlyWorker.dispose(); }
+
 console.log('Worker deployment check before setup passed');

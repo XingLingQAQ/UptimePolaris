@@ -7,6 +7,7 @@ import { readBoundedBody } from '../http/binary';
 import { parseTargetUrl } from '../db/data-migration';
 import { bootstrapSchema } from '../db/bootstrap';
 import { getDB, withSelectedDatabase } from '../db/factory';
+import { databaseType, deployedDatabaseType } from '../db/setup-control';
 import { initializePostgres } from '../db/setup-postgres';
 import { abandonDatabaseClaim, claimDatabase, completedOperation, d1HasUsers, databaseClaimActive, deployedDatabase, finishDatabaseClaim, markAccountStarted, pendingDatabase, pendingDatabaseUrl, releaseDatabaseClaim, resetAccountStarted, setupDatabaseOptions } from '../db/setup-control';
 import { visibilityRevisionWrite } from '../public/cache';
@@ -165,7 +166,7 @@ authRoutes.post('/api/auth/setup', async (c) => {
     }
   }
 
-  if (!pending && c.env.DB && (c.env.DATABASE_TYPE ?? 'd1') === 'postgres') {
+  if (!pending && c.env.DB && databaseType(c.env) === 'postgres') {
     try {
       const stateExists = await c.env.DB.prepare("SELECT 1 AS n FROM sqlite_schema WHERE type = 'table' AND name = 'auth_setup_state'").first();
       if (stateExists && await c.env.DB.prepare('SELECT 1 AS n FROM auth_setup_state WHERE completed = 1 LIMIT 1').first()) return c.json({ error: 'setup_complete' }, 409);
@@ -176,7 +177,7 @@ authRoutes.post('/api/auth/setup', async (c) => {
 
   const selection = body.database;
   if (selection !== undefined && !isObjectBody(selection)) return c.json({ error: 'invalid_database_type' }, 400);
-  const type = selection === undefined ? (c.env.DATABASE_TYPE ?? 'd1') : selection.type;
+  const type = selection === undefined ? databaseType(c.env) : selection.type;
   if (type !== 'd1' && type !== 'postgres' || type === 'd1' && !c.env.DB) return c.json({ error: 'invalid_database_type' }, 400);
   if (selection && selection.url !== undefined && typeof selection.url !== 'string') return c.json({ error: 'invalid_database_url' }, 400);
   const suppliedUrl = selection && typeof selection.url === 'string' ? selection.url.trim() : '';
@@ -191,13 +192,13 @@ authRoutes.post('/api/auth/setup', async (c) => {
   if (type === 'postgres') {
     if (suppliedUrl) {
       try { url = parseTargetUrl(suppliedUrl, true); } catch { return c.json({ error: 'invalid_database_url' }, 400); }
-    } else if (pending && (c.env.DATABASE_TYPE ?? 'd1') === 'postgres' && savedUrl) {
+    } else if (pending && databaseType(c.env) === 'postgres' && savedUrl) {
       url = savedUrl;
-    } else if ((deployed.DATABASE_TYPE ?? 'd1') === 'postgres' && deployed.DATABASE_URL) {
+    } else if (deployedDatabaseType(c.env) === 'postgres' && deployed.DATABASE_URL) {
       url = deployed.DATABASE_URL;
     } else return c.json({ error: 'invalid_database_url' }, 400);
   }
-  if (pending && (type !== (c.env.DATABASE_TYPE ?? 'd1') || type === 'postgres' && url !== savedUrl)) return c.json({ error: 'setup_in_progress' }, 409);
+  if (pending && (type !== databaseType(c.env) || type === 'postgres' && url !== savedUrl)) return c.json({ error: 'setup_in_progress' }, 409);
 
   let claim: { operation: string; lease: string; accountStarted: boolean; source: 'deployment' | 'selected' } | null;
   try { claim = await claimDatabase(c.env, type, url); } catch { return c.json({ error: 'database_configuration_failed' }, 503); }
@@ -244,7 +245,7 @@ authRoutes.post('/api/auth/setup', async (c) => {
       try {
         await finishDatabaseClaim(c.env, claim!.operation, claim!.lease);
       } catch {
-        const deploymentTarget = claim!.source === 'deployment' && type === (deployed.DATABASE_TYPE ?? 'd1') && (type === 'd1' || url === deployed.DATABASE_URL);
+        const deploymentTarget = claim!.source === 'deployment' && type === deployedDatabaseType(c.env) && (type === 'd1' || url === deployed.DATABASE_URL);
         if (!await completedOperation(c.env, claim!.operation) && !(deploymentTarget && !await pendingDatabase(c.env))) throw new Error('database_configuration_failed');
       }
       return { userId, ...session };
