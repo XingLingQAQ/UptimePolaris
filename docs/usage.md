@@ -7,6 +7,7 @@
 ## 目录
 
 - [添加第一个监控](#添加第一个监控)
+- [控制台总览](#控制台总览)
 - [HTTP 监控](#http-监控)
 - [TCP 监控](#tcp-监控)
 - [UDP 与 ICMP Ping](#udp-与-icmp-ping)
@@ -14,11 +15,14 @@
 - [附加检查](#附加检查)
 - [Push 监控](#push-监控)
 - [Agent 监控与检查来源](#agent-监控与检查来源)
+- [日常管理监控](#日常管理监控)
+- [监控详情与趋势](#监控详情与趋势)
 - [分组与标签](#分组与标签)
 - [公开页面与域名](#公开页面与域名)
 - [使用公开机器页](#使用公开机器页)
 - [维护窗口](#维护窗口)
 - [状态与统计](#状态与统计)
+- [账号与安全](#账号与安全)
 - [公开数据](#公开数据)
 
 ## 添加第一个监控
@@ -32,6 +36,22 @@
 Worker 的检查间隔为 60–86400 秒，超时为 1000–60000 毫秒。Go 的检查间隔为 5–86400 秒，超时为 100–120000 毫秒。后台默认值只用于新建监控时的初始值，不会改动已有监控。`monitor.defaultRetries` 在运行时读取，用于失败确认。
 
 “立即检查”让后端主动探测一次，不会补出过去的数据。Push 监控、Agent 主机监控和 Agent 来源监控不能同步立即检查：Agent 来源要等正常调度、机器领取任务并提交结果。表单里的“测试”只测试当前配置，Agent 来源同样不会立刻产生远端结果。
+
+## 控制台总览
+
+登录后从 `/admin` 进入控制台。左侧导航分为监控（总览、监控项）、配置（Agent 管理、分组、通知、主题）和设置三组，导航右上角可以随时打开公开状态页。
+
+页面顶部的状态浮层汇总当前状态：
+
+- 全部正常时只显示通过提示；有异常或重试中的监控时显示需要处理的条目数，并单独列出离线的 Agent。
+- 在浮层里可以暂停或恢复监控、立即检查、打开详情、复制一份摘要，或把浮层固定住。
+- “通知动态”只列状态翻转事件。未读数按浏览器记录，可以只看未读、全部标为已读，或暂停新动态提示 15 分钟。
+
+首页的指标卡分别显示运行中监控的平均可用率、最近的证书或域名到期时间，以及当天发生的故障次数。第一次使用时会出现“开始使用”清单，列出添加监控、设置站点名称、配置通知和接入 Agent 四项。每一步只在部署里确实存在对应内容后才算完成，不是点过按钮就算；清单可以关闭，关闭状态按浏览器保存。
+
+在控制台任意页面按 `Ctrl+K`（macOS 为 `⌘K`）打开命令面板，可以搜索页面、监控项和 Agent，也可以执行当前页面的快捷操作。
+
+导航上的数字表示需要关注的数量：监控项显示异常和重试中的总数，没有异常时显示监控总数；Agent 管理显示离线台数，没有离线时显示总数。
 
 ## HTTP 监控
 
@@ -133,6 +153,26 @@ Agent 页面只登记机器，不会自动创建监控。安装并启动 `polari
 
 HTTP/TCP 选了 Agent 来源后，由这台 Agent 领取探测任务并提交结果。Agent 离线、能力不满足或任务过期时，先恢复检查来源，不能把“没有结果”当成目标正常。
 
+## 日常管理监控
+
+监控列表顶部可以按状态筛选（全部、异常、重试中、警告、正常、已暂停；没有对应监控的状态不显示），也可以按分组、标签筛选，或按名称和目标搜索。列表按后端节奏自动刷新（Worker 每 60 秒，Go 每 5 秒），底部显示当前刷新周期。
+
+点开某一行的“更多”菜单可以编辑、暂停或恢复、立即检查、在状态页隐藏或显示，以及删除监控。勾选多条后，“批量操作”目前只提供统一的“在状态页隐藏”和“在状态页显示”；分组的批量调整在“分组”页面完成。
+
+暂停的监控不再执行新检查，也不会出现在公开页面；恢复后等下一次实际结果。删除监控会一并删除可用率历史和事件记录，无法恢复，但不会删除关联机器的凭据和采样历史。两者的完整影响见[分组与标签](#分组与标签)。
+
+## 监控详情与趋势
+
+点击列表行打开详情，可以看到当前读数、最近几次检查、平均延迟（Agent 监控显示平均 CPU）、检查间隔、超时、目标、分组、创建时间和最近的状态变化。Push 监控显示最近上报时间和心跳超时状态，不做延迟测量。
+
+“性能趋势”汇总全部监控的响应时间和可用率：
+
+- 范围可以选“最近检查”或“90 天”。最近检查按分钟聚合，失败检查记为失败，不会以零延迟拉低曲线；暂停的监控不参与。
+- 90 天视图按检查次数加权，避免每小时检查一次的监控和每分钟检查的监控权重相同。日统计只在有观测记录的 UTC 日期结束后生成。
+- 指标卡显示当前值、平均值、峰值、最低单日可用率和统计天数，失败次数单独标注。
+
+趋势页的“事件”页签只记录状态翻转，稳定运行的监控不会产生记录。“到期”页签汇总开启了证书或域名到期检查的监控，按剩余天数排序，并区分已过期、未知和检查失败。Agent 图表里的 CPU 百分比不是网络延迟。
+
 ## 分组与标签
 
 监控分组用来组织状态页和限定通知范围，监控标签用来分类，两者都在监控表单里管理。
@@ -191,6 +231,18 @@ Uptime Polaris 分别提供监控状态页和机器状态页。先在部署侧�
 
 文本显示省略号时，把鼠标移上去可查看完整内容。多行截断也支持悬浮提示；提示里的长文本可滚动，按 Esc 关闭。
 
+## 账号与安全
+
+在“设置 → 账户”里可以修改用户名、密码和头像：
+
+- 用户名 2–32 个字符，只能使用小写字母、数字、点、下划线和连字符。
+- 修改密码需要输入当前密码；修改成功后，其他设备上的登录会立即失效。
+- 头像支持 PNG、JPEG 和 WebP，原图最大 5 MB，上传后自动居中裁剪并立即保存。头像属于账号，和“设置 → 站点”里的站点图标不是一回事。
+
+会话有效期、登录尝试次数和限流窗口都在“设置 → 安全”里调整，默认 14 天、8 次尝试、300 秒窗口。同一组里的“允许远程 Agent 指令”默认关闭，开启后才可以通过控制台让 Agent 升级或重启；远程指令的条件见 [Agent 手册](agents.md#远程配置与指令)。
+
+登录失败达到上限后，该账号或来源 IP 会在一段时间内被拒绝登录。忘记密码的处理方式见[常见问题](troubleshooting.md#忘记管理密码)。
+
 ## 公开数据
 
 公开页和公共 API 允许匿名读取。HTTP 目标会去掉用户名、密码、查询串和 fragment，只留 origin 和路径；TCP 目标保留主机和端口。名称和路径里的业务信息仍可能被看到。
@@ -206,6 +258,20 @@ Uptime Polaris 分别提供监控状态页和机器状态页。先在部署侧�
 This English section summarizes the Chinese guide; some detailed configuration and edge cases are only described above.
 
 After [deployment and setup](deployment.md#english), manage monitors at `/admin`. The public home page is anonymous.
+
+### Console overview
+
+The console opens at `/admin`. The status popover summarises the fleet, lists offline Agents, and allows pausing or resuming a monitor, checking immediately, opening details, copying a summary, or pinning the panel. The activity feed lists state changes only; unread counts, mark-all-read and a 15-minute notification snooze are per browser. The three KPI cards show average availability across running monitors, the nearest certificate or domain expiry, and today's incidents. A first-run checklist covers adding a monitor, naming the site, configuring notifications and connecting an Agent; each step counts as done only when the object actually exists. `Ctrl+K` (`⌘K` on macOS) opens the command palette for pages, monitors, Agents and current-page actions.
+
+### Manage monitors day to day
+
+Filter the monitor list by status (all, down, pending, warning, up, paused; states without monitors are hidden), group or tag, and search by name or target. The list refreshes at the backend cadence (60 seconds on Worker, 5 seconds on Go), shown at the bottom. The row menu edits, pauses or resumes, checks immediately, toggles public visibility, and deletes. Bulk actions currently cover public visibility only; move members in the Groups page. Pausing stops new checks and removes the monitor from public pages. Deleting a monitor also deletes its availability history and events and cannot be undone.
+
+The monitor detail shows the current reading, recent checks, average latency (average CPU for Agent monitors), interval, timeout, target, group, creation time and recent state changes. Performance trends offer a recent-checks range and a 90-day range: the recent view aggregates by minute and records failures as failures rather than zero latency, while the 90-day view weights days by check count so hourly and minutely monitors do not count equally. Daily statistics appear after a UTC day with observations ends. The Events tab lists state changes only; the Expiry tab ranks monitors with certificate or domain checks by days remaining.
+
+### Account and security
+
+Settings → Account changes the username, password and avatar. Usernames are 2–32 lowercase letters, digits, dots, underscores or hyphens. Changing the password requires the current one and signs out other devices. Avatars accept PNG, JPEG or WebP up to 5 MB and are cropped and saved immediately; this is separate from the site icon under Settings → Site. Session lifetime, login attempt limit and rate-limit window live under Settings → Security, and the Agent remote-command switch there is off by default. See [troubleshooting](troubleshooting.md#troubleshooting-guide) for a forgotten password.
 
 ### Create a monitor
 
