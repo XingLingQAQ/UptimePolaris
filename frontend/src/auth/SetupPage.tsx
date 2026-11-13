@@ -61,6 +61,7 @@ export function SetupPage() {
   const [error, setError] = useState<string | null>(null);
   const [databaseType, setDatabaseType] = useState<SetupDatabaseType | null>(null);
   const [databaseUrl, setDatabaseUrl] = useState('');
+  const [checkingDatabase, setCheckingDatabase] = useState(false);
   const [stage, setStage] = useState<'check' | 'account'>('check');
   const submissionPending = useRef(false);
 
@@ -116,7 +117,7 @@ export function SetupPage() {
   const deploymentReady = requirements?.every((item) => !item.required || item.ok) ?? true;
   const showCheck = requirements !== null && (stage === 'check' || !deploymentReady || sessionError);
 
-  const canSubmit = !submitting && !sessionError && deploymentReady && databaseAvailable && !postgresConfigurationMissing && (!postgresUrlRequired || databaseUrl.trim().length > 0) && credential.length > 0 && username.trim().length > 0 && password.length > 0 && confirmPassword.length > 0;
+  const canSubmit = !submitting && !checkingDatabase && !sessionError && deploymentReady && databaseAvailable && !postgresConfigurationMissing && (!postgresUrlRequired || databaseUrl.trim().length > 0) && credential.length > 0 && username.trim().length > 0 && password.length > 0 && confirmPassword.length > 0;
   const passwordMismatch = confirmPasswordTouched && password !== confirmPassword;
 
   /** No setup key on Go means setup cannot succeed; show the fix, not the form. / Go 未配置初始化密钥时无法初始化；显示修复方法。 */
@@ -172,8 +173,10 @@ export function SetupPage() {
       setPhase('form');
       setSubmitting(false);
       const code = err instanceof Error ? err.message : String(err);
-      if (requirements !== null && ['deployment_incomplete', 'credential_unconfigured', 'invalid_database_type'].includes(code)) {
+      if (requirements !== null && ['deployment_incomplete', 'credential_unconfigured'].includes(code)) {
         setStage('check');
+        await refresh();
+      } else if (requirements !== null && ['invalid_database_type', 'invalid_database_url'].includes(code)) {
         await refresh();
       }
     } finally {
@@ -264,12 +267,28 @@ export function SetupPage() {
                           description={t(canReusePostgres ? 'setup.databaseUrlConfigured' : 'setup.databaseUrlRequired')}
                         />
                       ) : selectedDatabase === 'postgres' ? (
-                        <p
+                        <div
                           role={postgresConfigurationMissing ? 'alert' : undefined}
                           className={`rounded-lg border px-3 py-2 text-[12px] leading-relaxed ${postgresConfigurationMissing ? 'border-warning/30 bg-warning/[0.05] text-warning-700' : 'border-[var(--polaris-line)] bg-[var(--polaris-well)] text-[var(--polaris-ink-3)]'}`}
                         >
-                          {t(postgresConfigurationMissing ? 'setup.databaseUrlUnavailable' : 'setup.databaseUrlDeploymentOnly')}
-                        </p>
+                          <p>{t(postgresConfigurationMissing ? 'setup.databaseUrlUnavailable' : 'setup.databaseUrlDeploymentOnly')}</p>
+                          {postgresConfigurationMissing ? (
+                            <Button
+                              type="button"
+                              variant="light"
+                              size="sm"
+                              className="mt-2 h-8 text-[12px]"
+                              isLoading={checkingDatabase}
+                              startContent={checkingDatabase ? null : <RefreshCw size={13} />}
+                              onPress={async () => {
+                                setCheckingDatabase(true);
+                                try { await refresh(); } finally { setCheckingDatabase(false); }
+                              }}
+                            >
+                              {t('setup.databaseRetry')}
+                            </Button>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                   ) : <DatabaseUnavailable />}

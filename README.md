@@ -80,7 +80,7 @@ Use Worker when you do not want to maintain a server. Choose Go for private-netw
 1. Fork this repository.
 2. In the Cloudflare dashboard, open **Workers & Pages → Create application → GitHub** and select your fork. Set the build command to `npm run build` and the deploy command to `npm run deploy`.
 3. Open the site after deployment. The setup page checks bindings and secrets first; configure what it reports under the Worker's **Settings**:
-   - **Database (choose one)**: for D1, add a database in **Bindings** with the variable name `DB`; for PostgreSQL, add the secret `DATABASE_URL` in **Variables and Secrets**. Without D1 the deployment uses PostgreSQL automatically.
+   - **D1 (optional)**: to use D1, add a database under **Bindings** with the variable name `DB`. You can continue without it, but setup then offers PostgreSQL only; configure the `DATABASE_URL` secret under **Variables and Secrets** before creating the account, then save, deploy and select "Re-check database options".
    - **Setup key**: add the secret `ADMIN_TOKEN` in **Variables and Secrets** with a long random value, for example the output of `openssl rand -hex 32`.
    - **Analytics Engine (required)**: enable Analytics Engine in the dashboard and add a dataset under **Bindings** with the binding name `UPTIME`.
    - **Optional**: to install third-party themes, add an R2 bucket with the binding name `THEMES`. You can add it after setup.

@@ -23,8 +23,8 @@
 
 ## 初始化页面无法继续
 
-1. **Worker 部署检查未通过**：初始化页面第一步会列出数据库、`ADMIN_TOKEN`、`UPTIME`（必需）和 R2（可选）的配置状态：
-   - **数据库未配置**：配置 D1 或 PostgreSQL 其中之一。D1 在 Worker 的 **Settings → Bindings** 中添加，变量名填写 `DB`；PostgreSQL 只需在 **Settings → Variables and Secrets** 中添加 Secret `DATABASE_URL`，未绑定 D1 时会自动按 PostgreSQL 处理。
+1. **Worker 部署检查未通过**：初始化页面第一步会列出必需的 `ADMIN_TOKEN`、`UPTIME` 和可选的 D1、R2 的配置状态：
+   - **D1 未配置**：不影响进入下一步，初始化表单只提供 PostgreSQL。若第二步提示缺少连接，请在 **Settings → Variables and Secrets** 中添加 Secret `DATABASE_URL`，保存并部署后点击“重新获取数据库选项”；已填信息会保留。
    - **初始化密钥未配置**：在 **Settings → Variables and Secrets** 中添加 Secret `ADMIN_TOKEN`。
    - **Analytics Engine 未配置**：启用 Analytics Engine 后，在 **Settings → Bindings** 中添加数据集，变量名填写 `UPTIME`。
    - 在 Cloudflare 保存并部署配置后，回到页面点击“重新检查”，必需项全部通过后才能点击“下一步”。检查失败时不会沿用上次的通过结果，已填写的初始化信息会保留。R2 不影响初始化，可稍后添加。
@@ -35,13 +35,13 @@
 
 Worker 未绑定 D1 时，只能复用部署密钥 `DATABASE_URL` 中的 PostgreSQL 连接，页面不提供新地址输入框；如需在网页中填写新地址，请保留 D1 绑定。Go 的 `database.json` 保存后优先于启动参数和环境变量，排查连接问题时请一并检查，并避免公开其中的地址。
 
-`deployment_incomplete`（503）表示 Worker 尚未配置数据库或缺少 `UPTIME` 绑定；`credential_unconfigured`（503）表示当前服务未配置初始化凭据；`invalid_setup_credential`（401）表示输入的凭据不匹配。Go 重启后需使用最新启动日志中的自动生成密钥。初始化完成后请前往 `/login` 登录，初始化接口不会创建第二个账号。
+`deployment_incomplete`（503）表示 Worker 缺少 `UPTIME` 绑定；`credential_unconfigured`（503）表示当前服务未配置初始化凭据；`invalid_setup_credential`（401）表示输入的凭据不匹配。Go 重启后需使用最新启动日志中的自动生成密钥。初始化完成后请前往 `/login` 登录，初始化接口不会创建第二个账号。
 
 数据库初始化错误按以下方式处理（请勿在日志或截图中暴露含密码的连接地址）：
 
 | 错误码 | 处理方式 |
 | --- | --- |
-| `deployment_incomplete` | 配置 `DB`（D1）或 Secret `DATABASE_URL`（PostgreSQL），并确认已绑定 Analytics Engine，变量名为 `UPTIME` |
+| `deployment_incomplete` | 在 Worker 中添加 Analytics Engine 数据集绑定，变量名为 `UPTIME` |
 | `invalid_database_type` | 重新加载页面，选择当前后端提供的数据库类型 |
 | `invalid_database_url` | 检查 PostgreSQL 连接地址格式（如 `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`），确认包含用户名、密码和数据库名，密码特殊字符已做 URL 编码，且查询参数仅含支持的 `sslmode` |
 | `database_connection_failed` | 检查连接地址、数据库访问权限、网络和证书后重试 |
@@ -159,8 +159,8 @@ First identify the complete site URL, backend, and database. Different deploymen
 
 ### Setup and accounts
 
-- **Worker deployment check not passed:** the first step lists the database, `ADMIN_TOKEN`, required `UPTIME` binding and optional R2 storage.
-  - **Database missing:** configure either D1 or PostgreSQL. Add a D1 database named `DB` under **Settings → Bindings**, or add the secret `DATABASE_URL` under **Settings → Variables and Secrets**; without D1 the deployment is treated as PostgreSQL.
+- **Worker deployment check not passed:** the first step lists required `ADMIN_TOKEN` and `UPTIME`, plus optional D1 and R2 bindings.
+  - **D1 missing:** this does not block the next step; the setup form offers PostgreSQL only. If the second step reports no connection, add the `DATABASE_URL` secret in **Settings → Variables and Secrets**, save and deploy, then reload the database options. Form entries are preserved.
   - **Setup key missing:** under **Settings → Variables and Secrets**, add the secret `ADMIN_TOKEN`.
   - **Analytics Engine missing:** enable Analytics Engine, then add a dataset in **Settings → Bindings** with the binding name `UPTIME`.
   - Save and deploy the configuration in Cloudflare, then select **Re-check**. All required items must pass before continuing. Failed checks do not reuse an earlier passing result, and form entries are preserved. R2 can be added later.
@@ -171,7 +171,7 @@ First identify the complete site URL, backend, and database. Different deploymen
 
 | Setup error | Action |
 | --- | --- |
-| `deployment_incomplete` | Configure `DB` (D1) or the `DATABASE_URL` secret (PostgreSQL), and bind an Analytics Engine dataset as `UPTIME` |
+| `deployment_incomplete` | Bind an Analytics Engine dataset as `UPTIME` in the Worker |
 | `invalid_database_type` | Reload and select a database supported by the active backend |
 | `invalid_database_url` | Check the PostgreSQL URL format (`postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`), that it includes a username, password and database name, that special characters in the password are percent-encoded, and that the query string contains only a supported `sslmode` |
 | `database_connection_failed` | Check connectivity, access permissions and certificates, then retry |

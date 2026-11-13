@@ -25,6 +25,14 @@ async function request(env, path, body, cookie) {
 }
 async function scenario(name, withD1) {
   const env = { ...config(name), ...(withD1 ? { DB: db } : {}) };
+  if (!withD1) {
+    const before = await request({ ...env, DATABASE_URL: undefined }, '/api/auth/session');
+    assert.equal(before.response.status, 200);
+    assert.ok(before.body.setupRequirements.every(item => !item.required || item.ok));
+    assert.deepEqual(before.body.setupDatabase, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: false, postgresUrlEditable: false });
+    const after = await request(env, '/api/auth/session');
+    assert.deepEqual(after.body.setupDatabase, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: true, postgresUrlEditable: false });
+  }
   for (const path of ['/', '/admin', '/unknown']) {
     const response = await app.fetch(new Request('https://fixture.test' + path), env, ctx);
     assert.equal(response.status, 302, path);

@@ -1,6 +1,6 @@
 import { api } from './api';
 import { setupRedirect } from './lib/auth/setup-redirect';
-import { databaseConfigured } from './lib/auth/setup-requirements';
+import { databaseConfigured, setupRequirements } from './lib/auth/setup-requirements';
 import { bootstrapSchema } from './lib/db/bootstrap';
 import { withDBScope } from './lib/db/factory';
 import { ensureSchemaReady } from './lib/db/schema-guard';
@@ -106,7 +106,8 @@ export default {
         if ((request.method === 'GET' || request.method === 'HEAD') && isSetupAsset(path)) {
           return env.ASSETS?.fetch(request) ?? new Response('not found', { status: 404 });
         }
-        return await routeBeforeReady(request, env, ctx, 'deployment_incomplete');
+        const incomplete = setupRequirements(env).some((item) => item.required && !item.ok);
+        return await routeBeforeReady(request, env, ctx, incomplete ? 'deployment_incomplete' : 'setup_required');
       }
       return await withDBScope(env, async (scopedEnv, scopedCtx) => {
         return handleDatabaseRequest(request, scopedEnv, scopedCtx ?? ctx);

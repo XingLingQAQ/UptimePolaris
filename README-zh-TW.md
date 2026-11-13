@@ -80,7 +80,7 @@ Uptime Polaris 定時檢查網站和連接埠，接收定時任務傳送的心�
 1. Fork 本儲存庫。
 2. 在 Cloudflare 控制台開啟 **Workers & Pages → Create application → GitHub**，選擇 fork 後的儲存庫。建置命令填寫 `npm run build`，部署命令填寫 `npm run deploy`。
 3. 部署完成後開啟站點，初始化頁面會先檢查綁定和密鑰。請依頁面提示在 Worker 的 **Settings** 中設定：
-   - **資料庫（二選一）**：用 D1 時在 **Bindings** 中新增資料庫，變數名稱填 `DB`；用 PostgreSQL 時在 **Variables and Secrets** 中新增 Secret `DATABASE_URL`，未綁定 D1 時會自動按 PostgreSQL 處理。
+   - **D1（選用）**：使用 D1 時，在 **Bindings** 中新增資料庫，變數名稱填 `DB`。未綁定也可進入下一步，但初始化僅提供 PostgreSQL；建立帳號前需在 **Variables and Secrets** 中設定 Secret `DATABASE_URL`，儲存並部署後點「重新取得資料庫選項」。
    - **初始化金鑰**：在 **Variables and Secrets** 中新增 Secret `ADMIN_TOKEN`，值使用足夠長的隨機字串，例如 `openssl rand -hex 32` 的輸出。
    - **Analytics Engine（必要）**：在控制台啟用 Analytics Engine，並在 **Bindings** 新增資料集，變數名稱填寫 `UPTIME`。
    - **選用**：安裝第三方主題時新增 R2 儲存桶，變數名稱填寫 `THEMES`，也可在初始化後新增。

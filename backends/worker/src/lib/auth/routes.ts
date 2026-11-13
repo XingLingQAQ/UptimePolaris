@@ -106,15 +106,15 @@ authRoutes.get('/api/auth/session', async (c) => {
   const token = c.req.header('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
   const machine = Boolean(c.env.ADMIN_TOKEN) && safeEqual(token, c.env.ADMIN_TOKEN);
 
-  // 没有数据库时无法判断是否已初始化，只返回检查结果，让初始化页显示缺少的绑定。
-  // Without a database, setup state is unknown; report the check so the setup page can name the missing binding.
+  // 无数据库时仍返回选库选项，连接配置在初始化表单中校验。
+  // Offer database choices before a connection exists; validate it on the setup form.
   if (!databaseConfigured(c.env)) {
     return c.json({
       authenticated: machine,
       user: null,
       needsSetup: true,
       setupCredential: installationCredentialSource(c.env),
-      setupDatabase: null,
+      setupDatabase: await setupDatabaseOptions(c.env),
       setupRequirements: setupRequirements(c.env),
     });
   }
@@ -134,7 +134,7 @@ authRoutes.get('/api/auth/session', async (c) => {
 });
 
 authRoutes.post('/api/auth/setup', async (c) => {
-  if (!databaseConfigured(c.env) || !c.env.UPTIME) return c.json({ error: 'deployment_incomplete' }, 503);
+  if (!c.env.UPTIME) return c.json({ error: 'deployment_incomplete' }, 503);
   let body: unknown;
   try {
     body = await c.req.json<unknown>();
@@ -158,7 +158,7 @@ authRoutes.post('/api/auth/setup', async (c) => {
   if (password.length < 8) return c.json({ error: 'password_too_short' }, 400);
   const pending = await pendingDatabase(c.env);
   if (!pending && await databaseClaimActive(c.env)) return c.json({ error: 'setup_complete' }, 409);
-  if (!pending) {
+  if (!pending && databaseConfigured(c.env)) {
     try {
       if (!(await isSetupRequired(c.env)) || await d1HasUsers(c.env)) return c.json({ error: 'setup_complete' }, 409);
     } catch {

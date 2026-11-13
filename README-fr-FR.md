@@ -79,7 +79,7 @@ Utilisez Worker si vous ne souhaitez pas exploiter un serveur. Choisissez Go pou
 1. Forkez ce dépôt.
 2. Dans le tableau de bord Cloudflare, ouvrez **Workers & Pages → Create application → GitHub** et choisissez votre fork. Indiquez `npm run build` comme commande de build et `npm run deploy` comme commande de déploiement.
 3. Ouvrez le site après le déploiement. La page d'initialisation vérifie d'abord les liaisons et les secrets ; configurez ce qu'elle signale dans les **Settings** du Worker :
-   - **Base de données (au choix)** : pour D1, ajoutez une base dans **Bindings** avec le nom de variable `DB` ; pour PostgreSQL, ajoutez le secret `DATABASE_URL` dans **Variables and Secrets**. Sans D1, le déploiement utilise PostgreSQL automatiquement.
+   - **D1 (facultatif)** : pour utiliser D1, ajoutez une base sous **Bindings** avec le nom de variable `DB`. Vous pouvez continuer sans ce binding, mais seule l'option PostgreSQL sera proposée ; configurez le secret `DATABASE_URL` sous **Variables and Secrets** avant de créer le compte, puis enregistrez, déployez et sélectionnez « Actualiser les options de base de données ».
    - **Clé d’initialisation** : ajoutez le secret `ADMIN_TOKEN` dans **Variables and Secrets** avec une longue valeur aléatoire, par exemple la sortie de `openssl rand -hex 32`.
    - **Analytics Engine (requis)** : activez Analytics Engine dans le tableau de bord et ajoutez un jeu de données dans **Bindings** avec le nom de liaison `UPTIME`.
    - **Facultatif** : pour installer des thèmes tiers, ajoutez un bucket R2 avec le nom de liaison `THEMES`. Vous pouvez le faire après la configuration initiale.

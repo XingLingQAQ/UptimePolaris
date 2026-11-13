@@ -41,22 +41,22 @@ Content-Type: application/json
 
 ### 初始化数据库契约
 
-`GET /api/auth/session` 在 `needsSetup` 为 `true` 时返回 `setupDatabase`（Worker 未绑定任何数据库时为 `null`）；初始化完成后该字段为 `null`。响应从不包含数据库连接 URL。
+`GET /api/auth/session` 在 `needsSetup` 为 `true` 时返回 `setupDatabase`（Worker 未绑定 D1 时，`types` 为 `["postgres"]`，默认类型为 `postgres`）；初始化完成后该字段为 `null`。响应从不包含数据库连接 URL。
 
 Worker 在 `needsSetup` 为 `true` 时还会返回 `setupRequirements` 数组（初始化完成后为 `null`，Go 后端不返回该字段），每项为 `{ key, required, ok }`：
 
 | `key` | `required` | 含义 |
 | --- | --- | --- |
-| `database` | `true` | 已绑定 `DB`（D1），或已配置 `DATABASE_URL`（未绑定 D1 时自动按 PostgreSQL 处理，`DATABASE_TYPE` 可省略） |
+| `database` | `false` | 已绑定 `DB`（D1）；未绑定不阻止进入初始化，数据库选择和连接在初始化表单中校验 |
 | `adminToken` | `true` | 已配置 `ADMIN_TOKEN` |
 | `themes` | `false` | 已绑定 `THEMES`（R2 主题存储） |
 | `analytics` | `true` | 已绑定 `UPTIME`（Analytics Engine） |
 
-Worker 尚未配置数据库时，除 `/setup`、静态资源、`/api/auth/session`、`/api/capabilities` 和 `/api/public/icon` 外，页面请求重定向到 `/setup`，业务 API 与 `POST /api/auth/setup` 返回 503 `deployment_incomplete`。已配置数据库但缺少 `UPTIME` 时，也不能提交初始化；补绑后重新读取会话即可更新检查结果。
+Worker 尚未配置数据库时，仍返回选库选项并允许进入初始化表单；其他页面请求重定向到 `/setup`，业务 API 返回 503 `setup_required`，若部署必需项未通过则返回 `deployment_incomplete`。`POST /api/auth/setup` 在缺少 `UPTIME` 时返回 503 `deployment_incomplete`；没有可用的 PostgreSQL 连接时返回 400 `invalid_database_url`，选择未绑定的 D1 时返回 400 `invalid_database_type`。补绑后重新读取会话即可更新检查结果和数据库选项。
 
 | `setupDatabase` 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `types` | `("d1" \| "sqlite" \| "postgres")[]` | 当前后端支持的初始化数据库类型；Worker 为 D1 / PostgreSQL，Go 为 SQLite / PostgreSQL |
+| `types` | `("d1" \| "sqlite" \| "postgres")[]` | 当前可选的初始化数据库类型；Worker 绑定 D1 时为 D1 / PostgreSQL，未绑定时只有 PostgreSQL；Go 为 SQLite / PostgreSQL |
 | `defaultType` | `"d1" \| "sqlite" \| "postgres"` | 初始化页面的默认类型 |
 | `postgresConfigured` | `boolean` | 当前 PostgreSQL 连接是否可供复用，不包含连接地址 |
 | `postgresUrlEditable` | `boolean` | 是否允许提交新的 PostgreSQL URL；Go 为 `true`，Worker 有 D1 且没有待完成初始化时为 `true`，无 D1 或待完成时为 `false` |
@@ -69,7 +69,7 @@ Worker 有待完成的初始化时，会锁定已选类型。PostgreSQL 目标�
 | --- | --- | --- |
 | 400 | `invalid_database_type` | 按当前后端支持的类型重新选择 |
 | 400 | `invalid_database_url` | 检查 PostgreSQL URL |
-| 503 | `deployment_incomplete` | Worker 尚未配置数据库或缺少 `UPTIME`，先在控制台补齐必需项 |
+| 503 | `deployment_incomplete` | Worker 缺少 `UPTIME`，先在控制台添加 Analytics Engine 绑定 |
 | 503 | `credential_unconfigured` | 尚未配置初始化凭据（Worker 的 `ADMIN_TOKEN` 或 Go 的 `POLARIS_SETUP_KEY`） |
 | 503 | `database_connection_failed` | 检查数据库连接与访问条件 |
 | 503 | `database_initialization_failed` | 检查目标数据库初始化条件 |
@@ -329,18 +329,18 @@ Management endpoints accept a signed-in session cookie or a bearer token: Worker
 
 ### Setup database contract
 
-`GET /api/auth/session` returns `setupDatabase` when `needsSetup` is `true` (`null` on a Worker with no database configured), and `null` after setup. It never returns a database URL.
+`GET /api/auth/session` returns `setupDatabase` when `needsSetup` is `true` (a Worker without D1 offers only `postgres` and defaults to it), and `null` after setup. It never returns a database URL.
 
 While `needsSetup` is `true`, the Worker also returns `setupRequirements` (an array; `null` after setup, and absent on the Go backend). Each entry is `{ key, required, ok }`:
 
 | `key` | `required` | Meaning |
 | --- | --- | --- |
-| `database` | `true` | `DB` (D1) is bound, or `DATABASE_URL` is configured (without D1 the deployment is PostgreSQL and `DATABASE_TYPE` may be omitted) |
+| `database` | `false` | `DB` (D1) is bound; a missing binding does not block the next step. The setup form validates database selection and connection configuration |
 | `adminToken` | `true` | `ADMIN_TOKEN` is configured |
 | `themes` | `false` | `THEMES` (R2 theme storage) is bound |
 | `analytics` | `true` | `UPTIME` (Analytics Engine) is bound |
 
-Without a configured database, the Worker serves only `/setup`, static assets, `/api/auth/session`, `/api/capabilities` and `/api/public/icon`. Other page requests redirect to `/setup`; business APIs and `POST /api/auth/setup` return 503 `deployment_incomplete`. Setup is also rejected when a database is configured but `UPTIME` is missing. Read the session again after adding the binding to update the check.
+Without a configured database, the Worker still returns database options and allows the setup form to open. Other pages redirect to `/setup`; business APIs return 503 `setup_required`, or `deployment_incomplete` if required deployment items are missing. `POST /api/auth/setup` returns 503 `deployment_incomplete` without `UPTIME`, 400 `invalid_database_url` without a usable PostgreSQL connection, or 400 `invalid_database_type` when selecting an unbound D1 database. Read the session again after adding a binding to update both the check and database options.
 
 | `setupDatabase` field | Type | Meaning |
 | --- | --- | --- |
@@ -357,7 +357,7 @@ For a pending Worker setup, the chosen type is locked. A PostgreSQL target repor
 | --- | --- | --- |
 | 400 | `invalid_database_type` | Select a type supported by the backend |
 | 400 | `invalid_database_url` | Check the PostgreSQL URL |
-| 503 | `deployment_incomplete` | The Worker has no database configuration or is missing `UPTIME`; configure the required items in the dashboard first |
+| 503 | `deployment_incomplete` | The Worker is missing `UPTIME`; add the Analytics Engine binding in the dashboard first |
 | 503 | `credential_unconfigured` | No setup credential is configured (Worker `ADMIN_TOKEN` or Go `POLARIS_SETUP_KEY`) |
 | 503 | `database_connection_failed` | Check database connectivity and access |
 | 503 | `database_initialization_failed` | Check target database initialization requirements |

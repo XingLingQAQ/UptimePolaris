@@ -79,7 +79,7 @@ Uptime Polaris は、Web サイトとポートを定期的にチェックし、�
 1. このリポジトリを Fork します。
 2. Cloudflare ダッシュボードで **Workers & Pages → Create application → GitHub** を開き、fork したリポジトリを選択します。ビルドコマンドに `npm run build`、デプロイコマンドに `npm run deploy` を設定します。
 3. デプロイ後にサイトを開きます。初期設定ページがバインディングとシークレットを確認するので、Worker の **Settings** で以下を設定します。
-   - **データベース（どちらか一方）**: D1 を使う場合は **Bindings** で変数名 `DB` のデータベースを追加します。PostgreSQL を使う場合は **Variables and Secrets** で Secret `DATABASE_URL` を追加します。D1 をバインドしていない場合は自動的に PostgreSQL として扱われます。
+   - **D1（任意）**：D1 を使う場合は **Bindings** でデータベースを追加し、変数名を `DB` にします。未バインドでも次へ進めますが、初期設定では PostgreSQL のみ選択できます。アカウント作成前に **Variables and Secrets** で Secret `DATABASE_URL` を設定し、保存してデプロイ後に「データベースの選択肢を再取得」を選んでください。
    - **初期設定キー**: **Variables and Secrets** で Secret `ADMIN_TOKEN` を追加し、十分に長いランダムな値（例: `openssl rand -hex 32` の出力）を設定します。
    - **Analytics Engine（必須）**: ダッシュボードで Analytics Engine を有効にし、**Bindings** でデータセットを追加してバインド名を `UPTIME` にします。
    - **任意**: 外部テーマを使う場合は、バインド名 `THEMES` で R2 バケットを追加します。初期設定後でも追加できます。

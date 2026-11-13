@@ -156,7 +156,7 @@ export async function setupDatabaseOptions(env: Env): Promise<SetupDatabaseOptio
   // D1 is not offered without its binding, so the default can only be PostgreSQL.
   return {
     types: pending ? [databaseType(env)] : env.DB ? ['d1', 'postgres'] : ['postgres'],
-    defaultType: databaseType(env),
+    defaultType: env.DB ? databaseType(env) : 'postgres',
     postgresConfigured: configured,
     postgresUrlEditable: Boolean(env.DB) && !pending,
   };

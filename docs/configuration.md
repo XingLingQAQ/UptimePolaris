@@ -23,7 +23,7 @@ POLARIS_DATA_DIR=./data
 
 ## 初始化时选择数据库
 
-Worker 的 `/setup` 页面分为两步：先检查数据库绑定与 `ADMIN_TOKEN`，必需项通过后才进入账号与数据库选择表单；Go 后端直接显示初始化表单。
+Worker 的 `/setup` 页面分为两步：先检查必需的 `ADMIN_TOKEN` 与 `UPTIME`，D1 和 R2 为可选项；通过后进入账号与数据库选择表单，数据库在此时校验；Go 后端直接显示初始化表单。
 
 初始化表单按后端列出可选数据库：Worker 为 D1 或 PostgreSQL，Go 为 SQLite 或 PostgreSQL。不做选择则沿用当前配置。新选 PostgreSQL 必须填写连接 URL，格式示例：
 
@@ -166,7 +166,7 @@ Protect `.env` and startup logs containing the generated key. A saved `database.
 
 ### Database selection during setup
 
-On the Worker, `/setup` has two steps: it first checks the database binding and `ADMIN_TOKEN` and shows the account form only after every required item passes; the Go backend shows the setup form directly.
+On the Worker, `/setup` has two steps: it first checks the required `ADMIN_TOKEN` and `UPTIME` binding, with D1 and R2 optional, then validates database configuration in the account form; the Go backend shows the setup form directly.
 
 Setup offers D1 or PostgreSQL on Worker, and SQLite or PostgreSQL on Go. Omitting the selection retains the current backend configuration. A newly selected PostgreSQL database requires a connection URL such as `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`; percent-encode special characters in the password, and keep only a supported `sslmode` in the query string. A blank URL reuses the deployed PostgreSQL connection only when it corresponds to the current database. On successful setup, the administrator and session are created in the target database, which remains active for later requests and restarts.
 

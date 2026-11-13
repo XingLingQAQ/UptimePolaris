@@ -57,9 +57,9 @@ try {
   assert.equal(session.body.needsSetup, true);
   assert.equal(session.body.authenticated, false);
   assert.equal(session.body.setupCredential, null);
-  assert.equal(session.body.setupDatabase, null);
+  assert.deepEqual(session.body.setupDatabase, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: false, postgresUrlEditable: false });
   assert.deepEqual(session.body.setupRequirements, [
-    { key: 'database', required: true, ok: false },
+    { key: 'database', required: false, ok: false },
     { key: 'adminToken', required: true, ok: false },
     { key: 'themes', required: false, ok: false },
     { key: 'analytics', required: true, ok: false },
@@ -98,17 +98,44 @@ const tokenOnly = worker({ ADMIN_TOKEN: 'setup-secret' });
 try {
   const session = await request(tokenOnly, '/api/auth/session');
   assert.equal(session.body.setupCredential, 'ADMIN_TOKEN');
-  assert.deepEqual(session.body.setupRequirements.filter(item => item.required).map(item => [item.key, item.ok]), [['database', false], ['adminToken', true], ['analytics', false]]);
+  assert.deepEqual(session.body.setupRequirements.filter(item => item.required).map(item => [item.key, item.ok]), [['adminToken', true], ['analytics', false]]);
   // 管理令牌也不能在部署检查通过前打开业务接口。 / The admin token cannot open business APIs before the check passes.
   const bearer = await request(tokenOnly, '/api/monitors', { headers: { authorization: 'Bearer setup-secret' } });
   assert.equal(bearer.response.status, 503);
   assert.equal(bearer.body.error, 'deployment_incomplete');
 } finally { await tokenOnly.dispose(); }
 
+const databaseLater = worker({ ADMIN_TOKEN: 'setup-secret' }, { analyticsEngineDatasets: { UPTIME: { dataset: 'setup_fixture' } } });
+try {
+  const session = await request(databaseLater, '/api/auth/session');
+  assert.equal(session.response.status, 200);
+  assert.ok(session.body.setupRequirements.every(item => !item.required || item.ok), 'database configuration must not block the deployment check');
+  assert.deepEqual(session.body.setupRequirements.find(item => item.key === 'database'), { key: 'database', required: false, ok: false });
+  assert.deepEqual(session.body.setupDatabase, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: false, postgresUrlEditable: false });
+  const blocked = await request(databaseLater, '/api/monitors');
+  assert.equal(blocked.response.status, 503);
+  assert.equal(blocked.body.error, 'setup_required');
+
+  const submit = (database) => request(databaseLater, '/api/auth/setup', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ credential: 'setup-secret', username: 'owner', password: 'private-password', database }),
+  });
+  const missingUrl = await submit({ type: 'postgres' });
+  assert.equal(missingUrl.response.status, 400);
+  assert.equal(missingUrl.body.error, 'invalid_database_url');
+  const noD1 = await submit({ type: 'd1' });
+  assert.equal(noD1.response.status, 400);
+  assert.equal(noD1.body.error, 'invalid_database_type');
+  const unsavedUrl = await submit({ type: 'postgres', url: 'postgres://fixture:fixture@db.example.com/polaris' });
+  assert.equal(unsavedUrl.response.status, 400);
+  assert.equal(unsavedUrl.body.error, 'invalid_database_url');
+} finally { await databaseLater.dispose(); }
+
 const rebound = worker({ ADMIN_TOKEN: 'setup-secret' });
 try {
   const initial = await request(rebound, '/api/auth/session');
-  assert.equal(initial.body.setupDatabase, null);
+  assert.deepEqual(initial.body.setupDatabase.types, ['postgres']);
+  assert.equal(initial.body.setupDatabase.defaultType, 'postgres');
   const bindings = { ADMIN_TOKEN: 'setup-secret' };
   const resources = { d1Databases: { DB: crypto.randomUUID() } };
   await rebound.setOptions(options(bindings, resources));
@@ -185,7 +212,7 @@ try {
   const response = await pgOnlyWorker.dispatchFetch('http://localhost/fixture/pg-only');
   const body = await response.json();
   assert.equal(body.configured, true);
-  assert.deepEqual(body.requirements.find((item) => item.key === 'database'), { key: 'database', required: true, ok: true });
+  assert.deepEqual(body.requirements.find((item) => item.key === 'database'), { key: 'database', required: false, ok: false });
   assert.deepEqual(body.options, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: true, postgresUrlEditable: false });
 } finally { await pgOnlyWorker.dispose(); }
 
