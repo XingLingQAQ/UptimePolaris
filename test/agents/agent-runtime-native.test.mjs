@@ -24,7 +24,7 @@ async function run(transport, locked = null) {
   const directory=await mkdtemp(join(tmpdir(),'uptime-polaris-runtime-native-'));
   await writeFile(join(directory,'.owner'),owner);
   const executable=join(directory,process.platform==='win32'?'polaris-agent.exe':'polaris-agent');
-  const mf=new Miniflare({ modules:true,script:bundle.outputFiles[0].text,compatibilityDate:'2025-01-01',compatibilityFlags:['nodejs_compat'],host:'127.0.0.1',port:0,d1Databases:['DB'],bindings:{ADMIN_TOKEN:'runtime-native-secret',RUNTIME_TEST_HTTP:transport==='http'} });
+  const mf=new Miniflare({ modules:true,script:bundle.outputFiles[0].text,compatibilityDate:'2025-01-01',compatibilityFlags:['nodejs_compat'],host:'127.0.0.1',port:0,analyticsEngineDatasets: { UPTIME: { dataset: 'setup_fixture' } }, d1Databases:['DB'],bindings:{ADMIN_TOKEN:'runtime-native-secret',RUNTIME_TEST_HTTP:transport==='http'} });
   let child;
   let exited;
   let diagnostics='';

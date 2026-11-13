@@ -82,7 +82,8 @@ Use o Worker quando não quiser manter um servidor. Escolha Go para sondar a red
 3. Abra o site após a implantação. A página de configuração inicial verifica vínculos e segredos; configure o que ela indicar em **Settings** do Worker:
    - **Banco de dados (escolha um)**: para D1, adicione um banco em **Bindings** com o nome de variável `DB`; para PostgreSQL, adicione o segredo `DATABASE_URL` em **Variables and Secrets**. Sem D1, a implantação usa PostgreSQL automaticamente.
    - **Chave de configuração**: adicione o segredo `ADMIN_TOKEN` em **Variables and Secrets** com um valor aleatório longo, por exemplo a saída de `openssl rand -hex 32`.
-   - **Opcional**: para temas de terceiros, adicione um bucket R2 com o nome `THEMES`; para observações brutas e backfill, ative o Analytics Engine e adicione um conjunto de dados com o nome `UPTIME`.
+   - **Analytics Engine (obrigatório)**: ative o Analytics Engine no painel e adicione um conjunto de dados em **Bindings** com o nome de vínculo `UPTIME`.
+   - **Opcional**: para instalar temas de terceiros, adicione um bucket R2 com o nome de vínculo `THEMES`. Ele pode ser adicionado após a configuração inicial.
 4. Na página de configuração inicial, selecione **Re-check**, avance e informe `ADMIN_TOKEN` para criar a conta de administrador.
 
 As atualizações usam **Sync fork** no GitHub; o Workers Builds reimplanta automaticamente e mantém os vínculos adicionados no painel.

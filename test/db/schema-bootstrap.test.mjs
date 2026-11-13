@@ -86,7 +86,7 @@ const mf = new Miniflare({
     ADMIN_TOKEN: 'schema-bootstrap-installation-secret',
     PBKDF2_ITERATIONS: '3000',
   },
-  d1Databases: { DB: `schema-bootstrap-empty-${process.pid}` },
+  analyticsEngineDatasets: { UPTIME: { dataset: 'setup_fixture' } }, d1Databases: { DB: `schema-bootstrap-empty-${process.pid}` },
 });
 
 /**

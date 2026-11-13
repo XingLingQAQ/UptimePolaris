@@ -134,7 +134,7 @@ authRoutes.get('/api/auth/session', async (c) => {
 });
 
 authRoutes.post('/api/auth/setup', async (c) => {
-  if (!databaseConfigured(c.env)) return c.json({ error: 'deployment_incomplete' }, 503);
+  if (!databaseConfigured(c.env) || !c.env.UPTIME) return c.json({ error: 'deployment_incomplete' }, 503);
   let body: unknown;
   try {
     body = await c.req.json<unknown>();

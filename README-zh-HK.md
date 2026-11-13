@@ -82,7 +82,8 @@ Uptime Polaris 定時檢查網站和端口，接收定時任務發送的心跳�
 3. 部署完成後打開站點，初始化頁面會先檢查綁定和密鑰。請按頁面提示在 Worker 的 **Settings** 中配置：
    - **數據庫（二選一）**：用 D1 時在 **Bindings** 中添加數據庫，變量名填 `DB`；用 PostgreSQL 時在 **Variables and Secrets** 中添加 Secret `DATABASE_URL`，未綁定 D1 時會自動按 PostgreSQL 處理。
    - **初始化密鑰**：在 **Variables and Secrets** 中添加 Secret `ADMIN_TOKEN`，值使用足夠長的隨機字符串，例如 `openssl rand -hex 32` 的輸出。
-   - **可選**：安裝第三方主題時添加 R2 存儲桶（變量名 `THEMES`）；需要原始觀測與回填時，在啟用 Analytics Engine 後添加數據集（變量名 `UPTIME`）。
+   - **Analytics Engine（必需）**：在控制台啟用 Analytics Engine，並在 **Bindings** 添加數據集，變量名填寫 `UPTIME`。
+   - **可選**：安裝第三方主題時添加 R2 存儲桶，變量名填寫 `THEMES`，也可在初始化後添加。
 4. 在初始化頁面點擊「重新檢查」，通過後進入下一步，輸入 `ADMIN_TOKEN` 創建管理員帳號。
 
 後續升級只需在 GitHub 上執行 Sync fork，Workers Builds 會自動重新部署，並保留控制台中已添加的綁定。

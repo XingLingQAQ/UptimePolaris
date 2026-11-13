@@ -81,7 +81,8 @@ Uptime Polaris는 사이트와 포트를 주기적으로 검사하고, 예약 �
 3. 배포 후 사이트를 엽니다. 초기 설정 페이지가 바인딩과 시크릿을 먼저 검사하므로, Worker의 **Settings**에서 다음을 설정합니다.
    - **데이터베이스(택 1)**: D1을 쓰려면 **Bindings**에서 변수 이름 `DB`로 데이터베이스를 추가합니다. PostgreSQL을 쓰려면 **Variables and Secrets**에서 Secret `DATABASE_URL`을 추가합니다. D1을 바인딩하지 않으면 자동으로 PostgreSQL로 처리됩니다.
    - **초기 설정 키**: **Variables and Secrets**에서 Secret `ADMIN_TOKEN`을 추가하고 충분히 긴 임의의 값(예: `openssl rand -hex 32` 출력)을 넣습니다.
-   - **선택**: 서드파티 테마를 쓰려면 변수 이름 `THEMES`로 R2 버킷을, 원시 관측과 백필이 필요하면 Analytics Engine을 활성화하고 변수 이름 `UPTIME`으로 데이터셋을 추가합니다.
+   - **Analytics Engine (필수)**: 대시보드에서 Analytics Engine을 활성화하고 **Bindings**에서 바인딩 이름 `UPTIME`으로 데이터셋을 추가합니다.
+   - **선택**: 외부 테마를 사용하려면 바인딩 이름 `THEMES`로 R2 버킷을 추가합니다. 초기화 후에도 추가할 수 있습니다.
 4. 초기 설정 페이지에서 다시 확인을 누르고, 다음 단계로 넘어가 `ADMIN_TOKEN`을 입력해 관리자 계정을 만듭니다.
 
 업그레이드는 GitHub에서 Sync fork만 실행하면 됩니다. Workers Builds가 자동으로 다시 배포하며 대시보드에서 추가한 바인딩도 유지됩니다.

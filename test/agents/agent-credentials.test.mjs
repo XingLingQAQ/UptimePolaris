@@ -34,7 +34,7 @@ const mf = new Miniflare({
   compatibilityDate: '2025-01-01',
   compatibilityFlags: ['nodejs_compat'],
   bindings: { CF_ACCOUNT_ID: 'isolated', CF_API_TOKEN: 'isolated', ADMIN_TOKEN: adminToken },
-  d1Databases: { DB: 'isolated-enrollment-test' },
+  analyticsEngineDatasets: { UPTIME: { dataset: 'setup_fixture' } }, d1Databases: { DB: 'isolated-enrollment-test' },
 });
 try {
   const db = await mf.getD1Database('DB');

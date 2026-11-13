@@ -24,7 +24,7 @@ interface AuthState {
   setup: (credential: string, username: string, password: string, database?: SetupDatabaseSelection) => Promise<void>;
   logout: () => Promise<void>;
   /** Re-read the session, e.g. after a password change. / 重新读取会话，例如在修改密码后。 */
-  refresh: () => Promise<void>;
+  refresh: () => Promise<SessionInfo | null>;
   /** Update session fields from the account-change response without another request. / 根据账户修改响应更新会话字段，无需额外请求。 */
   applyAccountChange: (username: string) => void;
 }
@@ -40,9 +40,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 网络错误单独保留为可重试状态，避免误判为未登录。 / Preserve network errors as retryable instead of treating them as signed out.
     setSessionError(false);
     try {
-      setSession(await authApi.session());
+      const next = await authApi.session();
+      setSession(next);
+      return next;
     } catch {
       setSessionError(true);
+      return null;
     }
   }, []);
 

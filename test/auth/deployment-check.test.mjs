@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { Miniflare } from 'miniflare';
 
-const watchdog = setTimeout(() => { console.error('Deployment check fixture timed out'); process.exit(2); }, 60_000);
+const watchdog = setTimeout(() => { console.error('Deployment check fixture timed out'); process.exit(2); }, 120_000);
 const bundled = await build({
   entryPoints: ['backends/worker/src/index.ts'],
   bundle: true,
@@ -27,14 +27,19 @@ const bundled = await build({
 });
 
 // 与 Fork 部署首次运行一致：没有 DB、THEMES、UPTIME 绑定。 / Matches a fresh fork deployment: no DB, THEMES or UPTIME binding.
-function worker(bindings) {
-  return new Miniflare({
+function options(bindings, resources = {}) {
+  return {
     modules: true,
     script: bundled.outputFiles[0].text,
     compatibilityDate: '2025-01-01',
     compatibilityFlags: ['nodejs_compat'],
     bindings: { PBKDF2_ITERATIONS: '3000', ...bindings },
-  });
+    ...resources,
+  };
+}
+
+function worker(bindings, resources) {
+  return new Miniflare(options(bindings, resources));
 }
 
 async function request(mf, path, init = {}) {
@@ -57,7 +62,7 @@ try {
     { key: 'database', required: true, ok: false },
     { key: 'adminToken', required: true, ok: false },
     { key: 'themes', required: false, ok: false },
-    { key: 'analytics', required: false, ok: false },
+    { key: 'analytics', required: true, ok: false },
   ]);
 
   const capabilities = await request(bare, '/api/capabilities');
@@ -93,12 +98,56 @@ const tokenOnly = worker({ ADMIN_TOKEN: 'setup-secret' });
 try {
   const session = await request(tokenOnly, '/api/auth/session');
   assert.equal(session.body.setupCredential, 'ADMIN_TOKEN');
-  assert.deepEqual(session.body.setupRequirements.filter(item => item.required).map(item => [item.key, item.ok]), [['database', false], ['adminToken', true]]);
+  assert.deepEqual(session.body.setupRequirements.filter(item => item.required).map(item => [item.key, item.ok]), [['database', false], ['adminToken', true], ['analytics', false]]);
   // 管理令牌也不能在部署检查通过前打开业务接口。 / The admin token cannot open business APIs before the check passes.
   const bearer = await request(tokenOnly, '/api/monitors', { headers: { authorization: 'Bearer setup-secret' } });
   assert.equal(bearer.response.status, 503);
   assert.equal(bearer.body.error, 'deployment_incomplete');
-} finally { await tokenOnly.dispose(); clearTimeout(watchdog); }
+} finally { await tokenOnly.dispose(); }
+
+const rebound = worker({ ADMIN_TOKEN: 'setup-secret' });
+try {
+  const initial = await request(rebound, '/api/auth/session');
+  assert.equal(initial.body.setupDatabase, null);
+  const bindings = { ADMIN_TOKEN: 'setup-secret' };
+  const resources = { d1Databases: { DB: crypto.randomUUID() } };
+  await rebound.setOptions(options(bindings, resources));
+  const withDatabase = await request(rebound, '/api/auth/session');
+  assert.equal(withDatabase.body.setupDatabase.defaultType, 'd1');
+  assert.equal(withDatabase.body.setupRequirements.find((item) => item.key === 'database').ok, true);
+  assert.deepEqual(withDatabase.body.setupRequirements.find((item) => item.key === 'analytics'), { key: 'analytics', required: true, ok: false });
+
+  const account = { credential: 'setup-secret', username: 'owner', password: 'private-password', database: { type: 'd1' } };
+  const submit = () => request(rebound, '/api/auth/setup', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(account),
+  });
+  const missingAnalytics = await submit();
+  assert.equal(missingAnalytics.response.status, 503);
+  assert.equal(missingAnalytics.body.error, 'deployment_incomplete');
+  assert.equal((await (await rebound.getD1Database('DB')).prepare('SELECT COUNT(*) AS n FROM users').first()).n, 0);
+
+  resources.analyticsEngineDatasets = { UPTIME: { dataset: 'uptime_fixture' } };
+  resources.r2Buckets = { THEMES: 'themes-fixture' };
+  await rebound.setOptions(options(bindings, resources));
+  const ready = await request(rebound, '/api/auth/session');
+  assert.ok(ready.body.setupRequirements.every((item) => item.ok));
+  assert.deepEqual(ready.body.setupDatabase.types, ['d1', 'postgres']);
+
+  delete resources.analyticsEngineDatasets;
+  await rebound.setOptions(options(bindings, resources));
+  const removed = await submit();
+  assert.equal(removed.response.status, 503);
+  assert.equal(removed.body.error, 'deployment_incomplete');
+
+  resources.analyticsEngineDatasets = { UPTIME: { dataset: 'uptime_fixture' } };
+  delete resources.r2Buckets;
+  await rebound.setOptions(options(bindings, resources));
+  const optionalMissing = await request(rebound, '/api/auth/session');
+  assert.deepEqual(optionalMissing.body.setupRequirements.find((item) => item.key === 'themes'), { key: 'themes', required: false, ok: false });
+  const completed = await submit();
+  assert.equal(completed.response.status, 200, JSON.stringify(completed.body));
+  assert.equal((await request(rebound, '/api/auth/session')).body.setupRequirements, null);
+} finally { await rebound.dispose(); }
 
 // 只配置 PostgreSQL 也满足数据库要求，DATABASE_TYPE 可以省略；没有 D1 时初始化只能选 PostgreSQL。
 // A PostgreSQL URL alone satisfies the database requirement, DATABASE_TYPE is optional, and D1 is not offered without its binding.
@@ -140,4 +189,5 @@ try {
   assert.deepEqual(body.options, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: true, postgresUrlEditable: false });
 } finally { await pgOnlyWorker.dispose(); }
 
+clearTimeout(watchdog);
 console.log('Worker deployment check before setup passed');

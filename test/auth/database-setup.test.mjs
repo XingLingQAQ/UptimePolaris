@@ -47,7 +47,7 @@ const bundle = await build({ stdin: { contents: source, resolveDir: process.cwd(
 function worker(persist, name = crypto.randomUUID()) {
   return new Miniflare({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2025-01-01',
     compatibilityFlags: ['nodejs_compat'], bindings: { ADMIN_TOKEN: 'fixture-secret', PBKDF2_ITERATIONS: '3000' },
-    d1Databases: { DB: name }, ...(persist ? {d1Persist: persist} : {}) });
+    analyticsEngineDatasets: { UPTIME: { dataset: 'setup_fixture' } }, d1Databases: { DB: name }, ...(persist ? {d1Persist: persist} : {}) });
 }
 async function req(mf, path, body) {
   const response = await mf.dispatchFetch('https://fixture.test' + path, body === undefined ? {} : {

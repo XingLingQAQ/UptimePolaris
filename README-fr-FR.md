@@ -81,7 +81,8 @@ Utilisez Worker si vous ne souhaitez pas exploiter un serveur. Choisissez Go pou
 3. Ouvrez le site après le déploiement. La page d'initialisation vérifie d'abord les liaisons et les secrets ; configurez ce qu'elle signale dans les **Settings** du Worker :
    - **Base de données (au choix)** : pour D1, ajoutez une base dans **Bindings** avec le nom de variable `DB` ; pour PostgreSQL, ajoutez le secret `DATABASE_URL` dans **Variables and Secrets**. Sans D1, le déploiement utilise PostgreSQL automatiquement.
    - **Clé d’initialisation** : ajoutez le secret `ADMIN_TOKEN` dans **Variables and Secrets** avec une longue valeur aléatoire, par exemple la sortie de `openssl rand -hex 32`.
-   - **Facultatif** : pour les thèmes tiers, ajoutez un bucket R2 nommé `THEMES` ; pour les observations brutes et le backfill, activez Analytics Engine et ajoutez un jeu de données nommé `UPTIME`.
+   - **Analytics Engine (requis)** : activez Analytics Engine dans le tableau de bord et ajoutez un jeu de données dans **Bindings** avec le nom de liaison `UPTIME`.
+   - **Facultatif** : pour installer des thèmes tiers, ajoutez un bucket R2 avec le nom de liaison `THEMES`. Vous pouvez le faire après la configuration initiale.
 4. Sélectionnez **Re-check** sur la page d'initialisation, passez à l'étape suivante et saisissez `ADMIN_TOKEN` pour créer le compte administrateur.
 
 Les mises à jour se font avec **Sync fork** sur GitHub ; Workers Builds redéploie automatiquement et conserve les liaisons ajoutées dans le tableau de bord.

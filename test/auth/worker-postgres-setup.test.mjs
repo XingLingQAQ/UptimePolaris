@@ -14,7 +14,7 @@ const db = await mf.getD1Database('DB');
 const admin = postgres(`postgres://postgres@127.0.0.1:${port}/postgres`, { max: 1 });
 const ctx = { waitUntil() {} };
 const config = name => ({ DATABASE_TYPE: 'postgres', DATABASE_URL: `postgres://postgres@127.0.0.1:${port}/${name}?sslmode=disable`,
-  ADMIN_TOKEN: 'fixture-setup-credential', PBKDF2_ITERATIONS: '3000' });
+  ADMIN_TOKEN: 'fixture-setup-credential', PBKDF2_ITERATIONS: '3000', UPTIME: { writeDataPoint() {} } });
 async function request(env, path, body, cookie) {
   const headers = new Headers();
   if (body) headers.set('content-type', 'application/json');

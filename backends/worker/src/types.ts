@@ -238,7 +238,7 @@ export const MAX_RETRIES = 3;
 
 export type Status = typeof UP | typeof DOWN | typeof WARN | typeof PENDING;
 
-/** Check observation sent to optional Analytics Engine storage; recent points also feed the database ring. / 检查观测值可写入 Analytics Engine；近期数据也写入数据库环形缓冲区。 */
+/** Check observation for Analytics Engine and the database ring. / 写入 Analytics Engine 和数据库环形缓冲区的检查观测值。 */
 export interface Heartbeat {
   monitorId: string;
   /** epoch seconds / Unix 时间戳（秒） */
@@ -342,7 +342,7 @@ export const RING_SIZE = 100;
 export interface Env {
   DB: D1Database;
   AUTOMATIC_NOTIFICATIONS_DISABLED?: string;
-  /** Optional raw series for Analytics Engine queries and sync. Database live state, recent history and availability work without it. / 可选的 Analytics Engine 原始序列，用于查询和同步；数据库实时状态、近期历史及可用性不依赖它。 */
+  /** Required for Worker setup; query credentials are only needed for SQL backfill. / Worker 初始化必需；查询凭据仅用于 SQL 回填。 */
   UPTIME?: AnalyticsEngineDataset;
   /** Built SPA assets; omitted by runtime harnesses that serve no asset directory. / 构建后的 SPA 资源；不提供资源目录的运行时测试可省略。 */
   ASSETS?: Fetcher;

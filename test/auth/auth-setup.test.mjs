@@ -32,7 +32,7 @@ const built = await build({
 async function worker(bindings) {
   const instance = new Miniflare({ modules: true, script: built.outputFiles[0].text,
     compatibilityDate: '2025-01-01', compatibilityFlags: ['nodejs_compat'],
-    bindings: { PBKDF2_ITERATIONS: '3000', ...bindings }, d1Databases: { DB: crypto.randomUUID() } });
+    bindings: { PBKDF2_ITERATIONS: '3000', ...bindings }, analyticsEngineDatasets: { UPTIME: { dataset: 'setup_fixture' } }, d1Databases: { DB: crypto.randomUUID() } });
   const db = await instance.getD1Database('DB');
   await applyD1Migrations(db);
   return { instance, db };
@@ -59,7 +59,7 @@ try {
     { key: 'database', required: true, ok: true },
     { key: 'adminToken', required: true, ok: true },
     { key: 'themes', required: false, ok: false },
-    { key: 'analytics', required: false, ok: false },
+    { key: 'analytics', required: true, ok: true },
   ]);
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM users').first()).n, 0);
   assert.match(initial.response.headers.get('cache-control'), /private, no-store/);

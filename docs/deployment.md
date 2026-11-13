@@ -40,9 +40,9 @@ npm --prefix frontend ci
      - **PostgreSQL**：在 **Settings → Variables and Secrets** 中添加 Secret `DATABASE_URL`。未绑定 D1 时数据库类型会自动按 PostgreSQL 处理，`DATABASE_TYPE` 可以省略。
    - **`ADMIN_TOKEN`（必需）**：在 **Settings → Variables and Secrets** 中添加 Secret，值使用足够长的随机字符串。
    - **`THEMES`（可选）**：安装第三方主题时，在 **Settings → Bindings** 中添加 R2 存储桶。
-   - **`UPTIME`（可选）**：先在控制台启用 Analytics Engine，再添加数据集绑定。
+   - **`UPTIME`（必需）**：先在控制台启用 Analytics Engine，再添加数据集绑定。
 
-   在控制台保存后，Worker 会自动部署新版本，然后在页面上点击“重新检查”。
+   在 Cloudflare 保存并部署配置后，回到初始化页面点击“重新检查”。必需项未通过时，“下一步”不可用；R2 可在初始化后添加。
 4. 必需项全部通过后点击“下一步”，输入 `ADMIN_TOKEN` 并创建管理员账号。要求见[完成初始化](#完成初始化)。
 
 两种数据库只配置一种即可。只配置 `DATABASE_URL` 时，初始化表单只提供 PostgreSQL 选项；绑定 D1 时两种都可以选。如果要在初始化页面填写新的 PostgreSQL 地址而不是复用已配置的连接，仍需绑定 D1，原因见[完成初始化](#完成初始化)。
@@ -63,7 +63,7 @@ npm --prefix frontend ci
 2. 核对目标账号、仓库名和 Worker 名。Worker 名不要与账号中已有的 Worker 重复，以免覆盖已有 Worker。
 3. 构建命令和部署命令保持为 `npm run build` 和 `npm run deploy`。
 4. 页面要求填写 `ADMIN_TOKEN` 时，填入足够长的随机值。不要把密钥提交到仓库。
-5. 部署成功后打开站点，按初始化页面的检查结果绑定 D1 数据库，再完成初始化。绑定方法与 [Fork 后部署](#fork-后部署到-cloudflare)相同。
+5. 部署成功后打开站点，按初始化页面的检查结果配置数据库、`UPTIME` 和初始化密钥，再完成初始化。绑定方法与 [Fork 后部署](#fork-后部署到-cloudflare)相同。
 
 Agent 安装需要访问 GitHub 下载服务，要求见 [Agent 下载](#agent-下载)。
 
@@ -93,9 +93,9 @@ npx cf r2 buckets create --name uptime-polaris-themes
 | D1 | `DB` | 默认业务数据库 |
 | 静态资产 | `ASSETS` | 前端资源 |
 | R2（可选） | `THEMES` | 第三方主题 ZIP 解包后的版本资产 |
-| Analytics Engine（可选） | `UPTIME` | 原始观测与 SQL 回填 |
+| Analytics Engine（必需） | `UPTIME` | 原始观测与 SQL 回填 |
 
-不用第三方主题，可从两份配置里删掉 `THEMES`。不用 Analytics Engine，可删掉 `UPTIME`，当前状态、数据库中的近期历史和可用率照常工作。声明 Analytics Engine 之前，先在账号里启用该服务，否则 Cloudflare 可能拒绝部署。
+不用第三方主题，可从两份配置里删掉 `THEMES`。`UPTIME` 是 Worker 初始化的必需绑定，请保留。声明 Analytics Engine 之前，先在账号里启用该服务。AE SQL 查询凭据只用于可选的数据回填，不是初始化要求。
 
 ## 配置部署
 
@@ -157,7 +157,7 @@ Fork 部署和按钮部署的 D1 由 Worker 在请求时建表并应用迁移，
 
 打开站点地址，进入 `/setup`：
 
-1. **Worker 部署检查（仅 Worker）**：页面先列出数据库、`ADMIN_TOKEN`、R2（可选）和 Analytics Engine（可选）的配置状态。未通过的必需项会说明在 Cloudflare 控制台的配置位置。配置保存后点击“重新检查”，必需项全部通过后点击“下一步”。Go 后端无此步骤，直接显示初始化表单。
+1. **Worker 部署检查（仅 Worker）**：页面先列出数据库、`ADMIN_TOKEN`、R2（可选）和 Analytics Engine（必需）的配置状态。未通过的必需项会说明在 Cloudflare 控制台的配置位置。保存并部署配置后点击“重新检查”，必需项全部通过后点击“下一步”。返回检查步骤不会清空已填写的信息；绑定变更后再次检查会更新数据库选项。Go 后端无此步骤，直接显示初始化表单。
 2. 输入初始化凭据（Worker 为 `ADMIN_TOKEN`，Go 为 `POLARIS_SETUP_KEY` 或启动日志中的自动生成密钥）。
 3. 选择数据库（如需修改），设置管理员用户名和密码。
 4. 创建完成后进入 `/admin` 控制台，后续从 `/login` 登录。
@@ -253,9 +253,9 @@ Fork and button deployments require a Cloudflare account and a GitHub account. M
      - **PostgreSQL**: in **Settings → Variables and Secrets**, add the secret `DATABASE_URL`. Without a D1 binding the deployment is treated as PostgreSQL, so `DATABASE_TYPE` may be omitted.
    - **`ADMIN_TOKEN` (required)**: in **Settings → Variables and Secrets**, add a secret with a long random value.
    - **`THEMES` (optional)**: to install third-party themes, add an R2 bucket in **Settings → Bindings**.
-   - **`UPTIME` (optional)**: enable Analytics Engine in the dashboard, then add a dataset binding.
+   - **`UPTIME` (required)**: enable Analytics Engine in the dashboard, then add a dataset binding.
 
-   Saving a change in the dashboard deploys a new version of the Worker. Then select **Re-check** on the page.
+   Save and deploy the configuration in Cloudflare, then select **Re-check** on the setup page. **Next** stays disabled until all required items pass; R2 can be added after setup.
 4. Once every required item passes, select **Next**, enter `ADMIN_TOKEN` and create the administrator account. See [database setup and initialization](#database-setup-and-initialization).
 
 Configure one of the two databases. With only `DATABASE_URL` set, setup offers PostgreSQL only; with D1 bound, both are offered. To enter a new PostgreSQL URL on the setup page instead of reusing the configured connection, the D1 binding is still required; see [database setup and initialization](#database-setup-and-initialization).
@@ -276,15 +276,15 @@ The button uses the public GitHub repository. Cloudflare creates a new repositor
 2. Check the account, repository name and Worker name. Do not reuse the name of an existing Worker, or it will be overwritten.
 3. Keep the build and deploy commands as `npm run build` and `npm run deploy`.
 4. If the page asks for `ADMIN_TOKEN`, enter a long random value. Never commit secrets to the repository.
-5. After deployment, open the site, bind a D1 database as the setup check describes, then finish setup. The bindings are the same as for a [fork deployment](#deploy-a-fork-to-cloudflare).
+5. After deployment, open the site, configure a database, `UPTIME` and the setup secret as the check describes, then finish setup. The bindings are the same as for a [fork deployment](#deploy-a-fork-to-cloudflare).
 
 Agent installation requires access to GitHub downloads. See [Agent downloads](#agent-downloads).
 
 ### Manual Cloudflare deployment
 
-Authenticate the CF CLI with `npx cf auth login`. For a new installation create a D1 database with `npx cf d1 create --name uptime-polaris`; if using third-party themes, create an R2 bucket with `npx cf r2 buckets create --name uptime-polaris-themes`. Existing resources need not be recreated. Enable Analytics Engine in the account before declaring its optional binding.
+Authenticate the CF CLI with `npx cf auth login`. For a new installation create a D1 database with `npx cf d1 create --name uptime-polaris`; if using third-party themes, create an R2 bucket with `npx cf r2 buckets create --name uptime-polaris-themes`. Existing resources need not be recreated. Enable Analytics Engine in the account before declaring the required `UPTIME` binding.
 
-Keep `backends/worker/cloudflare.config.ts` (CF CLI deployment) and `backends/worker/wrangler.toml` (database tools) aligned on the intended resources, variables and schedules. Keep bindings `DB`, `ASSETS`, `THEMES` and `UPTIME` unchanged where used. `ASSETS` serves `public/`; R2 stores third-party theme files, while Analytics Engine provides raw observations and SQL backfill. Without the optional bindings, the built-in UI and database-backed status and availability still work.
+Keep `backends/worker/cloudflare.config.ts` (CF CLI deployment) and `backends/worker/wrangler.toml` (database tools) aligned on the intended resources, variables and schedules. Keep bindings `DB`, `ASSETS`, `THEMES` and `UPTIME` unchanged where used. `ASSETS` serves `public/`; R2 stores third-party theme files, while Analytics Engine provides raw observations and SQL backfill. R2 is optional; built-in themes work without it. The `UPTIME` binding is required for Worker setup. Analytics Engine query credentials are only needed for optional SQL backfill.
 
 The root `wrangler.jsonc` is used by fork and button deployments and is independent of the manual configuration. Direct Wrangler commands prefer it when both formats exist. For the manual environment, explicitly use `--config backends/worker/wrangler.toml` with direct database commands and check the account, database name and ID. Preserve SPA fallback and the configured worker-first routes, including `/api/*` and the installers.
 
@@ -306,9 +306,9 @@ Installation and updates require the target machine to reach the GitHub API and 
 
 An empty D1 can establish its schema on the first request. A Worker request can also apply pending migrations to a D1 with a migration ledger. Before upgrading, back up and review migrations in an isolated environment. To apply them before deploying to the manual target, authenticate Wrangler and run `npm run db:init` after confirming the TOML account and database. For fork and button deployments, the Worker creates tables and applies migrations on request; no migration command is needed. Migrations do not create an account.
 
-Open `/setup`. The Worker shows the deployment check first and moves on to the form only after every required item passes. Enter `ADMIN_TOKEN`, and create a username and password. The username is 2–32 letters, digits or `._-` and is normalized to lowercase; the password has at least 8 characters. Later logins use `/login`. Setup cannot create another account after initialization. A missing `ADMIN_TOKEN` shows up in the Worker's deployment check; the Go backend shows a separate notice when no setup key is configured.
+Open `/setup`. The Worker first checks the database, `ADMIN_TOKEN` and the required `UPTIME` binding; R2 is optional. It moves on to the form only after all required items pass. Re-checking updates database options without clearing form entries. If a required binding is removed before submission, setup returns to the check step. Enter `ADMIN_TOKEN`, and create a username and password. The username is 2–32 letters, digits or `._-` and is normalized to lowercase; the password has at least 8 characters. Later logins use `/login`. Setup cannot create another account after initialization. A missing `ADMIN_TOKEN` shows up in the Worker's deployment check; the Go backend shows a separate notice when no setup key is configured.
 
-Worker setup offers D1 or PostgreSQL; Go offers SQLite or PostgreSQL. A new PostgreSQL selection requires its URL. A blank URL reuses the deployed connection only if it corresponds to the current PostgreSQL database. Omitting the selection keeps the current configuration. To enter a new PostgreSQL URL in Worker setup, retain the D1 binding: D1 stores the bootstrap selection and encrypted URL, while business data remains in PostgreSQL. A PostgreSQL-only Worker without D1 must be deployed with `DATABASE_TYPE=postgres` and `DATABASE_URL`; setup reuses that connection and cannot replace the URL. Successful setup creates the administrator and session in the target, which remains active for later requests and restarts. Keep connection URLs out of screenshots and public logs. See the [setup API contract](api.md#setup-database-contract).
+Worker setup offers D1 or PostgreSQL; Go offers SQLite or PostgreSQL. A new PostgreSQL selection requires its URL. A blank URL reuses the deployed connection only if it corresponds to the current PostgreSQL database. Omitting the selection keeps the current configuration. To enter a new PostgreSQL URL in Worker setup, retain the D1 binding: D1 stores the bootstrap selection and encrypted URL, while business data remains in PostgreSQL. A PostgreSQL-only Worker without D1 must be deployed with `DATABASE_URL` (`DATABASE_TYPE` may be omitted); setup reuses that connection and cannot replace the URL. Successful setup creates the administrator and session in the target, which remains active for later requests and restarts. Keep connection URLs out of screenshots and public logs. See the [setup API contract](api.md#setup-database-contract).
 
 For Worker PostgreSQL, set `DATABASE_TYPE=postgres` in the configuration, retain `nodejs_compat`, and provide `DATABASE_URL` as a secret in the form `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full` (percent-encode special characters in the password; only `sslmode=verify-full` or `sslmode=require` is accepted in the query string). Initial setup of an empty PostgreSQL database creates its schema automatically. For an existing database with outstanding migrations, run `npm run db:migrate:postgres` from a terminal with access to the target and the same URL. The tool executes the PostgreSQL schema files transactionally and records them; it does not infer an existing untracked schema. D1-only tools such as `db:init` and `user:create` do not operate on PostgreSQL. A PostgreSQL-only Worker with a preconfigured URL can omit D1 and reuse that connection in setup; retain D1 for a URL entered through the page.
 

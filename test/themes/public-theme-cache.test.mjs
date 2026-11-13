@@ -54,7 +54,7 @@ const token = 'theme-cache-fixture-token';
 const mf = new Miniflare({
   modules: true, script: bundled.outputFiles[0].text, compatibilityDate: '2025-01-01',
   compatibilityFlags: ['nodejs_compat'], bindings: { ADMIN_TOKEN: token, PBKDF2_ITERATIONS: '3000' },
-  d1Databases: { DB: 'public-theme-cache-fixture' }, r2Buckets: { THEMES: 'public-theme-cache-fixture' },
+  analyticsEngineDatasets: { UPTIME: { dataset: 'setup_fixture' } }, d1Databases: { DB: 'public-theme-cache-fixture' }, r2Buckets: { THEMES: 'public-theme-cache-fixture' },
 });
 
 const originA = 'https://theme-cache-a.example';

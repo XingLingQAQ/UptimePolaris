@@ -17,6 +17,6 @@ export function setupRequirements(env: Env): SetupRequirement[] {
     { key: 'database', required: true, ok: databaseConfigured(env) },
     { key: 'adminToken', required: true, ok: Boolean(env.ADMIN_TOKEN) },
     { key: 'themes', required: false, ok: Boolean(env.THEMES) },
-    { key: 'analytics', required: false, ok: Boolean(env.UPTIME) },
+    { key: 'analytics', required: true, ok: Boolean(env.UPTIME) },
   ];
 }

@@ -40,7 +40,7 @@
     "test:pending": "node test/helpers/build.mjs test/monitors/pending-state.test.mjs artifacts/tmp/pending.mjs && node artifacts/tmp/pending.mjs",
     "test:ssl-ct": "node test/monitors/ssl-ct.test.mjs && node test/monitors/ct-failover.test.mjs && node test/monitors/ct-worker.test.mjs && node test/monitors/ssl-schedule.test.mjs && node test/monitors/ssl-schedule-worker.test.mjs",
     "test:admin": "node test/helpers/build.mjs test/ui/admin-display.test.mjs artifacts/tmp/admin-display.mjs && node artifacts/tmp/admin-display.mjs",
-    "test:frontend-recovery": "node test/ui/frontend-recovery.test.mjs && node test/ui/frontend-reuse.test.mjs && node test/ui/presentation-domains.test.mjs && node --test test/ui/motion-preference.test.mjs test/ui/toast-motion.test.mjs",
+    "test:frontend-recovery": "node test/ui/frontend-recovery.test.mjs && node test/ui/setup-recovery.test.mjs && node test/ui/frontend-reuse.test.mjs && node test/ui/presentation-domains.test.mjs && node --test test/ui/motion-preference.test.mjs test/ui/toast-motion.test.mjs",
     "test:public-cache": "node test/helpers/build.mjs test/api/public-cache-redaction.test.ts artifacts/tmp/public-cache-redaction.mjs && node artifacts/tmp/public-cache-redaction.mjs",
     "test:i18n": "node test/ui/find-hardcoded-strings.mjs",
     "test:i18n-messages": "node test/ui/i18n.test.mjs",

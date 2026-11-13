@@ -13,7 +13,7 @@ const bundle = await build({
 const mf = new Miniflare({
   modules: true, script: bundle.outputFiles[0].text,
   compatibilityDate: '2025-01-01', compatibilityFlags: ['nodejs_compat'],
-  d1Databases: ['DB'], bindings: { ADMIN_TOKEN: 'avatar-fixture-secret' },
+  analyticsEngineDatasets: { UPTIME: { dataset: 'setup_fixture' } }, d1Databases: ['DB'], bindings: { ADMIN_TOKEN: 'avatar-fixture-secret' },
 });
 const origin = 'http://avatar-fixture.test';
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAGElEQVR4nGNgYGD4z8Dwn4GBAQAAAAD//wMAAP8A//8AAoAAAf+amj8cAAAAAElFTkSuQmCC', 'base64');

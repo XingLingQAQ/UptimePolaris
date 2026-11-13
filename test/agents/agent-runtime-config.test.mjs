@@ -7,7 +7,7 @@ import { Miniflare } from 'miniflare';
 import { workerBundlePlugins } from '../helpers/bundle-worker.mjs';
 
 const bundle = await build({ entryPoints: ['backends/worker/src/index.ts'], bundle: true, write: false, format: 'esm', target: 'es2022', plugins: workerBundlePlugins(), logLevel: 'error' });
-const mf = new Miniflare({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2025-01-01', compatibilityFlags: ['nodejs_compat'], d1Databases: ['DB'], bindings: { ADMIN_TOKEN: 'config-fixture-admin' } });
+const mf = new Miniflare({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2025-01-01', compatibilityFlags: ['nodejs_compat'], analyticsEngineDatasets: { UPTIME: { dataset: 'setup_fixture' } }, d1Databases: ['DB'], bindings: { ADMIN_TOKEN: 'config-fixture-admin' } });
 const request = (path, method = 'GET', body, auth = true) => mf.dispatchFetch('http://config.test' + path, { method, headers: { ...(auth ? { authorization: 'Bearer config-fixture-admin' } : {}), 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 const checked = async (response, status = 200) => { assert.equal(response.status, status, await response.clone().text()); return response.json(); };
 const initial = { sample_interval_secs: 5, report_interval_secs: 60, include_nics: [], exclude_nics: ['lo'], include_mounts: [], exclude_mounts: ['/proc'], auto_update: false };

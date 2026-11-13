@@ -61,7 +61,7 @@ Go 显式选过数据库后，数据目录里的 `database.json` 优先于 `POLA
 | `DB` | D1，可选 | 绑定后初始化可选择 D1；未绑定时按 PostgreSQL 处理 |
 | `ASSETS` | Workers Assets | 服务前端资源 |
 | `THEMES` | R2，可选 | 第三方主题版本与资源；内置界面不依赖它 |
-| `UPTIME` | Analytics Engine，可选 | 原始观测写入；SQL 回填另需查询凭据 |
+| `UPTIME` | Analytics Engine，Worker 初始化必需 | 原始观测写入；SQL 回填另需查询凭据 |
 
 手动部署的 CF CLI 读 `backends/worker/cloudflare.config.ts`，数据库 npm 脚本默认读 `backends/worker/wrangler.toml`。Fork 部署和按钮部署用根目录的 `wrangler.jsonc`，其中不声明 `DB`、`THEMES`、`UPTIME`，这些绑定在 Worker 的 **Settings → Bindings** 中添加。直接运行 Wrangler 时，JSONC 优先于 TOML；操作手动部署的数据库时，显式加 `--config backends/worker/wrangler.toml`，并核对账号和数据库。资源名称可以自己起，绑定名不要改。详细步骤见[部署指南](deployment.md)。
 
@@ -78,7 +78,7 @@ Go 显式选过数据库后，数据目录里的 `database.json` 优先于 `POLA
 | `USAGE_PLAN` | `free`，可选 `paid` | 用量页比较的计划，不会替账号开通付费套餐 |
 | `AUTOMATIC_NOTIFICATIONS_DISABLED` | 未设置 | 精确等于字符串 `true` 时禁用自动通知，不停止采集 |
 
-AE SQL 回填需要 `UPTIME`、`CF_ACCOUNT_ID`、`CF_API_TOKEN` 同时可用。缺少时回填显示禁用，数据库里的实时状态、近期历史和可用率照常工作。
+Worker 初始化要求绑定 `UPTIME`。AE SQL 回填还需配置 `CF_ACCOUNT_ID` 和 `CF_API_TOKEN`；缺少查询凭据时仅禁用回填，原始观测写入和数据库中的实时状态、近期历史、可用率不受影响。
 
 `PBKDF2_ITERATIONS` 会增加认证时的 CPU 开销。默认成本有限；调整前要结合 Worker 的实际运行预算验证，不能只凭本地计时判断生产环境能否承受。已有密码记录各自保存自己的哈希成本，改这个变量不会立刻重算所有密码。
 
@@ -187,7 +187,7 @@ On Go, an explicit setup selection writes `database.json` in the data directory.
 | `DB` | D1, optional | Selecting D1 during setup requires it; without it the deployment is PostgreSQL |
 | `ASSETS` | Workers Assets | Frontend assets |
 | `THEMES` | R2, optional | Third-party theme versions and assets; not required for the built-in interface |
-| `UPTIME` | Analytics Engine, optional | Raw observations; SQL backfill also requires query credentials |
+| `UPTIME` | Analytics Engine, required for Worker setup | Raw observations; SQL backfill also requires query credentials |
 
 Manual deployment uses `backends/worker/cloudflare.config.ts`; database npm scripts default to `backends/worker/wrangler.toml`. Fork and button deployments use the root `wrangler.jsonc`, which declares no `DB`, `THEMES` or `UPTIME`; add those bindings under the Worker's **Settings → Bindings**. Direct Wrangler commands prefer JSONC when both formats exist. For a manual deployment, specify `--config backends/worker/wrangler.toml` for database operations and confirm the account and database first. Resource names can change; binding names must remain as shown. See [deployment](deployment.md#english).
 
@@ -204,7 +204,7 @@ Manual deployment uses `backends/worker/cloudflare.config.ts`; database npm scri
 | `USAGE_PLAN` | `free`; also `paid` | Plan used for usage comparisons; does not enable a paid plan |
 | `AUTOMATIC_NOTIFICATIONS_DISABLED` | Unset | Exactly `true` disables automatic notifications, not collection |
 
-SQL backfill requires `UPTIME`, `CF_ACCOUNT_ID` and `CF_API_TOKEN`. Without them, backfill is disabled while database-backed current status, recent history and availability continue. Increasing `PBKDF2_ITERATIONS` increases authentication CPU cost; existing password records retain their own cost. Evaluate the Worker budget before changing it.
+Worker setup requires the `UPTIME` binding. SQL backfill also needs `CF_ACCOUNT_ID` and `CF_API_TOKEN`. Without query credentials, only backfill is disabled; raw observation writes and database-backed status, recent history and availability continue. Increasing `PBKDF2_ITERATIONS` increases authentication CPU cost; existing password records retain their own cost. Evaluate the Worker budget before changing it.
 
 Use Worker secrets or a protected `--secrets-file` for deployment. Do not commit credentials or include them in screenshots.
 

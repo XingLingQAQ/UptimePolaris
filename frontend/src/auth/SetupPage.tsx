@@ -15,8 +15,6 @@ import {
   AlertCircle,
   ArrowRight,
   Check,
-  CircleCheck,
-  CircleDashed,
   KeyRound,
   Loader2,
   Lock,
@@ -30,7 +28,8 @@ import { useTranslations } from 'use-intl';
 import { AuthSplash, useAuth } from './AuthContext';
 import { AuthProductPanel } from './AuthProductPanel';
 import { PasswordInput } from './PasswordInput';
-import type { SetupDatabaseType, SetupRequirement, SetupRequirementKey } from '../../../shared/setup';
+import { DeploymentCheck } from './DeploymentCheck';
+import type { SetupDatabaseType } from '../../../shared/setup';
 
 /** Brand mark, cropped to its ink - the same helper the sign-in page uses. / 裁去留白的品牌标记，与登录页使用相同辅助函数。 */
 const BRAND_ICON = buildIconProxyUrl(undefined, { tight: true });
@@ -49,7 +48,7 @@ const MIN_PASSWORD = 8;
  */
 export function SetupPage() {
   const t = useTranslations('admin');
-  const { session, setup } = useAuth();
+  const { session, sessionError, setup, refresh } = useAuth();
   const navigate = useNavigate();
 
   const [credential, setCredential] = useState('');
@@ -84,6 +83,12 @@ export function SetupPage() {
     };
   }, [t]);
 
+  useEffect(() => {
+    const options = session?.setupDatabase;
+    if (stage !== 'account' || !options) return;
+    setDatabaseType((current) => current && options.types.includes(current) ? current : options.defaultType);
+  }, [session?.setupDatabase, stage]);
+
   if (!session) return <AuthSplash />;
 
   /*
@@ -107,17 +112,12 @@ export function SetupPage() {
   const canReusePostgres = selectedDatabase === 'postgres' && postgresConfigured;
   const postgresUrlRequired = selectedDatabase === 'postgres' && postgresUrlEditable && !postgresConfigured;
   const postgresConfigurationMissing = selectedDatabase === 'postgres' && !postgresUrlEditable && !postgresConfigured;
-  const canSubmit = !submitting && databaseAvailable && !postgresConfigurationMissing && (!postgresUrlRequired || databaseUrl.trim().length > 0) && credential.length > 0 && username.trim().length > 0 && password.length > 0 && confirmPassword.length > 0;
-  const passwordMismatch = confirmPasswordTouched && password !== confirmPassword;
-
-
-  /**
-   * Worker 先检查部署，必需项全部通过后才显示初始化表单；Go 后端不返回检查结果，直接进入表单。
-   * The Worker checks its deployment first and shows the form only after every required item passes; Go reports no check and goes straight to the form.
-   */
   const requirements = session.setupRequirements ?? null;
   const deploymentReady = requirements?.every((item) => !item.required || item.ok) ?? true;
-  const showCheck = requirements !== null && (stage === 'check' || !deploymentReady);
+  const showCheck = requirements !== null && (stage === 'check' || !deploymentReady || sessionError);
+
+  const canSubmit = !submitting && !sessionError && deploymentReady && databaseAvailable && !postgresConfigurationMissing && (!postgresUrlRequired || databaseUrl.trim().length > 0) && credential.length > 0 && username.trim().length > 0 && password.length > 0 && confirmPassword.length > 0;
+  const passwordMismatch = confirmPasswordTouched && password !== confirmPassword;
 
   /** No setup key on Go means setup cannot succeed; show the fix, not the form. / Go 未配置初始化密钥时无法初始化；显示修复方法。 */
   const credentialMissing = requirements === null && session.setupCredential === null && !session.authenticated;
@@ -171,6 +171,11 @@ export function SetupPage() {
       setError(readableError(err, t));
       setPhase('form');
       setSubmitting(false);
+      const code = err instanceof Error ? err.message : String(err);
+      if (requirements !== null && ['deployment_incomplete', 'credential_unconfigured', 'invalid_database_type'].includes(code)) {
+        setStage('check');
+        await refresh();
+      }
     } finally {
       submissionPending.current = false;
     }
@@ -218,7 +223,7 @@ export function SetupPage() {
               真正缺少的是在此页面之外设置密钥，而不是填写表单。
             */}
             {showCheck && requirements ? (
-              <DeploymentCheck requirements={requirements} ready={deploymentReady} onNext={() => setStage('account')} />
+              <DeploymentCheck requirements={requirements} ready={deploymentReady} onNext={() => { setError(null); setStage('account'); }} />
             ) : credentialMissing ? (
               <NoCredential />
             ) : (
@@ -400,75 +405,6 @@ function DatabaseUnavailable() {
         <RefreshCw size={13} className={retrying ? 'animate-spin' : undefined} />
         {t('setup.databaseRetry')}
       </button>
-    </div>
-  );
-}
-
-const REQUIREMENT_TEXT: Record<SetupRequirementKey, { label: string; hint: string }> = {
-  database: { label: 'setup.checkDatabase', hint: 'setup.checkDatabaseHint' },
-  adminToken: { label: 'setup.checkAdminToken', hint: 'setup.checkAdminTokenHint' },
-  themes: { label: 'setup.checkThemes', hint: 'setup.checkThemesHint' },
-  analytics: { label: 'setup.checkAnalytics', hint: 'setup.checkAnalyticsHint' },
-};
-
-/**
- * Worker 初始化的第一步：逐项列出绑定和密钥，未通过的项说明在 Cloudflare 控制台怎么配置。
- * Step one of Worker setup: list each binding and secret, and say how to configure any that fail in the Cloudflare dashboard.
- */
-function DeploymentCheck({ requirements, ready, onNext }: { requirements: SetupRequirement[]; ready: boolean; onNext: () => void }) {
-  const t = useTranslations('admin');
-  const { refresh } = useAuth();
-  const [checking, setChecking] = useState(false);
-
-  return (
-    <div className="flex flex-col gap-4">
-      <ul className="divide-y divide-[var(--polaris-line)] overflow-hidden rounded-xl border border-[var(--polaris-line)] bg-[var(--polaris-card)]">
-        {requirements.map((item) => {
-          const text = REQUIREMENT_TEXT[item.key];
-          const Icon = item.ok ? CircleCheck : item.required ? AlertCircle : CircleDashed;
-          const tone = item.ok ? 'text-success-600' : item.required ? 'text-danger-600' : 'text-[var(--polaris-ink-4)]';
-          return (
-            <li key={item.key} className="flex gap-3 px-3.5 py-3">
-              <Icon size={16} className={`mt-0.5 shrink-0 ${tone}`} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[13px] font-medium">{t(text.label)}</span>
-                  <span className={`shrink-0 text-[12px] ${tone}`}>
-                    {t(item.ok ? 'setup.checkOk' : item.required ? 'setup.checkMissing' : 'setup.checkOptional')}
-                  </span>
-                </div>
-                {item.ok ? null : <p className="mt-1 text-[12px] leading-relaxed text-[var(--polaris-ink-3)]">{t(text.hint)}</p>}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      {ready ? null : <p className="text-[12px] leading-relaxed text-[var(--polaris-ink-4)]">{t('setup.checkAfter')}</p>}
-
-      <div className="flex gap-2">
-        <Button
-          variant="bordered"
-          className="h-10 flex-1 text-[13.5px]"
-          isLoading={checking}
-          startContent={checking ? null : <RefreshCw size={15} />}
-          onPress={async () => {
-            setChecking(true);
-            try { await refresh(); } finally { setChecking(false); }
-          }}
-        >
-          {t('setup.checkRetry')}
-        </Button>
-        <Button
-          color="primary"
-          className="h-10 flex-1 text-[13.5px] font-medium"
-          isDisabled={!ready || checking}
-          endContent={<ArrowRight size={16} />}
-          onPress={onNext}
-        >
-          {t('setup.checkNext')}
-        </Button>
-      </div>
     </div>
   );
 }

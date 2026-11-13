@@ -32,13 +32,10 @@ migrations_dir = "../../database/schema/d1"
 binding = "THEMES"
 bucket_name = "uptime-themes"
 
-# 可选 AE：官方保留三个月；软件明细/SQL 回填窗口为近 90 天。
-# https://developers.cloudflare.com/analytics/analytics-engine/limits/
-# 缺绑定或查询凭据时 SQL 回填 disabled，本地可用率统计继续运行。
-# 不使用 AE 可移除此块；声明时需先在账号中开通。
-# Optional Analytics Engine: official retention is three months; software detail and SQL backfill cover 90 days.
-# Without the binding or query credentials, SQL backfill is disabled while local availability statistics continue.
-# Remove this block if AE is unused; enable it in the account before declaring it.
+# Worker 初始化必需；部署前先在账号中启用 Analytics Engine。
+# Required for Worker setup; enable Analytics Engine in the account before deployment.
+# SQL 回填另需 CF_ACCOUNT_ID 和 CF_API_TOKEN，初始化不要求查询凭据。
+# SQL backfill also needs CF_ACCOUNT_ID and CF_API_TOKEN; setup does not require query credentials.
 [[analytics_engine_datasets]]
 binding = "UPTIME"
 dataset = "uptime_heartbeats"
