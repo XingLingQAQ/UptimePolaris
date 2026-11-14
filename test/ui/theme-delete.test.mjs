@@ -4,11 +4,14 @@
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 
-globalThis.fixture = { state: [], index: 0, effects: [], themes: [], events: [], remove: null };
+globalThis.fixture = { state: [], index: 0, effects: [], themes: [], events: [], remove: null,
+  capabilities: { runtime: 'worker', themes: { storage: 'r2', installationAvailable: false } },
+  checkBinding: async () => {},
+};
 const mocks = {
   '../settings/presentation-api': `export const PRESENTATION_KEY = 'presentation'; export const usePresentation = () => ({ data: undefined, mutate: async () => {} }); export const updatePresentation = async () => {};`,
   swr: `export const mutate = async () => {};`,
-  '@/api/backend': `export const useBackendCapabilities = () => ({ data: { runtime: 'worker', themes: { storage: 'r2' } } });`,
+  '@/api/backend': `const mutate = async () => { await fixture.checkBinding(); return fixture.capabilities; }; export const useBackendCapabilities = () => ({ data: fixture.capabilities, mutate });`,
   '@/lib/useMotionList': `export const useMotionList = () => () => {};`,
   '@/components/ui/MotionOverlays': `export const Modal = 'modal';`,
   './PageThemes': `export const PageThemes = 'page-themes';`,
@@ -59,7 +62,7 @@ const bundle = await build({
 });
 const { ThemesPage } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 const flatten = node => Array.isArray(node) ? node.flatMap(flatten)
-  : !node || typeof node !== 'object' ? [] : [node, ...flatten(node.props?.children)];
+  : !node || typeof node !== 'object' ? [] : [node, ...flatten(node.props?.children), ...flatten(node.props?.actions)];
 function render() {
   fixture.index = 0;
   return flatten(ThemesPage());
@@ -122,6 +125,7 @@ fixture.state = [];
 fixture.index = 0;
 fixture.themes = [{ id: 'active-theme', short: 'active', name: 'Active theme', isActive: true, supported: true, hasEntry: true, versions: [] }];
 fixture.storageReady = true;
+fixture.capabilities.themes.installationAvailable = true;
 render();
 for (const effect of fixture.effects.splice(0)) effect();
 await settle();
@@ -129,4 +133,52 @@ tree = render();
 findButton(tree, 'delete').props.onPress();
 tree = render();
 assert.ok(flatten(modal(tree)).some(node => node.props?.children === 'deletePageReferences'), 'deletion explains page reference removal');
-console.log('PASS theme removal: unavailable records, confirmation, cancellation, duplicate submission, busy state, failure recovery and page reference warning');
+fixture.state = [];
+fixture.effects = [];
+fixture.themes = [];
+fixture.storageReady = false;
+fixture.capabilities.themes.installationAvailable = false;
+render();
+for (const effect of fixture.effects.splice(0)) effect();
+await settle();
+tree = render();
+assert.ok(tree.some(node => node.type === 'panel-header' && node.props.title === 'storageUnavailableTitle'));
+assert.ok(tree.some(node => node.props?.role === 'status' && node.props.children === 'storageUnavailable'));
+assert.ok(!tree.some(node => node.type === 'panel-header' && node.props.title === 'installTitle'));
+assert.ok(!tree.some(node => node.type === 'panel-header' && node.props.title === 'installedTitle'));
+let finishCheck;
+let checks = 0;
+fixture.checkBinding = () => {
+  checks++;
+  fixture.capabilities.themes.installationAvailable = true;
+  fixture.storageReady = true;
+  return new Promise(resolve => { finishCheck = resolve; });
+};
+findButton(tree, 'checkStorage').props.onPress();
+assert.equal(findButton(render(), 'checkStorage').props.isLoading, true);
+finishCheck();
+await settle();
+tree = render();
+assert.equal(checks, 1, 'rechecking fetches the current backend binding capabilities');
+assert.ok(!tree.some(node => node.props?.role === 'status' && node.props.children === 'storageUnavailable'));
+assert.ok(tree.some(node => node.type === 'panel-header' && node.props.title === 'installTitle'));
+assert.equal(tree.find(node => node.type === 'input' && node.props.type === 'url').props.isDisabled, false);
+fixture.checkBinding = async () => {
+  fixture.capabilities.themes.installationAvailable = false;
+  fixture.storageReady = false;
+};
+findButton(tree, 'refresh').props.onPress();
+await settle();
+tree = render();
+assert.ok(tree.some(node => node.props?.role === 'status' && node.props.children === 'storageUnavailable'), 'removing R2 disables theme installation again');
+assert.ok(!tree.some(node => node.type === 'panel-header' && node.props.title === 'installTitle'));
+fixture.state = [];
+fixture.effects = [];
+fixture.capabilities = { runtime: 'go', themes: { storage: 'filesystem', installationAvailable: false } };
+render();
+for (const effect of fixture.effects.splice(0)) effect();
+await settle();
+tree = render();
+assert.ok(tree.some(node => node.props?.role === 'status' && node.props.children === 'storageUnavailableFilesystem'));
+assert.ok(!tree.some(node => node.type === 'panel-header' && node.props.title === 'storageUnavailableTitle'), 'Go storage errors do not show R2 binding instructions');
+console.log('PASS theme removal: unavailable records, confirmation, cancellation, duplicate submission, busy state, failure recovery page reference warning and Worker R2 binding recovery');

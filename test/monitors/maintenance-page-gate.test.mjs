@@ -21,17 +21,25 @@ const bundle = await build({
     builder.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export default function() {}' }));
   } }],
 });
-const mf = new Miniflare({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2025-01-01', compatibilityFlags: ['nodejs_compat'], d1Databases: { DB: 'maintenance-gate' } });
+const mf = new Miniflare({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2025-01-01', compatibilityFlags: ['nodejs_compat'], d1Databases: { DB: 'maintenance-gate' }, kvNamespaces: { CONFIG: 'maintenance-gate-config' } });
 const db = await mf.getD1Database('DB');
-await db.exec('CREATE TABLE app_settings(key TEXT PRIMARY KEY, value_json TEXT, updated_at INTEGER); CREATE TABLE presentation_state(id TEXT PRIMARY KEY,config_json TEXT,revision TEXT,updated_at INTEGER);');
+const kv = await mf.getKVNamespace('CONFIG');
+await db.exec('CREATE TABLE presentation_state(id TEXT PRIMARY KEY,config_json TEXT,revision TEXT,updated_at INTEGER);');
+let settings = {};
+const putSettings = async (patch) => {
+  for (const [key, value] of Object.entries(patch)) value === undefined ? delete settings[key] : settings[key] = value;
+  await kv.put('settings', JSON.stringify(settings));
+};
 const start = new Date(Date.now() - 5 * 60_000);
 const end = new Date(Date.now() + 5 * 60_000);
 const time = (date) => date.toISOString().slice(11, 16);
 const window = { kind: 'weekly', day: start.getUTCDay(), start: time(start), end: time(end) };
-await db.prepare('INSERT INTO app_settings VALUES(?,?,?)').bind('maintenance.scheduleEnabled', 'true', 0).run();
-await db.prepare('INSERT INTO app_settings VALUES(?,?,?)').bind('alerts.maintenanceWindows', JSON.stringify([window]), 0).run();
-await db.prepare('INSERT INTO app_settings VALUES(?,?,?)').bind('maintenance.title', JSON.stringify('Upgrade <test>'), 0).run();
-await db.prepare('INSERT INTO app_settings VALUES(?,?,?)').bind('maintenance.description', JSON.stringify('Back soon'), 0).run();
+await putSettings({
+  'maintenance.scheduleEnabled': true,
+  'alerts.maintenanceWindows': [window],
+  'maintenance.title': 'Upgrade <test>',
+  'maintenance.description': 'Back soon',
+});
 const req = (path, init) => mf.dispatchFetch('http://localhost' + path, { redirect: 'manual', ...init });
 try {
   let response = await req('/');
@@ -48,10 +56,10 @@ try {
   assert.match(await (await req('/?preview=monitor')).text(), /Upgrade &lt;test&gt;/);
   assert.equal(await (await req('/?preview=monitor', { headers: { authorization: 'Bearer preview-token' } })).text(), 'builtin');
   assert.equal((await (await req('/state')).json()).active, true);
-  await db.exec("DELETE FROM app_settings WHERE key='alerts.maintenanceWindows'");
+  await putSettings({ 'alerts.maintenanceWindows': undefined });
   assert.equal((await (await req('/state')).json()).active, false);
   assert.equal(await (await req('/')).text(), 'builtin');
-  await db.prepare('INSERT INTO app_settings VALUES(?,?,?)').bind('maintenance.enabled', 'true', 0).run();
+  await putSettings({ 'maintenance.enabled': true });
   let state = await (await req('/state')).json();
   assert.equal(state.source, 'manual');
   assert.equal(state.active, true);
@@ -62,18 +70,18 @@ try {
   assert.equal((await req('/server/1')).headers.get('location'), '/');
   assert.equal(await (await req('/admin/settings')).text(), 'builtin');
   assert.equal(await (await req('/setup')).text(), 'builtin');
-  await db.exec("UPDATE app_settings SET value_json='false' WHERE key='maintenance.enabled'");
+  await putSettings({ 'maintenance.enabled': false });
   state = await (await req('/state')).json();
   assert.equal(state.active, false);
   assert.equal(state.source, null);
   assert.equal((await (await req('/suppressed')).json()).suppressed, false);
   assert.equal(await (await req('/')).text(), 'builtin');
   assert.match(await (await req('/polaris-maintenance.js')).text(), /api\/public\/maintenance/);
-  await db.prepare('INSERT INTO app_settings VALUES(?,?,?)').bind('alerts.maintenanceWindows', JSON.stringify([window]), 0).run();
-  await db.exec("UPDATE app_settings SET value_json='false' WHERE key='maintenance.scheduleEnabled'");
+  await putSettings({ 'alerts.maintenanceWindows': [window] });
+  await putSettings({ 'maintenance.scheduleEnabled': false });
   assert.equal((await (await req('/state')).json()).active, false);
   assert.equal((await (await req('/suppressed')).json()).suppressed, false);
-  assert.ok(await db.prepare("SELECT key FROM app_settings WHERE key='alerts.maintenanceWindows'").first());
+  assert.ok(JSON.parse(await kv.get('settings'))['alerts.maintenanceWindows']);
   assert.match(await (await req('/')).text(), /builtin/);
   console.log('maintenance page gates, schedule toggle and fresh state passed');
 } finally {

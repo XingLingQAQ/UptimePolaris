@@ -60,7 +60,7 @@ try {
   assert.deepEqual(session.body.setupDatabase, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: false, postgresUrlEditable: false });
   assert.deepEqual(session.body.setupRequirements, [
     { key: 'database', required: false, ok: false },
-    { key: 'config', required: false, ok: false },
+    { key: 'config', required: true, ok: false },
     { key: 'adminToken', required: true, ok: false },
     { key: 'themes', required: false, ok: false },
     { key: 'analytics', required: true, ok: false },
@@ -99,7 +99,7 @@ const tokenOnly = worker({ ADMIN_TOKEN: 'setup-secret' });
 try {
   const session = await request(tokenOnly, '/api/auth/session');
   assert.equal(session.body.setupCredential, 'ADMIN_TOKEN');
-  assert.deepEqual(session.body.setupRequirements.filter(item => item.required).map(item => [item.key, item.ok]), [['adminToken', true], ['analytics', false]]);
+  assert.deepEqual(session.body.setupRequirements.filter(item => item.required).map(item => [item.key, item.ok]), [['config', false], ['adminToken', true], ['analytics', false]]);
   // 管理令牌也不能在部署检查通过前打开业务接口。 / The admin token cannot open business APIs before the check passes.
   const bearer = await request(tokenOnly, '/api/monitors', { headers: { authorization: 'Bearer setup-secret' } });
   assert.equal(bearer.response.status, 503);
@@ -110,12 +110,16 @@ const databaseLater = worker({ ADMIN_TOKEN: 'setup-secret' }, { analyticsEngineD
 try {
   const session = await request(databaseLater, '/api/auth/session');
   assert.equal(session.response.status, 200);
-  assert.ok(session.body.setupRequirements.every(item => !item.required || item.ok), 'database configuration must not block the deployment check');
+  assert.deepEqual(
+    session.body.setupRequirements.filter(item => item.required && !item.ok).map(item => item.key),
+    ['config'],
+    'the missing KV binding is the only required blocker; the database is selected later',
+  );
   assert.deepEqual(session.body.setupRequirements.find(item => item.key === 'database'), { key: 'database', required: false, ok: false });
   assert.deepEqual(session.body.setupDatabase, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: false, postgresUrlEditable: false });
   const blocked = await request(databaseLater, '/api/monitors');
   assert.equal(blocked.response.status, 503);
-  assert.equal(blocked.body.error, 'setup_required');
+  assert.equal(blocked.body.error, 'deployment_incomplete');
 
   const submit = (database) => request(databaseLater, '/api/auth/setup', {
     method: 'POST', headers: { 'content-type': 'application/json' },

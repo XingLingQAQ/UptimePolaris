@@ -155,7 +155,7 @@ async function harness() {
     script: built.outputFiles[0].text,
     compatibilityDate: '2025-01-01',
     bindings: { ADMIN_TOKEN },
-    d1Databases: { DB: 'monitor-check-test' },
+    d1Databases: { DB: 'monitor-check-test' }, kvNamespaces: { CONFIG: 'monitor-check-config' },
     // Analytics Engine has no local emulation; the binding only needs to accept
     // writeDataPoint(), and the manual-check path calls it best-effort.
     // Analytics Engine 无本地模拟；绑定只需接受 writeDataPoint()，手动检查路径尽力调用它。

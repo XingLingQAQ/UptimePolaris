@@ -4,6 +4,7 @@
   "compatibility_date": "2025-01-01",
   "compatibility_flags": ["nodejs_compat"],
   "keep_vars": true,
+  "analytics": { "binding": "ANALYTICS_SQL" },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
@@ -16,7 +17,7 @@
     "not_found_handling": "single-page-application",
     "html_handling": "auto-trailing-slash"
   },
-  "triggers": { "crons": ["* * * * *", "10 0 * * *"] },
+  "triggers": { "crons": ["* * * * *"] },
   "observability": { "enabled": true },
   "vars": { "PBKDF2_ITERATIONS": "3000" }
 }

@@ -5,6 +5,9 @@ compatibility_date = "2025-01-01"
 # The Postgres driver requires nodejs_compat; connections live only within request or task scopes.
 compatibility_flags = ["nodejs_compat"]
 
+[analytics]
+binding = "ANALYTICS_SQL"
+
 # npm run build 输出 public/；公开页 /，管理页 /admin。
 # npm run build writes public/; the public page is / and the console is /admin.
 [assets]
@@ -55,7 +58,7 @@ dataset = "uptime_heartbeats"
 # 每分钟检查；UTC 00:10 回填/清理，最多三天桶、两天重叠、持久游标补漏。
 # Check every minute; backfill and cleanup at 00:10 UTC, with at most three day buckets,
 # a two-day overlap, and a persistent cursor to fill gaps.
-crons = ["* * * * *", "10 0 * * *"]
+crons = ["* * * * *"]
 
 [observability]
 enabled = true

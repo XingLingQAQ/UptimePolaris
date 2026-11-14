@@ -42,7 +42,7 @@ function harness(file, start, name, env, end) {
 
 const requirementList = analytics => [
   { key: 'database', required: false, ok: false },
-  { key: 'config', required: false, ok: false },
+  { key: 'config', required: true, ok: true },
   { key: 'adminToken', required: true, ok: true },
   { key: 'themes', required: false, ok: false },
   { key: 'analytics', required: true, ok: analytics },

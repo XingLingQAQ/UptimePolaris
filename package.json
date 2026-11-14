@@ -76,7 +76,7 @@
     "test:agent-report-recovery": "node test/agents/agent-report-recovery.test.mjs",
     "test:agent-transport-recovery": "node test/agents/agent-transport-recovery.test.mjs",
     "test:agent-native": "node test/agents/agent-native.test.mjs",
-    "test:theme": "npm run test:theme-contract && node test/themes/theme-schema2.test.mjs && node test/ui/theme-delete.test.mjs",
+    "test:theme": "npm run test:theme-contract && node test/themes/theme-schema2.test.mjs && node test/ui/theme-delete.test.mjs && node test/ui/theme-drop.test.mjs",
     "test:theme-cache": "node test/themes/public-theme-cache.test.mjs",
     "test:theme-contract": "node test/themes/theme-contract.test.mjs",
     "test:theme-preview-browser": "node test/themes/theme-preview-browser.test.mjs",

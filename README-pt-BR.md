@@ -99,7 +99,7 @@ Escolha o Worker se preferir não manter um servidor. Escolha o Go quando precis
 2. No painel da Cloudflare, abra **Workers & Pages → Create application → GitHub** e selecione seu fork. Use `npm run build` como comando de build e `npm run deploy` como comando de implantação.
 3. Abra o site quando a implantação terminar. A página de configuração verifica primeiro os bindings e os secrets. Configure o seguinte nas **Settings** do Worker, conforme a página indica:
    - **D1 (opcional)**: para usar D1, adicione um banco em **Bindings** com o nome de variável `DB`. Sem D1, a configuração inicial oferece apenas PostgreSQL.
-   - **KV (obrigatório para informar PostgreSQL na página)**: adicione um namespace KV em **Bindings** com o nome de variável `CONFIG` para criptografar as URLs de conexão. Opcional ao usar apenas D1 ou um `DATABASE_URL` definido na implantação.
+   - **KV (obrigatório)**: adicione um namespace KV em **Bindings** com o nome de variável `CONFIG`. Ele guarda a seleção de banco e a URL de conexão criptografada.
    - **Chave de configuração**: adicione um secret `ADMIN_TOKEN` em **Variables and Secrets**, com um valor aleatório longo, como a saída de `openssl rand -hex 32`.
    - **Analytics Engine (obrigatório)**: ative o Analytics Engine no painel e adicione o conjunto de dados em **Bindings** com o nome de variável `UPTIME`.
    - **R2 (opcional)**: necessário para temas de terceiros. Adicione um bucket em **Bindings** com o nome de variável `THEMES`, ou adicione depois da configuração.

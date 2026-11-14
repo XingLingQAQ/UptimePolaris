@@ -20,7 +20,7 @@ await writeFile(join(profile, '.owner'), owner);
 const bundle = await build({ entryPoints: ['backends/worker/src/index.ts'], bundle: true, write: false, format: 'esm', target: 'es2022', plugins: workerBundlePlugins(), logLevel: 'error' });
 const mf = new Miniflare({
   modules: true, script: bundle.outputFiles[0].text, host: '127.0.0.1', port: 0,
-  compatibilityDate: '2025-01-01', compatibilityFlags: ['nodejs_compat'], d1Databases: ['DB'],
+  compatibilityDate: '2025-01-01', compatibilityFlags: ['nodejs_compat'], d1Databases: ['DB'], kvNamespaces: { CONFIG: 'agent-controls-config' },
   bindings: { ADMIN_TOKEN: 'agent-browser-admin' },
   serviceBindings: { ASSETS: { node: spaAssetService(resolve('public')) } },
 });

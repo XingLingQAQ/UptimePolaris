@@ -346,14 +346,15 @@ export interface Env {
   DB: D1Database;
   CONFIG?: KVNamespace;
   AUTOMATIC_NOTIFICATIONS_DISABLED?: string;
-  /** Required for Worker setup; query credentials are only needed for SQL backfill. / Worker 初始化必需；查询凭据仅用于 SQL 回填。 */
+  /** Worker 初始化需要启用 Analytics Engine。 / Worker setup requires Analytics Engine. */
   UPTIME?: AnalyticsEngineDataset;
   /** Built SPA assets; omitted by runtime harnesses that serve no asset directory. / 构建后的 SPA 资源；不提供资源目录的运行时测试可省略。 */
   ASSETS?: Fetcher;
   /** Installed theme assets in R2; optional when serving only the built-in UI. / R2 中已安装的主题资源；仅提供内置界面时可选。 */
   THEMES?: R2Bucket;
-  CF_ACCOUNT_ID: string;
-  CF_API_TOKEN: string;
+  ANALYTICS_SQL?: AnalyticsSQLBinding;
+  CF_ACCOUNT_ID?: string;
+  CF_API_TOKEN?: string;
   /**
    * 部署数据库类型；请求作用域中的值可能来自已保存的初始化选择。
    * Deployment database type; request-scoped values may come from the saved setup selection.

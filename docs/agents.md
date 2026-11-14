@@ -151,14 +151,14 @@ polaris-agent run --config /path/to/config.json
 | `endpoint` | 站点 origin 或 Agent 端点，必需 | `--endpoint` / `POLARIS_AGENT_ENDPOINT` |
 | `token` | 每台机器的凭据，必需 | `--token` / `POLARIS_AGENT_TOKEN` |
 | `sample_interval` | 默认 5 秒 | `--sample-interval` / `POLARIS_AGENT_SAMPLE_INTERVAL` |
-| `report_interval` | 默认 60 秒 | `--report-interval` / `POLARIS_AGENT_REPORT_INTERVAL` |
+| `report_interval` | 默认 60 秒；连接后按后端自动调整（见下） | `--report-interval` / `POLARIS_AGENT_REPORT_INTERVAL` |
 | `include_nics` / `exclude_nics` | 网卡过滤列表 | 对应连字符参数 / `POLARIS_AGENT_INCLUDE_NICS`、`POLARIS_AGENT_EXCLUDE_NICS` |
 | `include_mounts` / `exclude_mounts` | 挂载点过滤列表 | 对应连字符参数 / `POLARIS_AGENT_INCLUDE_MOUNTS`、`POLARIS_AGENT_EXCLUDE_MOUNTS` |
 | `auto_update` | 默认关闭，需要具备自动重启能力的托管安装 | `--auto-update=true` / `POLARIS_AGENT_AUTO_UPDATE` |
 | `insecure` | 默认 false，跳过上报和控制连接的证书校验；不影响独立目标探测客户端，只用于受控排查 | `--insecure=true` / `POLARIS_AGENT_INSECURE` |
 | `log_file` | 可选日志文件路径 | `--log-file` |
 
-采样和上报间隔必须满足 `1 <= sample_interval <= report_interval <= 1800`，单位秒。JSON 里的过滤值用数组，CLI 和环境变量用逗号分隔。不要填旧格式字段；未知字段会被拒绝。
+采样和上报间隔必须满足 `1 <= sample_interval <= report_interval <= 1800`，单位秒。Agent 连接站点后会读取 `/api/capabilities` 判断后端类型：Worker 后端默认每 60 秒上报一次，Go 后端按采样间隔逐个上报，接近实时。显式配置了 `report_interval` 时以配置为准；探测失败时保持 60 秒并继续运行。JSON 里的过滤值用数组，CLI 和环境变量用逗号分隔。不要填旧格式字段；未知字段会被拒绝。
 
 `POLARIS_AGENT_CONFIG` 或 `--config` 用于指定文件路径。安装过程还会管理 `service_tier`、`runtime_revision` 等元数据，这些字段要保留，不要靠手改服务等级绕过能力检查。
 
@@ -262,7 +262,7 @@ The installer normally registers `pa` and `polaris-agent`. `polaris-agent comman
 
 ### Configuration and remote commands
 
-Configuration precedence is CLI flags, then `POLARIS_AGENT_*` environment variables, then JSON. `endpoint` and the per-machine `token` are required. Local interval fields are `sample_interval` and `report_interval`, in seconds; `1 <= sample_interval <= report_interval <= 1800`. Filters use `include_nics`, `exclude_nics`, `include_mounts` and `exclude_mounts`. `auto_update` defaults to false. `insecure` disables certificate verification for reporting and control connections, not the separate probe-target client, and is intended only for controlled diagnosis. Keep the installer-managed `service_tier` and `runtime_revision` metadata.
+Configuration precedence is CLI flags, then `POLARIS_AGENT_*` environment variables, then JSON. `endpoint` and the per-machine `token` are required. Local interval fields are `sample_interval` and `report_interval`, in seconds; `1 <= sample_interval <= report_interval <= 1800`. After connecting, the Agent reads `/api/capabilities`: the Worker backend defaults to one report every 60 seconds; the Go backend reports once per sample for near real-time updates. An explicit `report_interval` wins, and a failed discovery keeps 60 seconds and does not stop the Agent. Filters use `include_nics`, `exclude_nics`, `include_mounts` and `exclude_mounts`. `auto_update` defaults to false. `insecure` disables certificate verification for reporting and control connections, not the separate probe-target client, and is intended only for controlled diagnosis. Keep the installer-managed `service_tier` and `runtime_revision` metadata.
 
 `security.allowAgentCommands` is off by default. Remote configuration has seven fields: `sample_interval_secs`, `report_interval_secs`, the four filter lists and `auto_update`. Submit the complete configuration with the current `expected_revision`; each filter has at most 32 entries of at most 256 characters without control characters. Reload and merge after `agent_config_conflict`. A saved desired revision is not proof of application: wait for a matching Agent report. Explicit CLI or environment overrides take precedence and can cause the Agent to reject the entire remote version.
 

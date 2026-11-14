@@ -118,7 +118,6 @@ CREATE TABLE presentation_state (id TEXT PRIMARY KEY,config_json TEXT NOT NULL,r
 CREATE TABLE theme_operations (id TEXT PRIMARY KEY,token TEXT NOT NULL,expires_at INTEGER NOT NULL);
 CREATE TABLE monitors (id TEXT PRIMARY KEY, name TEXT NOT NULL);
 CREATE TABLE live_state (id TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at INTEGER NOT NULL);
-CREATE TABLE app_settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at INTEGER NOT NULL);
 INSERT INTO monitors (id, name) VALUES ('00000000-0000-4000-8000-000000000001', 'Fixture monitor');
 `);
 const origin = 'http://localhost';

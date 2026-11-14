@@ -17,6 +17,3 @@ UPDATE presentation_state SET published_json=jsonb_build_object(
   ))::text,revision='settings-v2-'||updated_at;
 ALTER TABLE presentation_state DROP COLUMN draft_json;
 ALTER TABLE presentation_state RENAME COLUMN published_json TO config_json;
-INSERT INTO app_settings(key,value_json,updated_at)
-  SELECT 'maintenance.scheduleEnabled','true',updated_at FROM app_settings WHERE key='alerts.maintenanceWindows' AND jsonb_array_length(value_json::jsonb)>0
-  ON CONFLICT(key) DO NOTHING;

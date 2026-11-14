@@ -8,8 +8,8 @@ import { postgresIsEmpty } from './lib/db/setup-postgres';
 import { DatabaseConfigurationError, databaseType, pendingDatabase, requireReadyDatabase } from './lib/db/setup-control';
 import { internalErrorResponse } from './lib/http/errors';
 import { pageErrorResponse } from './lib/http/page-errors';
-import { runSync } from './lib/jobs/daily-sync';
-import { CRON_SYNC, CRON_TICK } from './lib/jobs/schedules';
+import { maybeRunDailySync } from './lib/jobs/daily-sync';
+import { CRON_TICK } from './lib/jobs/schedules';
 import { runTick } from './lib/jobs/tick';
 import { handlePageRequest } from './lib/theme/page-handler';
 import type { Env } from './types';
@@ -124,7 +124,22 @@ export default {
         if (ticking) return;
         ticking = true;
         ctx.waitUntil(
-          withDBScope(env, async (scopedEnv) => { if (!databaseConfigured(scopedEnv)) return; await requireReadyDatabase(scopedEnv); return runTick(scopedEnv, Math.floor(Date.now() / 1000)); })
+          withDBScope(env, async (scopedEnv) => {
+            if (!databaseConfigured(scopedEnv)) return;
+            await requireReadyDatabase(scopedEnv);
+            const now = Math.floor(Date.now() / 1000);
+            const result = await runTick(scopedEnv, now);
+            /** The tick lease serializes minutes, so the daily sync runs at most once. / tick 租约保证每分钟只有一个实例，每日同步不会重复。 */
+            if (result.status === 'completed') {
+              try {
+                const synced = await maybeRunDailySync(scopedEnv, now);
+                if (synced) console.log(JSON.stringify({ event: 'sync_ok', ...synced }));
+              } catch {
+                console.error(JSON.stringify({ event: 'sync_failed' }));
+              }
+            }
+            return result;
+          })
             .catch(() => console.error(JSON.stringify({ event: 'tick_failed' })))
             .finally(() => {
               ticking = false;
@@ -132,14 +147,6 @@ export default {
         );
         break;
       }
-
-      case CRON_SYNC:
-        ctx.waitUntil(
-          withDBScope(env, async (scopedEnv) => { if (!databaseConfigured(scopedEnv)) return; await requireReadyDatabase(scopedEnv); return runSync(scopedEnv); })
-            .then((r) => console.log(JSON.stringify({ event: 'sync_ok', ...r })))
-            .catch(() => console.error(JSON.stringify({ event: 'sync_failed' }))),
-        );
-        break;
 
       default:
         console.warn(JSON.stringify({ event: 'unknown_cron', cron: controller.cron }));

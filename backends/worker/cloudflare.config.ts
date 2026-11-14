@@ -32,14 +32,12 @@ export default defineConfig({
 			triggers.scheduled({
 				schedule: "* * * * *",
 			}),
-			triggers.scheduled({
-				schedule: "10 0 * * *",
-			}),
 		],
 		env: {
 			// CONFIG: bindings.kv({ id: "<KV namespace ID>" }),
 			PBKDF2_ITERATIONS: bindings.text("3000"),
 			DATABASE_TYPE: bindings.text("d1"),
+			ANALYTICS_SQL: bindings.analytics(),
 			/**
 			 * Analytics Engine, which must be enabled once in the dashboard
 			 * before any deploy that includes this binding - Cloudflare rejects

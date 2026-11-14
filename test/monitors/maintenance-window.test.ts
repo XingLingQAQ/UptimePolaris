@@ -3,7 +3,6 @@
 import assert from 'node:assert/strict';
 import { windowContains, activeWindow } from '../../backends/worker/src/lib/settings/maintenance';
 import { parseWindow, SPECS, SETTING_KEYS, type MaintenanceWindow } from '../../backends/worker/src/lib/settings/store';
-import { settingsSQL } from '../../backends/worker/src/lib/db/sql/settings';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -211,34 +210,6 @@ check('the tabular default for events is not zero', () => {
   // an unconfigured deployment.
   // 默认值为零会使未配置的部署在首次同步时清理掉所有事件。
   assert.ok(Number(SPECS['retention.eventDays'].default) >= 1);
-});
-
-/* 检查两种方言的占位符；无参数的 load 查询不要求占位符。
- * Check placeholders in both dialects; load queries without arguments need no placeholders. */
-const PARAMLESS = new Set(['load']);
-
-check('every backend defines the same settings statements', () => {
-  const keys = Object.keys(settingsSQL.d1).sort();
-  assert.deepEqual(Object.keys(settingsSQL.postgres).sort(), keys);
-});
-
-check('placeholders match each backend dialect', () => {
-  for (const [key, sql] of Object.entries(settingsSQL.d1)) {
-    assert.ok(!/\$\d/.test(sql), `d1.${key} must not use $n: ${sql}`);
-    if (!PARAMLESS.has(key)) assert.ok(sql.includes('?'), `d1.${key} should be positional: ${sql}`);
-  }
-  for (const [key, sql] of Object.entries(settingsSQL.postgres)) {
-    assert.ok(!sql.includes('?'), `postgres.${key} must not use ?: ${sql}`);
-    if (!PARAMLESS.has(key)) assert.ok(/\$\d/.test(sql), `postgres.${key} should use $n: ${sql}`);
-  }
-});
-
-check('both upserts actually update on conflict', () => {
-  // A settings write that silently inserted nothing would present in the console
-  // as a caching problem, which is a much longer hunt than a failing assertion.
-  // 若设置写入静默地没有插入任何内容，控制台会表现得像缓存问题，排查远比断言失败耗时。
-  assert.match(settingsSQL.d1.upsert, /ON CONFLICT\s*\(key\)\s*DO UPDATE/i);
-  assert.match(settingsSQL.postgres.upsert, /ON CONFLICT\s*\(key\)\s*DO UPDATE/i);
 });
 
 console.log(`\n${passed} settings and maintenance checks passed`);

@@ -12,12 +12,20 @@ const bundled = await build({
   stdin: {
     contents: `
       import { api } from './backends/worker/src/api';
+      import { resetSettingsCache, writeSettings } from './backends/worker/src/lib/settings/store.ts';
       const timeout = AbortSignal.timeout;
       const timeouts = [];
       AbortSignal.timeout = (ms) => { timeouts.push(ms); return timeout(ms); };
       globalThis.fetch = async () => new Response('healthy');
-      export default { fetch(request, env, ctx) {
-        if (new URL(request.url).pathname === '/__timeouts') return Response.json(timeouts);
+      export default { async fetch(request, env, ctx) {
+        const path = new URL(request.url).pathname;
+        if (path === '/__timeouts') return Response.json(timeouts);
+        /** 模拟 KV 写入失败：设置写入必须整体失败，不得留下部分值。 / Simulate a KV write failure; the settings write must fail without partial values. */
+        if (path === '/__fail-settings-write') {
+          const broken = { ...env, CONFIG: { get: async () => ({}), put: async () => { throw new Error('kv unavailable'); }, delete: async () => {} } };
+          try { await writeSettings(broken, { 'site.title': 'changed' }); return Response.json({ ok: true }); }
+          catch { resetSettingsCache(); return Response.json({ ok: false }, { status: 503 }); }
+        }
         return api.fetch(request, env, ctx);
       }};
     `,
@@ -41,6 +49,7 @@ const bundled = await build({
 const mf = new Miniflare({
   modules: true, script: bundled.outputFiles[0].text, compatibilityDate: '2025-01-01',
   bindings: { ADMIN_TOKEN: 'management-fixture' }, d1Databases: { DB: 'management-regression' },
+  kvNamespaces: { CONFIG: 'management-regression-config' },
 });
 
 try {
@@ -96,11 +105,10 @@ try {
   assert.deepEqual((await request('/api/public/status')).body.monitors, []);
 
   await request('/api/admin/settings', 'PUT', { 'site.title': 'original' });
-  await db.exec("CREATE TRIGGER reject_description BEFORE INSERT ON app_settings WHEN NEW.key='site.description' BEGIN SELECT RAISE(ABORT, 'fixture write failure'); END");
-  const failed = await request('/api/admin/settings', 'PUT', { 'site.title': 'changed', 'site.description': 'blocked' });
+  const failed = await request('/__fail-settings-write');
   assert.equal(failed.status, 503);
-  assert.equal(JSON.parse((await db.prepare("SELECT value_json FROM app_settings WHERE key='site.title'").first()).value_json), 'original');
-  await db.exec('DROP TRIGGER reject_description');
+  const kv = await mf.getKVNamespace('CONFIG');
+  assert.equal((await kv.get('settings', 'json'))['site.title'], 'original');
 
   const preview = await request('/api/monitors/check', 'POST', { name: 'preview', type: 'http', target: 'https://fixture.test', timeout_ms: 60000 });
   assert.equal(preview.status, 200);

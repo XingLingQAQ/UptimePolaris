@@ -14,18 +14,17 @@ const worker = await build({
   stdin: {
     contents: `
       import { storeAgentDaily, loadAgentDaily, pruneAgentDaily } from './backends/worker/src/lib/agent/history.ts';
-      import { runSync } from './backends/worker/src/lib/jobs/daily-sync.ts';
+      import { maybeRunDailySync, runSync } from './backends/worker/src/lib/jobs/daily-sync.ts';
       import { resetSettingsCache } from './backends/worker/src/lib/settings/store.ts';
       Date.now = () => ${fixtureNow};
       let failed = false;
       const queried = [];
-      globalThis.fetch = async (_input, init) => {
-        const sql = String(init?.body);
-        const day = sql.match(/toDateTime\\('(\\d{4}-\\d{2}-\\d{2}) 00:00:00'/)?.[1];
+      const analytics = { async query({ params }) {
+        const day = new Date(params.start * 1000).toISOString().slice(0, 10);
         queried.push(day);
         if (day === ${JSON.stringify(failedDay)} && !failed) {
           failed = true;
-          return Response.json({ success: false, errors: ['fixture failure'] });
+          throw new Error('fixture failure');
         }
         const data = day === ${JSON.stringify(failedDay)}
           ? [
@@ -33,8 +32,8 @@ const worker = await build({
               { idx: 'paused-race-fixture', total: 200, up: 0, warn: 0, avg: 123 },
             ]
           : [];
-        return Response.json({ success: true, data });
-      };
+        return { data, rows: data.length };
+      } };
       export default { async fetch(request, env) {
         const path = new URL(request.url).pathname;
         if (path === '/archive') {
@@ -42,14 +41,18 @@ const worker = await build({
           await storeAgentDaily(env, day, new Map([[id, point]]), retention);
           return Response.json(await loadAgentDaily(env, id));
         }
+        if (path === '/maybe-sync') {
+          const { now } = await request.json();
+          return Response.json({ result: await maybeRunDailySync({ ...env, ANALYTICS_SQL: analytics }, now) });
+        }
         if (path === '/prune-archive') {
           await pruneAgentDaily(env, 400);
           return Response.json({ ok: true });
         }
         resetSettingsCache();
         const scoped = new URL(request.url).pathname === '/disabled'
-          ? { ...env, CF_API_TOKEN: '' }
-          : env;
+          ? { ...env, ANALYTICS_SQL: undefined }
+          : { ...env, ANALYTICS_SQL: analytics };
         const start = queried.length;
         const result = await runSync(scoped);
         return Response.json({ ...result, queried: queried.slice(start) });
@@ -82,8 +85,8 @@ const mf = new Miniflare({
   script: worker.outputFiles[0].text,
   compatibilityDate: '2025-01-01',
   d1Databases: { DB: 'sync-recovery-fixture' },
+  kvNamespaces: { CONFIG: 'sync-recovery-config' },
   analyticsEngineDatasets: { UPTIME: { dataset: 'uptime_heartbeats' } },
-  bindings: { CF_ACCOUNT_ID: 'fixture-account', CF_API_TOKEN: 'fixture-token' },
 });
 
 let db;
@@ -161,6 +164,23 @@ try {
   const bounded = await (await request('/sync')).json();
   assert.equal(bounded.days, 3);
   assert.equal(bounded.queried[0], new Date(Date.parse(`${latest}T00:00:00Z`) - 89 * 86_400_000).toISOString().slice(0, 10));
+
+  // 每日同步由分钟 tick 在 00:10 后触发：每天一次，失败后按重试时间退避。
+  // The daily sync is triggered by the minute tick after 00:10: once per day, with retry backoff.
+  const syncAt = (stamp) => mf.dispatchFetch('http://localhost/maybe-sync', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ now: stamp }),
+  }).then((response) => response.json());
+  const early = Math.floor(Date.UTC(2026, 0, 2, 0, 5) / 1000);
+  assert.equal((await syncAt(early)).result, null);
+  assert.equal(await db.prepare("SELECT 1 AS n FROM live_state WHERE id='sync-meta'").first(), null);
+  const due = Math.floor(Date.UTC(2026, 0, 2, 0, 10) / 1000);
+  const firstRun = await syncAt(due);
+  assert.equal(typeof firstRun.result?.status, 'string');
+  assert.equal(JSON.parse((await db.prepare("SELECT json FROM live_state WHERE id='sync-meta'").first()).json).day, '2026-01-02');
+  assert.equal((await syncAt(due + 60)).result, null, 'a second run on the same UTC day is skipped');
+  await db.prepare("UPDATE live_state SET json=? WHERE id='sync-meta'").bind(JSON.stringify({ retryAt: due + 600 })).run();
+  assert.equal((await syncAt(due + 300)).result, null, 'a failed run waits for its retry time');
+  assert.equal(typeof (await syncAt(due + 600)).result?.status, 'string');
 
   const monitorId = 'sync-retention-fixture';
   await db.prepare('INSERT INTO monitors (id,name,type,target,created_at,updated_at) VALUES (?,?,?,?,?,?)')
@@ -246,7 +266,13 @@ try {
   );
   // 保留配置不可读或清理表故障时必须失败，不能静默采用默认值。
   // Fail when retention configuration or cleanup tables are unavailable.
-  for (const table of ['app_settings', 'agent_commands', 'machine_history', 'events']) {
+  const kv = await mf.getKVNamespace('CONFIG');
+  await kv.put('settings', 'not-json');
+  const unavailableSettings = await mf.dispatchFetch('http://localhost/disabled');
+  assert.equal(unavailableSettings.status, 500, 'settings');
+  await unavailableSettings.text();
+  await kv.delete('settings');
+  for (const table of ['agent_commands', 'machine_history', 'events']) {
     await db.prepare(`ALTER TABLE ${table} RENAME TO fixture_unavailable`).run();
     const unavailable = await mf.dispatchFetch('http://localhost/disabled');
     assert.equal(unavailable.status, 500, table);

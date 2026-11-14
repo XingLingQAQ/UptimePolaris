@@ -36,7 +36,7 @@ npm --prefix frontend ci
 2. 在 Cloudflare 控制台进入 **Workers & Pages → Create application → GitHub**，选择 fork 后的仓库。构建命令填写 `npm run build`，部署命令填写 `npm run deploy`。
 3. 部署完成后打开站点。初始化页面的第一步是部署检查，未通过的项会写明配置方法：
    - **D1（可选）**：需要使用 D1 时，在 Worker 的 **Settings → Bindings** 中添加 D1 数据库，变量名填写 `DB`。未绑定不影响进入下一步。
-   - **KV（页面配置 PostgreSQL 时必需）**：在 **Settings → Bindings** 中添加 KV 命名空间，变量名填写 `CONFIG`。仅使用 D1 或部署连接时可不绑定。
+   - **KV（必需）**：在 **Settings → Bindings** 中添加 KV 命名空间，变量名填写 `CONFIG`，用于保存数据库选择和加密的 PostgreSQL 连接。
    - **`ADMIN_TOKEN`（必需）**：在 **Settings → Variables and Secrets** 中添加 Secret，值使用足够长的随机字符串。
    - **`THEMES`（可选）**：安装第三方主题时，在 **Settings → Bindings** 中添加 R2 存储桶。
    - **`UPTIME`（必需）**：先在控制台启用 Analytics Engine，再添加数据集绑定。
@@ -44,7 +44,7 @@ npm --prefix frontend ci
    在 Cloudflare 保存并部署配置后，回到初始化页面点击“重新检查”。必需项未通过时，“下一步”不可用；R2 可在初始化后添加。
 4. 必需项全部通过后点击“下一步”，配置并验证数据库，再设置管理员账号。要求见[完成初始化](#完成初始化)。
 
-数据库在第二步配置。未绑定 D1 时默认 PostgreSQL，绑定 `CONFIG` 后可直接在页面填写连接地址并点击“验证并继续”；绑定 D1 后也可选择 D1。验证成功后进入第三步设置管理员账号，无需预先在控制台添加 `DATABASE_URL`。
+数据库在第二步配置。未绑定 D1 时默认 PostgreSQL，可直接在页面填写连接地址并点击“验证并继续”；绑定 D1 后也可选择 D1。验证成功后进入第三步设置管理员账号，无需预先在控制台添加 `DATABASE_URL`。
 
 根目录的 `wrangler.jsonc` 不声明 D1、KV、R2 和 Analytics Engine 绑定，这些资源由用户手动绑定。`wrangler deploy` 会用配置文件覆盖 Worker 的绑定，因此 `npm run deploy` 在 Workers Builds 中会先通过 Cloudflare API 读取 Worker 现有的 `DB`、`CONFIG`、`THEMES`、`UPTIME` 绑定，带上它们再部署；读取失败时部署会停止，不会删除已有绑定。这一步使用 Workers Builds 提供的 `CLOUDFLARE_API_TOKEN`。如果构建环境中没有 `CLOUDFLARE_ACCOUNT_ID`，且该令牌能访问多个账号，请在构建变量中设置 `CLOUDFLARE_ACCOUNT_ID`。
 
@@ -90,12 +90,12 @@ npx cf r2 buckets create --name uptime-polaris-themes
 | 资源 | 绑定名 | 用途 |
 | --- | --- | --- |
 | D1（可选） | `DB` | 使用 D1 时的业务数据库 |
-| KV（页面配置 PostgreSQL 时必需） | `CONFIG` | 数据库选择和加密连接地址 |
+| KV（必需） | `CONFIG` | 数据库选择、加密连接地址和后台设置 |
 | 静态资产 | `ASSETS` | 前端资源 |
 | R2（可选） | `THEMES` | 第三方主题 ZIP 解包后的版本资产 |
 | Analytics Engine（必需） | `UPTIME` | 原始观测与 SQL 回填 |
 
-只使用 PostgreSQL 时，可从两份手动配置中移除 `DB`，在初始化第二步填写连接地址。在两份配置中绑定已创建的 KV 命名空间，变量名使用 `CONFIG`。CF CLI 对应 `CONFIG: bindings.kv({ id: "<KV namespace ID>" })`，Wrangler 对应 `kv_namespaces` 的 `binding = "CONFIG"` 和实际 `id`。不用第三方主题，可从两份配置里删掉 `THEMES`。`UPTIME` 是 Worker 初始化的必需绑定，请保留。声明 Analytics Engine 之前，先在账号里启用该服务。AE 查询凭据用于历史图表和每日归档；不参与初始化必需项检查。
+只使用 PostgreSQL 时，可从两份手动配置中移除 `DB`，在初始化第二步填写连接地址。在两份配置中绑定已创建的 KV 命名空间，变量名使用 `CONFIG`。CF CLI 对应 `CONFIG: bindings.kv({ id: "<KV namespace ID>" })`，Wrangler 对应 `kv_namespaces` 的 `binding = "CONFIG"` 和实际 `id`。不用第三方主题，可从两份配置里删掉 `THEMES`。`UPTIME` 是 Worker 初始化的必需绑定，请保留。声明 Analytics Engine 之前，先在账号里启用该服务。保留配置中的 `ANALYTICS_SQL`，历史图表和每日归档通过该绑定读取数据，无需查询凭据。
 
 ## 配置部署
 
@@ -126,7 +126,7 @@ npx cf r2 buckets create --name uptime-polaris-themes
 
 用密码管理器或随机生成器生成实际密钥。这个密钥既用于首次初始化，也用于调用管理 API。不要把它换成 Agent Token 或登录密码。
 
-读取延迟趋势、Agent 资源历史和每日归档时，另外配置 `CF_ACCOUNT_ID` 和有账号 Analytics Read 权限的 Secret `CF_API_TOKEN`。缺少查询凭据时，实时状态和检查状态条仍可使用，历史区会显示配置提示。PostgreSQL 连接可在初始化第二步填写，无需预先添加 `DATABASE_URL`。变量完整说明见[配置参考](configuration.md)。
+部署配置已包含 `ANALYTICS_SQL` 绑定，延迟趋势、Agent 资源历史和每日归档无需额外配置账号 ID 或 API Token。PostgreSQL 连接可在初始化第二步填写，无需预先添加 `DATABASE_URL`。变量完整说明见[配置参考](configuration.md)。
 
 ## Agent 下载
 
@@ -277,13 +277,13 @@ Agent installation requires access to GitHub downloads. See [Agent downloads](#a
 
 Authenticate the CF CLI with `npx cf auth login`. For a new installation using D1, create a database with `npx cf d1 create --name uptime-polaris`; if using third-party themes, create an R2 bucket with `npx cf r2 buckets create --name uptime-polaris-themes`. Existing resources need not be recreated. Enable Analytics Engine in the account before declaring the required `UPTIME` binding.
 
-Keep `backends/worker/cloudflare.config.ts` (CF CLI deployment) and `backends/worker/wrangler.toml` (database tools) aligned on the intended resources, variables and schedules. Keep bindings `DB`, `ASSETS`, `THEMES`, `UPTIME` and `CONFIG` unchanged where used. For PostgreSQL-only deployment, remove `DB` from both manual configurations and enter the connection URL in setup step two. Bind an existing KV namespace as `CONFIG` in both manual configurations: `CONFIG: bindings.kv({ id: "<KV namespace ID>" })` for CF CLI, or a `kv_namespaces` entry with `binding = "CONFIG"` and the real namespace ID for Wrangler. `ASSETS` serves `public/`; R2 stores third-party theme files, while Analytics Engine provides raw observations and SQL backfill. R2 is optional; built-in themes work without it. The `UPTIME` binding is required for Worker setup. Analytics Engine query credentials enable history charts and daily archives; they are not part of the required setup checks.
+Keep `backends/worker/cloudflare.config.ts` (CF CLI deployment) and `backends/worker/wrangler.toml` (database tools) aligned on the intended resources, variables and schedules. Keep bindings `DB`, `ASSETS`, `THEMES`, `UPTIME`, `ANALYTICS_SQL` and `CONFIG` unchanged where used. For PostgreSQL-only deployment, remove `DB` from both manual configurations and enter the connection URL in setup step two. Bind an existing KV namespace as `CONFIG` in both manual configurations: `CONFIG: bindings.kv({ id: "<KV namespace ID>" })` for CF CLI, or a `kv_namespaces` entry with `binding = "CONFIG"` and the real namespace ID for Wrangler. `ASSETS` serves `public/`; R2 stores third-party theme files, while Analytics Engine provides raw observations and SQL backfill. R2 is optional; built-in themes work without it. The `UPTIME` binding is required for Worker setup. Keep the included `ANALYTICS_SQL` binding for history charts and daily archives; no query credentials are needed.
 
 The root `wrangler.jsonc` is used by fork and button deployments and is independent of the manual configuration. Direct Wrangler commands prefer it when both formats exist. For the manual environment, explicitly use `--config backends/worker/wrangler.toml` with direct database commands and check the account, database name and ID. Keep SPA fallback and the `runWorkerFirst` / `run_worker_first` route array. Cloudflare serves built-in JS, CSS, fonts and images directly, without invoking the Worker. APIs, installers, server-handled pages, `/theme/*` and `/polaris-maintenance.js` still use the Worker.
 
 Unknown pages show the frontend 404 page, or redirect to `/setup` before initialization. Server errors on page requests use static error HTML with the original HTTP status; API errors remain JSON.
 
-Create an ignored `.secrets/production.json` containing a long random `ADMIN_TOKEN`; add `CF_ACCOUNT_ID` and a `CF_API_TOKEN` Secret with account Analytics Read permission for history charts and daily archives. Enter the PostgreSQL URL in setup step two; a deployment `DATABASE_URL` is not required. See [configuration](configuration.md#english). Then deploy:
+Create an ignored `.secrets/production.json` containing a long random `ADMIN_TOKEN`. History charts and daily archives use the included `ANALYTICS_SQL` binding without a separate account ID or API Token. Enter the PostgreSQL URL in setup step two; a deployment `DATABASE_URL` is not required. See [configuration](configuration.md#english). Then deploy:
 
 ```sh
 npm run deploy -- --secrets-file .secrets/production.json

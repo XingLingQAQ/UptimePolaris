@@ -23,9 +23,9 @@ POLARIS_DATA_DIR=./data
 
 ## 初始化时选择数据库
 
-Worker 的 `/setup` 页面分为三步：部署检查、数据库配置、管理员账号。第一步检查必需的 `ADMIN_TOKEN` 和 `UPTIME`，D1、KV、R2 为可选项；第二步选择数据库、填写连接地址并验证，成功后才能设置账号。Go 后端仍使用同一张初始化表单。
+Worker 的 `/setup` 页面分为三步：部署检查、数据库配置、管理员账号。第一步检查必需的 `ADMIN_TOKEN`、`UPTIME` 和 `CONFIG` KV，D1、R2 为可选项；第二步选择数据库、填写连接地址并验证，成功后才能设置账号。Go 后端仍使用同一张初始化表单。
 
-未绑定 D1 的 Worker 只提供 PostgreSQL；绑定 D1 后可选 D1 或 PostgreSQL。绑定 `CONFIG` KV 命名空间后，PostgreSQL 连接可直接在第二步填写，不需要预先配置 `DATABASE_URL`。已有连接可以留空复用，页面不会回显原地址。连接格式示例：
+未绑定 D1 的 Worker 只提供 PostgreSQL；绑定 D1 后可选 D1 或 PostgreSQL。PostgreSQL 连接可直接在第二步填写，不需要预先配置 `DATABASE_URL`；页面保存的选择和加密连接地址存放在 `CONFIG` KV 命名空间。已有连接可以留空复用，页面不会回显原地址。连接格式示例：
 
 ```text
 postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full
@@ -56,11 +56,12 @@ Go 显式选过数据库后，数据目录里的 `database.json` 优先于 `POLA
 
 | 绑定 | 类型 | 说明 |
 | --- | --- | --- |
-| `CONFIG` | KV，页面配置 PostgreSQL 时必需 | 保存数据库选择和加密连接地址；仅使用 D1 或部署连接时可不绑定 |
+| `CONFIG` | KV，必需 | 保存数据库选择和加密连接地址，也存放后台设置 |
 | `DB` | D1，可选 | 绑定后初始化可选择 D1；未绑定时按 PostgreSQL 处理 |
 | `ASSETS` | Workers Assets | 服务前端资源 |
 | `THEMES` | R2，可选 | 第三方主题版本与资源；内置界面不依赖它 |
-| `UPTIME` | Analytics Engine，Worker 初始化必需 | 监控和 Agent 历史写入；读取历史与日汇总另需查询凭据 |
+| `UPTIME` | Analytics Engine，Worker 初始化必需 | 写入监控和 Agent 历史 |
+| `ANALYTICS_SQL` | Analytics SQL，随部署配置提供 | 读取 AE 历史和每日归档，无需另设账号 ID 或 API Token |
 
 手动部署的 CF CLI 读 `backends/worker/cloudflare.config.ts`，数据库 npm 脚本默认读 `backends/worker/wrangler.toml`。Fork 部署和按钮部署用根目录的 `wrangler.jsonc`，其中不声明 `DB`、`CONFIG`、`THEMES`、`UPTIME`，这些绑定在 Worker 的 **Settings → Bindings** 中添加。直接运行 Wrangler 时，JSONC 优先于 TOML；操作手动部署的数据库时，显式加 `--config backends/worker/wrangler.toml`，并核对账号和数据库。资源名称可以自己起，绑定名不要改。详细步骤见[部署指南](deployment.md)。
 
@@ -71,15 +72,15 @@ Go 显式选过数据库后，数据目录里的 `database.json` 优先于 `POLA
 | `ADMIN_TOKEN` | 无默认值 | Secret；首次初始化凭据，也是管理 API 的 Bearer Token |
 | `DATABASE_TYPE` | 有 D1 时为 `d1`，否则为 `postgres`；也可显式设为 `postgres` | 普通变量；部署数据库类型，可省略，KV 保存的选择优先 |
 | `DATABASE_URL` | 无默认值 | Secret；PostgreSQL 连接 URL，形如 `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`；也可在初始化页面填写，已保存的连接优先 |
-| `CF_ACCOUNT_ID` | 无默认值 | AE 历史查询与日汇总使用的账号 ID |
-| `CF_API_TOKEN` | 无默认值 | Secret；AE SQL 查询所需的账号 Analytics Read 凭据 |
+| `CF_ACCOUNT_ID` | 可选 | 自动获取 Worker 绑定域名时使用的账号 ID |
+| `CF_API_TOKEN` | 可选 | Secret；自动获取 Worker 绑定域名时使用的 API Token |
 | `PBKDF2_ITERATIONS` | `3000`；允许 1–100000 | 密码哈希成本，作为字符串变量配置 |
 | `USAGE_PLAN` | `free`，可选 `paid` | 用量页比较的计划，不会替账号开通付费套餐 |
 | `AUTOMATIC_NOTIFICATIONS_DISABLED` | 未设置 | 精确等于字符串 `true` 时禁用自动通知，不停止采集 |
 
-Worker 初始化要求绑定 `UPTIME`。延迟趋势、Agent 资源历史和每日归档还需配置普通变量 `CF_ACCOUNT_ID`，以及具有账号 **Analytics Read** 权限的 Secret `CF_API_TOKEN`。这两个值在 Worker 的 **Settings → Variables and Secrets** 中配置，保存并部署后生效。构建时使用的 `CLOUDFLARE_API_TOKEN` 不能替代运行时的 `CF_API_TOKEN`。
+Worker 初始化要求绑定 `UPTIME`。延迟趋势、Agent 资源历史和每日归档通过 `ANALYTICS_SQL` 读取 AE；三份部署配置均已声明该绑定，部署后即可使用，无需添加查询凭据。直接使用 Wrangler 部署时，版本需为 4.145.0 或更高。
 
-缺少查询凭据时，实时状态、近期检查状态条和精确可用率继续工作；历史图表显示未配置提示，每日 AE 归档暂停。补齐配置后可重新读取 AE 中仍保留的数据。
+缺少 `ANALYTICS_SQL` 绑定时，实时状态、近期检查状态条和精确可用率继续工作；历史图表显示缺少绑定的提示，每日 AE 归档暂停。更新部署配置并重新部署后，可继续读取 AE 中仍保留的数据。
 
 `PBKDF2_ITERATIONS` 会增加认证时的 CPU 开销。默认成本有限；调整前要结合 Worker 的实际运行预算验证，不能只凭本地计时判断生产环境能否承受。已有密码记录各自保存自己的哈希成本，改这个变量不会立刻重算所有密码。
 
@@ -87,7 +88,7 @@ Worker 初始化要求绑定 `UPTIME`。延迟趋势、Agent 资源历史和每�
 
 ## 后台设置
 
-登录控制台设置页修改。没保存的键用默认值；删掉某个键的覆盖值，就恢复默认。服务端统一拒绝未知键和非法值。
+登录控制台设置页修改。没保存的键用默认值；删掉某个键的覆盖值，就恢复默认。服务端统一拒绝未知键和非法值。覆盖值保存在 `CONFIG` KV 命名空间的 `settings` 键中，读取按 isolate 缓存 15 秒。
 
 | 键 | 默认值 | 合法范围或含义 |
 | --- | --- | --- |
@@ -167,11 +168,11 @@ Protect `.env` and startup logs containing the generated key. A saved `database.
 
 ### Database selection during setup
 
-Worker setup has three steps: deployment check, database configuration, and administrator account. The check requires `ADMIN_TOKEN` and `UPTIME`; D1, KV and R2 remain optional. Configure and verify the database in the second step before creating an account in the last step. Go keeps its single setup form.
+Worker setup has three steps: deployment check, database configuration, and administrator account. The check requires `ADMIN_TOKEN`, `UPTIME` and the `CONFIG` KV namespace; D1 and R2 remain optional. Configure and verify the database in the second step before creating an account in the last step. Go keeps its single setup form.
 
-Without D1, Worker offers PostgreSQL only. With D1 bound, either database is available. Bind a KV namespace as `CONFIG` to enter a PostgreSQL URL in step two; a deployment `DATABASE_URL` is not required. Leave the field blank to reuse a saved connection, which is never shown. For example: `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`. Percent-encode special characters in the password. Only `sslmode=verify-full` or `sslmode=require` is supported in the query string. Verification initializes an empty database but does not create an account.
+Without D1, Worker offers PostgreSQL only. With D1 bound, either database is available. A PostgreSQL URL can be entered in step two without a deployment `DATABASE_URL`; the saved selection and encrypted URL live in the `CONFIG` KV namespace. Leave the field blank to reuse a saved connection, which is never shown. For example: `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`. Percent-encode special characters in the password. Only `sslmode=verify-full` or `sslmode=require` is supported in the query string. Verification initializes an empty database but does not create an account.
 
-Worker stores the database selection and page-entered PostgreSQL URL in the `CONFIG` KV namespace. The URL is encrypted with a key derived from `ADMIN_TOKEN`. This applies with or without D1; binding D1 later does not replace the saved selection. KV is optional when using only D1 or a deployment `DATABASE_URL`. Accounts, sessions, monitoring data and setup state remain in the selected database.
+Worker stores the database selection and page-entered PostgreSQL URL in the `CONFIG` KV namespace. The URL is encrypted with a key derived from `ADMIN_TOKEN`. This applies with or without D1; binding D1 later does not replace the saved selection. The `CONFIG` KV namespace is required and also stores console settings. Accounts, sessions, monitoring data and setup state remain in the selected database.
 
 KV changes can take about a minute or longer to propagate. The page keeps your input and waits until it can read the saved configuration before opening the account step. Wait, then click “Verify and continue” again.
 
@@ -183,11 +184,12 @@ On Go, an explicit setup selection writes `database.json` in the data directory.
 
 | Binding | Resource | Purpose |
 | --- | --- | --- |
-| `CONFIG` | KV, required for page-entered PostgreSQL | Database selection and encrypted connection URL; optional with only D1 or a deployment URL |
+| `CONFIG` | KV, required | Database selection, encrypted connection URL, and console settings |
 | `DB` | D1, optional | Selecting D1 during setup requires it; without it the deployment is PostgreSQL |
 | `ASSETS` | Workers Assets | Frontend assets |
 | `THEMES` | R2, optional | Third-party theme versions and assets; not required for the built-in interface |
-| `UPTIME` | Analytics Engine, required for Worker setup | Monitor and Agent history writes; history reads and daily aggregation also require query credentials |
+| `UPTIME` | Analytics Engine, required for Worker setup | Writes monitor and Agent history |
+| `ANALYTICS_SQL` | Analytics SQL, included in deployment configuration | Reads AE history and daily archives without a separate account ID or API Token |
 
 Manual deployment uses `backends/worker/cloudflare.config.ts`; database npm scripts default to `backends/worker/wrangler.toml`. Fork and button deployments use the root `wrangler.jsonc`, which declares no `DB`, `CONFIG`, `THEMES` or `UPTIME`; add those bindings under the Worker's **Settings → Bindings**. Direct Wrangler commands prefer JSONC when both formats exist. For a manual deployment, specify `--config backends/worker/wrangler.toml` for database operations and confirm the account and database first. Resource names can change; binding names must remain as shown. See [deployment](deployment.md#english).
 
@@ -198,21 +200,21 @@ Manual deployment uses `backends/worker/cloudflare.config.ts`; database npm scri
 | `ADMIN_TOKEN` | No default | Secret for initial setup and management API Bearer authentication |
 | `DATABASE_TYPE` | `d1` with D1 bound, otherwise `postgres`; may also be set to `postgres` | Deployed database type; may be omitted, and the selection saved in KV takes precedence |
 | `DATABASE_URL` | No default | Secret PostgreSQL URL such as `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`; it can also be entered during setup, and the saved selection takes precedence |
-| `CF_ACCOUNT_ID` | No default | Account ID for AE history queries and daily aggregation |
-| `CF_API_TOKEN` | No default | Secret with account Analytics Read access for SQL backfill |
+| `CF_ACCOUNT_ID` | Optional | Account ID for fetching domains bound to the Worker |
+| `CF_API_TOKEN` | Optional | Secret API Token for fetching domains bound to the Worker |
 | `PBKDF2_ITERATIONS` | `3000`; 1–100000 | Password hash cost, configured as a string |
 | `USAGE_PLAN` | `free`; also `paid` | Plan used for usage comparisons; does not enable a paid plan |
 | `AUTOMATIC_NOTIFICATIONS_DISABLED` | Unset | Exactly `true` disables automatic notifications, not collection |
 
-Worker setup requires the `UPTIME` binding. Latency charts, Agent resource history and daily archives also need the `CF_ACCOUNT_ID` variable and a `CF_API_TOKEN` Secret with account **Analytics Read** permission. Set them under the Worker's **Settings → Variables and Secrets**, then save and deploy. The build-time `CLOUDFLARE_API_TOKEN` does not replace the runtime `CF_API_TOKEN`.
+Worker setup requires the `UPTIME` binding. Latency charts, Agent resource history and daily archives read AE through `ANALYTICS_SQL`. All three deployment configurations include this binding; no query credentials are needed. Direct Wrangler deployments require version 4.145.0 or later.
 
-Without query credentials, live status, recent check status bars and exact availability continue. History charts show a configuration notice, and AE daily archiving pauses. After configuration, retained AE data can be queried again. Increasing `PBKDF2_ITERATIONS` increases authentication CPU cost; existing password records retain their own cost. Evaluate the Worker budget before changing it.
+If `ANALYTICS_SQL` is missing, live status, recent check status bars and exact availability continue. History charts show a missing-binding notice, and AE daily archiving pauses. Update the deployment configuration and redeploy to query retained AE data again. Increasing `PBKDF2_ITERATIONS` increases authentication CPU cost; existing password records retain their own cost. Evaluate the Worker budget before changing it.
 
 Use Worker secrets or a protected `--secrets-file` for deployment. Do not commit credentials or include them in screenshots.
 
 ### Console settings
 
-Change settings in the console. An unset key uses its default; deleting an override restores that default. The server rejects unknown keys and invalid values.
+Change settings in the console. An unset key uses its default; deleting an override restores that default. The server rejects unknown keys and invalid values. Overrides live under the `settings` key in the `CONFIG` KV namespace and are cached per isolate for 15 seconds.
 
 | Key | Default | Limit or meaning |
 | --- | --- | --- |

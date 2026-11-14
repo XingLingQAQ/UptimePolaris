@@ -10,7 +10,7 @@ Worker 运行在 Cloudflare，支持 D1 或 PostgreSQL。内置状态页和管�
 
 绑定 `DB` 时可选 D1；未绑定时只提供 PostgreSQL。页面填写的 PostgreSQL 连接加密保存在 `CONFIG` KV 命名空间，使用前请先绑定。账号、会话和业务数据保存在所选数据库中。
 
-在 Worker 的环境变量中设置 `CF_ACCOUNT_ID`，并添加有账号 Analytics Read 权限的 Secret `CF_API_TOKEN`，以启用历史图表和每日归档。未配置时仍显示实时状态、近期检查状态条和精确可用率。
+历史图表和每日归档使用部署配置自带的 `ANALYTICS_SQL` 绑定，无需添加账号 ID 或 API Token。直接使用 Wrangler 部署时，版本需为 4.145.0 或更高。
 
 - [配置参考](../../docs/configuration.md)
 - [运维指南](../../docs/operations.md)
@@ -24,7 +24,7 @@ Deploy with the Cloudflare button in the [deployment guide](../../docs/deploymen
 
 D1 is available when bound as `DB`; otherwise setup offers PostgreSQL only. Bind a KV namespace as `CONFIG` to store page-entered PostgreSQL connections encrypted. Accounts, sessions and business data remain in the selected database.
 
-Set `CF_ACCOUNT_ID` and a `CF_API_TOKEN` Secret with account Analytics Read permission to enable history charts and daily archives. Without them, live status, recent check status bars and exact availability remain available.
+History charts and daily archives use the `ANALYTICS_SQL` binding included in the deployment configuration. No account ID or API Token is needed. Direct Wrangler deployments require version 4.145.0 or later.
 
 - [Configuration](../../docs/configuration.md#english)
 - [Operations](../../docs/operations.md#operations-guide)

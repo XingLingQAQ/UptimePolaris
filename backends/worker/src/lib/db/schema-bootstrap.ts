@@ -249,12 +249,6 @@ export const BOOTSTRAP_FILES: readonly BootstrapFile[] = [
     ],
   },
   {
-    name: "0028_app_settings.sql",
-    statements: [
-      "CREATE TABLE IF NOT EXISTS app_settings (\n  key        TEXT PRIMARY KEY,\n  value_json TEXT NOT NULL,\n  updated_at INTEGER NOT NULL\n)",
-    ],
-  },
-  {
     name: "0029_agent_commands.sql",
     statements: [
       "CREATE TABLE IF NOT EXISTS agent_commands (\r\n  id             TEXT PRIMARY KEY,\r\n  agent_id       TEXT NOT NULL,\r\n  action         TEXT NOT NULL CHECK (action IN ('upgrade', 'restart', 're_report')),\r\n  queued_at      INTEGER NOT NULL,\r\n  state          TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'leased', 'completed', 'expired')),\r\n  lease_token    TEXT,\r\n  lease_until    INTEGER,\r\n  attempts       INTEGER NOT NULL DEFAULT 0,\r\n  ok             INTEGER,\r\n  message        TEXT,\r\n  completed_at   INTEGER,\r\n  issued_by      TEXT\r\n)",
@@ -402,13 +396,11 @@ export const BOOTSTRAP_FILES: readonly BootstrapFile[] = [
       "UPDATE presentation_state SET published_json=json_object(\n  'agentEnabled',json(CASE WHEN json_extract(published_json,'$.agentEnabled')=1 THEN 'true' ELSE 'false' END),\n  'workerService',json_extract(published_json,'$.workerService'),\n  'domains',json_extract(published_json,'$.domains'),\n  'pages',json_object(\n    'monitor',json_object('theme',json_extract(published_json,'$.pages.monitor.theme'),'themeOptions',json_extract(published_json,'$.pages.monitor.themeOptions')),\n    'agent',json_object('theme',json_extract(published_json,'$.pages.agent.theme'),'themeOptions',json_extract(published_json,'$.pages.agent.themeOptions'))\n  )),revision='settings-v2-'||updated_at",
       "ALTER TABLE presentation_state DROP COLUMN draft_json",
       "ALTER TABLE presentation_state RENAME COLUMN published_json TO config_json",
-      "INSERT INTO app_settings(key,value_json,updated_at)\n  SELECT 'maintenance.scheduleEnabled','true',updated_at FROM app_settings WHERE key='alerts.maintenanceWindows' AND json_array_length(value_json)>0\n  ON CONFLICT(key) DO NOTHING",
     ],
   },
   {
     name: "0043_presentation_refinements.sql",
     statements: [
-      "UPDATE app_settings SET value_json=(\n  SELECT json_group_array(json_object('kind','weekly','day',json_extract(value,'$.day'),'start',json_extract(value,'$.start'),'end',json_extract(value,'$.end')))\n  FROM json_each(app_settings.value_json)\n) WHERE key='alerts.maintenanceWindows'",
       "UPDATE presentation_state SET config_json=json_set(config_json,'$.domains',json((\n  SELECT json_group_array(json_object('hostname',json_extract(value,'$.hostname'),'page',json_extract(value,'$.page')))\n  FROM json_each(presentation_state.config_json,'$.domains')\n))),revision='refinements-'||revision",
     ],
   },

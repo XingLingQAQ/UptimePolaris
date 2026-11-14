@@ -359,20 +359,15 @@ console.log('\nbuildReading - the DNS add-on folds into worstStatus as WARN');
 console.log('\nqueryDaily - availability includes pending, warnings stay separate');
 
 {
-  const originalFetch = globalThis.fetch;
   let sql = '';
-  globalThis.fetch = async (_url, init) => {
-    sql = init.body;
-    return Response.json({ data: [{ idx: 'm', total: 4, up: 2, warn: 1, avg: 120 }] });
-  };
-  try {
-    const rows = await queryDaily({ UPTIME: {}, CF_ACCOUNT_ID: 'account', CF_API_TOKEN: 'token' }, '2025-01-01');
-    eq('AE query counts UP and PENDING as available', /double2 IN \(1, 4\).*AS up/s.test(sql), true);
-    eq('AE query counts only WARN as warning', /double2 = 2\)\s+AS warn/.test(sql), true);
-    eq('daily aggregates preserve separate available and warning totals', [rows.get('m').up, rows.get('m').warn], [2, 1]);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  const ANALYTICS_SQL = { async query(request) {
+    sql = request.query;
+    return { data: [{ idx: 'm', total: 4, up: 2, warn: 1, avg: 120 }], rows: 1 };
+  } };
+  const rows = await queryDaily({ UPTIME: {}, ANALYTICS_SQL }, '2025-01-01');
+  eq('AE query counts UP and PENDING as available', /double2 IN \(1, 4\).*AS up/s.test(sql), true);
+  eq('AE query counts only WARN as warning', /double2 = 2\)\s+AS warn/.test(sql), true);
+  eq('daily aggregates preserve separate available and warning totals', [rows.get('m').up, rows.get('m').warn], [2, 1]);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

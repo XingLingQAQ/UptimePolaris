@@ -535,7 +535,19 @@ try {
   assert.equal(Number(atCeiling.locked_until), throttleNow + 300, 'the third failure locks');
   await db.execute('UPDATE users SET failed_count = 0, locked_until = 0 WHERE id = $1', [throttleUser.id]);
   console.log('PASS Postgres auth.recordFailure: the ceiling is the bound value, not a literal 8');
-  const managementEnv = { DATABASE_TYPE: 'postgres', DATABASE_URL: url };
+  // 设置存放在 KV；此夹具只需要命令通道开关。 / Settings live in KV; this fixture only needs the command-channel toggle.
+  const settingsStore = new Map([['settings', JSON.stringify({ 'security.allowAgentCommands': true })]]);
+  const managementEnv = {
+    DATABASE_TYPE: 'postgres', DATABASE_URL: url,
+    CONFIG: {
+      async get(key, type) {
+        const raw = settingsStore.get(key);
+        return raw === undefined ? null : type === 'json' ? JSON.parse(raw) : raw;
+      },
+      async put(key, value) { settingsStore.set(key, String(value)); },
+      async delete(key) { settingsStore.delete(key); },
+    },
+  };
   for (const id of ['management-a', 'management-b']) {
     await db.execute('INSERT INTO agents(id,name,token,created_at,updated_at) VALUES($1,$1,$1,$2,$2)', [id, now]);
     await db.execute("INSERT INTO monitors(id,num_id,name,type,target,created_at,updated_at) VALUES($1,(SELECT COALESCE(MAX(num_id),0)+1 FROM monitors),$1,'agent','',$2,$2)", [id, now]);
@@ -583,7 +595,6 @@ try {
   });
   console.log('PASS Postgres account avatars: upload, byte preservation, replacement and removal');
   await db.execute("INSERT INTO agents(id,name,active,token,created_at,updated_at) VALUES('runtime-config-pg','Runtime PG',1,'runtime-config-pg-token',1,1)");
-  await db.execute("INSERT INTO app_settings(key,value_json,updated_at) VALUES('security.allowAgentCommands','true',1) ON CONFLICT(key) DO UPDATE SET value_json='true'");
   const runtimeApp = new Hono();
   runtimeApp.get('/admin/:id', handleGetAgentConfiguration);
   runtimeApp.put('/admin/:id', handleSaveAgentConfiguration);

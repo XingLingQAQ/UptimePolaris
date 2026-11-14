@@ -11,7 +11,7 @@ assert.ok(Number.isInteger(port) && port > 0);
 const workerOptions = {
   modules: true, script: 'export default {fetch(){return new Response("fixture")}}',
   compatibilityDate: '2025-01-01', bindings: { ADMIN_TOKEN: 'fixture-setup-credential' },
-  kvNamespaces: { CONFIG: crypto.randomUUID(), D1_CONFIG: crypto.randomUUID() },
+  kvNamespaces: { CONFIG: crypto.randomUUID(), D1_CONFIG: crypto.randomUUID(), PG_CONFIG: crypto.randomUUID() },
   d1Databases: { DB: crypto.randomUUID() },
 };
 const mf = new Miniflare(workerOptions);
@@ -29,14 +29,16 @@ async function request(env, path, body, cookie) {
   return { response, body: text ? JSON.parse(text) : null };
 }
 async function scenario(name, withD1) {
-  const env = { ...config(name), ...(withD1 ? { DB: db, CONFIG: await mf.getKVNamespace('D1_CONFIG') } : {}) };
+  // KV 是必需的部署项；每个场景独占命名空间，避免保存的选库记录互相影响。
+  // KV is a required deployment item; each scenario owns its namespace so saved selections do not leak.
+  const env = { ...config(name), CONFIG: await mf.getKVNamespace(withD1 ? 'D1_CONFIG' : 'PG_CONFIG'), ...(withD1 ? { DB: db } : {}) };
   if (!withD1) {
     const before = await request({ ...env, DATABASE_URL: undefined }, '/api/auth/session');
     assert.equal(before.response.status, 200);
     assert.ok(before.body.setupRequirements.every(item => !item.required || item.ok));
-    assert.deepEqual(before.body.setupDatabase, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: false, postgresUrlEditable: false });
+    assert.deepEqual(before.body.setupDatabase, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: false, postgresUrlEditable: true });
     const after = await request(env, '/api/auth/session');
-    assert.deepEqual(after.body.setupDatabase, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: true, postgresUrlEditable: false });
+    assert.deepEqual(after.body.setupDatabase, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: true, postgresUrlEditable: true });
   }
   for (const path of ['/', '/admin', '/unknown']) {
     const response = await app.fetch(new Request('https://fixture.test' + path), env, ctx);

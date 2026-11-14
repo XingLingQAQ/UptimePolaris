@@ -48,7 +48,7 @@ Worker 在 `needsSetup` 为 `true` 时还会返回 `setupRequirements` 数组（
 | `key` | `required` | 含义 |
 | --- | --- | --- |
 | `database` | `false` | 已绑定 `DB`（D1）；未绑定不阻止进入初始化，数据库选择和连接在初始化表单中校验 |
-| `config` | `false` | 已绑定 `CONFIG`（KV）；页面提交 PostgreSQL URL 需此绑定 |
+| `config` | `true` | 已绑定 `CONFIG`（KV）；保存数据库选择和加密连接地址 |
 | `adminToken` | `true` | 已配置 `ADMIN_TOKEN` |
 | `themes` | `false` | 已绑定 `THEMES`（R2 主题存储） |
 | `analytics` | `true` | 已绑定 `UPTIME`（Analytics Engine） |
@@ -348,7 +348,7 @@ While `needsSetup` is `true`, the Worker also returns `setupRequirements` (an ar
 | `key` | `required` | Meaning |
 | --- | --- | --- |
 | `database` | `false` | `DB` (D1) is bound; a missing binding does not block the next step. The setup form validates database selection and connection configuration |
-| `config` | `false` | `CONFIG` (KV) is bound; required to submit a page-entered PostgreSQL URL |
+| `config` | `true` | `CONFIG` (KV) is bound; stores the database selection and encrypted connection URL |
 | `adminToken` | `true` | `ADMIN_TOKEN` is configured |
 | `themes` | `false` | `THEMES` (R2 theme storage) is bound |
 | `analytics` | `true` | `UPTIME` (Analytics Engine) is bound |

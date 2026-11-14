@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type { Env, Heartbeat, LiveState } from '../../backends/worker/src/types';
-import { AE_POINT_LIMIT, aeLiteral, queryAnalytics, queryDaily, queryMonitorHistory, writeHeartbeatBatch } from '../../backends/worker/src/lib/analytics-engine';
+import { AE_POINT_LIMIT, queryAnalytics, queryDaily, queryMonitorHistory, writeHeartbeatBatch } from '../../backends/worker/src/lib/analytics-engine';
 import { queryAgentDaily, queryAgentHistory, type AgentHistoryBucket } from '../../backends/worker/src/lib/agent/history';
 import { aggregateAgentHistory } from '../../backends/worker/src/lib/agent/detail';
 import { recordAvailability, rollingAvailability } from '../../backends/worker/src/lib/monitor/availability';
@@ -15,7 +15,7 @@ console.warn = value => warnings.push(String(value));
 console.error = () => {};
 const now = 1794614400;
 const sent: Parameters<AnalyticsEngineDataset['writeDataPoint']>[0][] = [];
-const env = { UPTIME: { writeDataPoint: point => sent.push(point) }, CF_ACCOUNT_ID: 'test-account', CF_API_TOKEN: 'test-token' } as unknown as Env;
+const env = { UPTIME: { writeDataPoint: point => sent.push(point) } } as unknown as Env;
 
 try {
   const observations = Array.from({ length: 501 }, (_, index): Heartbeat => ({
@@ -55,57 +55,96 @@ try {
 
   let requests = 0;
   let sql = '';
-  let result: Record<string, unknown>[] = [];
-  globalThis.fetch = async (_url, init) => {
-    requests++; sql = String(init?.body);
-    return Response.json({ data: result });
+  let params: AnalyticsSQLQuery['params'];
+  let result: unknown = { data: [] };
+  let failure: Error | undefined;
+  const queries: string[] = [];
+  const query = async (request: AnalyticsSQLQuery) => {
+    requests++;
+    sql = request.query;
+    params = request.params;
+    queries.push(sql);
+    if (failure) throw failure;
+    return result;
   };
-  assert.equal(aeLiteral("a'\\b"), "'a\\'\\\\b'");
-  assert.equal((await queryMonitorHistory({ ...env, CF_API_TOKEN: '' }, 'missing', now - 60, now)).status, 'unconfigured');
+  const binding = { query } as unknown as AnalyticsSQLBinding;
+  env.ANALYTICS_SQL = binding;
+  globalThis.fetch = async () => { throw new Error('Analytics reads must use the binding'); };
+  assert.equal((await queryMonitorHistory({ ...env, ANALYTICS_SQL: undefined }, 'missing', now - 60, now)).status, 'unconfigured');
   assert.equal(requests, 0);
-  result = [{ t: now, up: 1, ms: 7, sample_interval: 2 }];
+  result = { data: [{ t: now, up: 1, ms: 7, sample_interval: 2 }] };
   const [a, b] = await Promise.all([queryMonitorHistory(env, 'same', now - 60, now), queryMonitorHistory(env, 'same', now - 60, now)]);
   assert.equal(requests, 1);
   assert.deepEqual(a, b);
   assert.equal(a.sampled, true);
   assert.deepEqual(a.points, [{ t: now, up: 1, ms: 7 }]);
   assert.match(sql, /blob3 NOT IN/);
-  await queryMonitorHistory({ ...env, CF_API_TOKEN: 'other-token' }, 'same', now - 60, now);
-  assert.equal(requests, 2, 'query caches must not cross credentials');
-  globalThis.fetch = async () => new Response('failed', { status: 503 });
+  await queryMonitorHistory({ ...env, ANALYTICS_SQL: { query } as unknown as AnalyticsSQLBinding }, 'same', now - 60, now);
+  assert.equal(requests, 2, 'query caches must not cross bindings');
+  const hostileId = "a'\\b";
+  await queryMonitorHistory(env, hostileId, now - 60, now);
+  assert.equal(requests, 3, 'different parameters must not share cached rows');
+  assert.equal((params as Record<string, unknown>).id, hostileId);
+  assert.ok(!sql.includes(hostileId));
+  failure = new Error('fixture failure');
   assert.equal((await queryMonitorHistory(env, 'failed', now - 60, now)).status, 'unavailable');
-  globalThis.fetch = async () => Response.json({ unexpected: [] });
+  failure = undefined;
+  result = { unexpected: [] };
   await assert.rejects(queryAnalytics(env, 'invalid-response'), /invalid response/);
+  result = { data: [null] };
+  await assert.rejects(queryAnalytics(env, 'invalid-row'), /invalid response/);
 
-  globalThis.fetch = async (_url, init) => { sql = String(init?.body); return Response.json({ data: result }); };
-  result = [{ idx: 'monitor', total: 2, up: 0, warn: 0, avg: 0, latency_count: 0 }];
+  result = { data: [{ idx: 'monitor', total: 2, up: 0, warn: 0, avg: 0, latency_count: 0 }] };
   assert.equal((await queryDaily(env, '2026-11-13')).get('monitor')!.avg, null);
   assert.match(sql, /double4/);
+  assert.match(sql, /COUNT\(\) AS total/);
+  assert.match(sql, /avgIf\(double1, double2 IN \(1, 2\)\)/);
+  assert.equal((params as Record<string, unknown>).start, Date.parse('2026-11-13T00:00:00Z') / 1000);
   await assert.rejects(queryDaily(env, '2026-02-31'), /Invalid day/);
 
-  result = [{ bucket_ts: now, sample_count: 3, cpu_samples: 2, mem_samples: 3, cpu_avg: -1, cpu_max: -1,
+  const summary = { bucket_ts: now, sample_count: 3, cpu_samples: 2, mem_samples: 3, cpu_avg: -1, cpu_max: -1,
     mem_pct_avg: 50, mem_pct_max: 60, load_1_avg: -1, load_5_avg: 0, duration_sec: 60,
-    net_up_bytes: 120, net_down_bytes: 300, network_duration_sec: 60, sample_interval: 1 }];
+    net_up_bytes: 120, net_down_bytes: 300, network_duration_sec: 60, sample_interval: 1 };
+  result = { data: [summary] };
   const agent = await queryAgentHistory(env, 'agent', now - 60, now);
   assert.equal(agent.points[0].cpu_avg, null);
   assert.match(sql, /argMax\(double1, timestamp\)/);
   assert.match(sql, /GROUP BY double1/);
-  assert.doesNotMatch(sql, /nullif|IS NOT NULL/i);
-  result = [{ ...result[0], bucket_ts: null }, { ...result[0], duration_sec: null }];
+  assert.doesNotMatch(sql, /FROM\s*\(|nullif|IS NOT NULL/i);
+  result = { data: [{ ...summary, bucket_ts: null }, { ...summary, duration_sec: null }] };
   assert.equal((await queryAgentHistory(env, 'invalid-agent', now - 60, now)).points.length, 0, 'missing required fields are not zero-valued samples');
-  result = [{ ...agent.points[0], network_duration_sec: 0, net_up_bytes: -1, net_down_bytes: -1, idx: 'no-network' }];
-  const noNetwork = (await queryAgentDaily(env, '2026-11-12')).get('no-network')!;
+  result = { data: [{ ...summary, network_duration_sec: 0, net_up_bytes: -1, net_down_bytes: -1 }] };
+  const noNetwork = (await queryAgentDaily(env, '2026-11-13', ['no-network'])).get('no-network')!;
   assert.equal(noNetwork.net_up_bytes, null);
   assert.equal(noNetwork.network_duration_sec, 0);
+  assert.equal(noNetwork.cpu_avg, null);
   const base = { ...agent.points[0], cpu_avg: 30, cpu_samples: 2 } as AgentHistoryBucket;
   const combined = aggregateAgentHistory([base, { ...base, bucket_ts: now + 60, cpu_avg: 60, cpu_samples: 4, net_up_bytes: 240, network_duration_sec: 120 }]);
   assert.equal(combined.length, 1);
   assert.equal(combined[0].cpu, 50);
   assert.equal(combined[0].net_up, 2, 'byte deltas are divided by measured seconds');
-  result = [{ ...result[0], idx: 'agent', sample_interval: 2 }];
-  assert.equal((await queryAgentDaily(env, '2026-11-13')).get('agent')!.sampled, true);
-  assert.match(sql, /GROUP BY index1, double1/);
-  assert.doesNotMatch(sql, /nullif|IS NOT NULL/i);
+  result = { data: [
+    { ...summary, cpu_avg: 30, cpu_max: 45, load_1_avg: 1 },
+    { ...summary, bucket_ts: now + 60, cpu_avg: 60, cpu_max: 70, cpu_samples: 4, sample_count: 6,
+      mem_pct_avg: 80, mem_pct_max: 90, mem_samples: 6, duration_sec: 120, load_1_avg: 3,
+      net_up_bytes: 480, net_down_bytes: 600, network_duration_sec: 120, sample_interval: 2 },
+  ] };
+  const before = requests;
+  const daily = (await queryAgentDaily(env, '2026-11-13', ['agent', 'agent'])).get('agent')!;
+  assert.equal(requests, before + 1, 'duplicate agent IDs do not repeat queries');
+  assert.equal(daily.sampled, true);
+  assert.equal(daily.cpu_avg, 54);
+  assert.equal(daily.cpu_max, 70);
+  assert.equal(daily.mem_pct_avg, 74);
+  assert.equal(daily.load_1_avg, 2.6);
+  assert.equal(daily.sample_count, 15);
+  assert.equal(daily.duration_sec, 300);
+  assert.equal(daily.net_up_bytes, 1080);
+  assert.equal(daily.net_down_bytes, 1500);
+  assert.equal(daily.network_duration_sec, 300);
+  assert.match(sql, /GROUP BY double1/);
+  assert.ok(queries.every(query => query.includes('FROM events.analyticsEngine."uptime_heartbeats"') || query.startsWith('invalid-')));
+  assert.ok(queries.every(query => !/FORMAT|_sample_interval|accountTag|scope/i.test(query)));
   console.log('PASS AE budgets, rotation, query isolation, failure states, nullable metrics, exact availability and weighted resource history');
 } finally {
   globalThis.fetch = originalFetch;

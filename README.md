@@ -99,7 +99,7 @@ Choose the Worker if you would rather not maintain a server. Choose Go when you 
 2. In the Cloudflare dashboard open **Workers & Pages → Create application → GitHub** and select your fork. Use `npm run build` as the build command and `npm run deploy` as the deploy command.
 3. Open the site once the deploy finishes. The setup page checks bindings and secrets first. Configure the following in the Worker's **Settings** as the page asks:
    - **D1 (optional)**: to use D1, add a database under **Bindings** with the variable name `DB`. Without D1, setup offers PostgreSQL only.
-   - **KV (required for page-entered PostgreSQL)**: add a KV namespace under **Bindings** with the variable name `CONFIG` to store connection URLs encrypted. Optional when using only D1 or a deployment `DATABASE_URL`.
+   - **KV (required)**: add a KV namespace under **Bindings** with the variable name `CONFIG`. Setup stores the database selection and the encrypted connection URL there.
    - **Setup key**: add a secret `ADMIN_TOKEN` under **Variables and Secrets**, with a long random value such as the output of `openssl rand -hex 32`.
    - **Analytics Engine (required)**: enable Analytics Engine in the dashboard and add the dataset under **Bindings** with the variable name `UPTIME`.
    - **R2 (optional)**: needed for third-party themes. Add a bucket under **Bindings** with the variable name `THEMES`, or add it after setup.

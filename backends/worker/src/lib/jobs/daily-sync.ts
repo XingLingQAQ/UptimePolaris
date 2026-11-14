@@ -4,7 +4,7 @@ import type { SyncResult } from '../../../../../shared/contracts';
 import type { DayStat, Env, LiveState } from '../../types';
 import { pruneCommands } from '../agent/commands';
 import { pruneAgentProbeJobs } from '../agent/probes';
-import { queryDaily } from '../analytics-engine';
+import { analyticsReadable, queryDaily } from '../analytics-engine';
 import { D1Adapter } from '../db/d1';
 import { getDB, withDBScope } from '../db/factory';
 import { agentLiveSQL } from '../db/sql/agent';
@@ -64,7 +64,7 @@ async function runSyncScoped(env: Env): Promise<SyncResult> {
   let attempted = 0;
   let succeeded = 0;
   let failed = 0;
-  const configured = Boolean(env.UPTIME && env.CF_ACCOUNT_ID && env.CF_API_TOKEN);
+  const configured = analyticsReadable(env);
   let days = 0;
 
   try {
@@ -109,7 +109,7 @@ async function runSyncScoped(env: Env): Promise<SyncResult> {
             previous.push(stat);
             storedDays.set(m.id, previous);
           }
-          if (agents.length) await storeAgentDaily(env, day, await queryAgentDaily(env, day), availabilityDays);
+          if (agents.length) await storeAgentDaily(env, day, await queryAgentDaily(env, day, agents.map(agent => agent.id)), availabilityDays);
           succeeded++;
           if (day > cursor) {
             const nextExpected = shiftDay(cursor, 1);
@@ -237,6 +237,57 @@ async function readSyncCursor(env: Env): Promise<string | null> {
 async function writeSyncCursor(env: Env, cursor: string): Promise<void> {
   const db = getDB(env);
   await db.execute(liveStateSQL[db.type].upsert, ['sync', JSON.stringify({ cursor }), Math.floor(Date.now() / 1000)]);
+}
+
+/** Daily sync becomes eligible at 00:10 UTC; the minute tick runs it once per day. / 每日同步在 UTC 00:10 后由分钟 tick 触发，每天一次。 */
+const SYNC_START_MINUTE = 10;
+const SYNC_RETRY_SECONDS = 600;
+
+interface SyncMarker {
+  /** UTC day whose sync completed. / 已完成同步的 UTC 日期。 */
+  day?: string;
+  /** Do not retry before this epoch second. / 在此之前不重试。 */
+  retryAt?: number;
+}
+
+async function readSyncMarker(env: Env): Promise<SyncMarker> {
+  const db = getDB(env);
+  const row = await db.queryOne<{ json: string }>(liveStateSQL[db.type].read, ['sync-meta']);
+  try {
+    const value = JSON.parse(row?.json ?? '{}') as { day?: unknown; retryAt?: unknown };
+    return {
+      ...(typeof value.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.day) ? { day: value.day } : {}),
+      ...(typeof value.retryAt === 'number' && Number.isFinite(value.retryAt) ? { retryAt: value.retryAt } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function writeSyncMarker(env: Env, marker: SyncMarker): Promise<void> {
+  const db = getDB(env);
+  await db.execute(liveStateSQL[db.type].upsert, ['sync-meta', JSON.stringify(marker), Math.floor(Date.now() / 1000)]);
+}
+
+/**
+ * Run the daily sync from the minute tick after 00:10 UTC, once per day.
+ *
+ * The marker claims the run before starting, so a sync slower than one minute
+ * cannot be started twice by the next tick; the claim doubles as the retry
+ * backoff when the run fails or the isolate dies mid-flight.
+ * 运行前先占位，避免同步超过一分钟时被下一次 tick 重复启动；占位同时作为失败或中断后的重试退避。
+ */
+export async function maybeRunDailySync(env: Env, now: number): Promise<SyncResult | null> {
+  const at = new Date(now * 1000);
+  if (at.getUTCHours() * 60 + at.getUTCMinutes() < SYNC_START_MINUTE) return null;
+  const today = at.toISOString().slice(0, 10);
+  const marker = await readSyncMarker(env);
+  if (marker.day === today) return null;
+  if (marker.retryAt && marker.retryAt > now) return null;
+  await writeSyncMarker(env, { retryAt: now + SYNC_RETRY_SECONDS });
+  const result = await runSync(env);
+  await writeSyncMarker(env, { day: today });
+  return result;
 }
 
 /**

@@ -23,7 +23,8 @@
 
 ## 初始化页面无法继续
 
-1. **Worker 部署检查未通过**：初始化页面第一步会列出必需的 `ADMIN_TOKEN`、`UPTIME` 和可选的 D1、R2 的配置状态：
+1. **Worker 部署检查未通过**：初始化页面第一步会列出必需的 `ADMIN_TOKEN`、`UPTIME`、`CONFIG` KV 和可选的 D1、R2 的配置状态：
+   - **KV 未配置**：在 **Settings → Bindings** 中添加 KV 命名空间，变量名填写 `CONFIG`。初始化需要它保存数据库选择和加密连接地址。
    - **D1 未配置**：不影响进入下一步。第二步默认 PostgreSQL，直接在页面填写连接地址并验证即可。
    - **初始化密钥未配置**：在 **Settings → Variables and Secrets** 中添加 Secret `ADMIN_TOKEN`。
    - **Analytics Engine 未配置**：启用 Analytics Engine 后，在 **Settings → Bindings** 中添加数据集，变量名填写 `UPTIME`。
@@ -159,7 +160,8 @@ First identify the complete site URL, backend, and database. Different deploymen
 
 ### Setup and accounts
 
-- **Worker deployment check not passed:** the first step lists required `ADMIN_TOKEN` and `UPTIME`, plus optional D1 and R2 bindings.
+- **Worker deployment check not passed:** the first step lists required `ADMIN_TOKEN`, `UPTIME` and the `CONFIG` KV binding, plus optional D1 and R2.
+  - **KV missing:** under **Settings → Bindings**, add a KV namespace named `CONFIG`; setup stores the database selection and encrypted connection URL there.
   - **D1 missing:** this does not block setup. The second step defaults to PostgreSQL; enter and verify its connection URL directly on the page.
   - **Setup key missing:** under **Settings → Variables and Secrets**, add the secret `ADMIN_TOKEN`.
   - **Analytics Engine missing:** enable Analytics Engine, then add a dataset in **Settings → Bindings** with the binding name `UPTIME`.

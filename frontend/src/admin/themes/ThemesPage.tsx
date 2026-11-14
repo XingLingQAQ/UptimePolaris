@@ -47,6 +47,8 @@ export function ThemesPage() {
   const [themes, setThemes] = useState<InstalledTheme[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [storageReady, setStorageReady] = useState(false);
+  const [checkingStorage, setCheckingStorage] = useState(false);
+  const loadRequest = useRef(0);
   const [url, setUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -60,9 +62,11 @@ export function ThemesPage() {
   const removing = useRef(false);
   const presentation = usePresentation();
   const p = useTranslations('admin.presentation');
+  const r2Unavailable = backend.data?.runtime === 'worker' &&
+    (backend.data.themes.installationAvailable === false || (themes !== null && !storageReady));
 
   async function applyTheme(kind: PageKind, selection: PageTheme | null) {
-    if (busy !== null) return;
+    if (busy !== null || checkingStorage || (selection && (!storageReady || r2Unavailable))) return;
     setBusy(
       selection
         ? 'apply:' +
@@ -97,12 +101,15 @@ export function ThemesPage() {
     [navigate],
   );
   const load = useCallback(async () => {
+    const request = ++loadRequest.current;
     try {
       const result = await themesApi.list();
+      if (request !== loadRequest.current) return;
       setThemes(result.themes);
       setStorageReady(result.storageReady);
       setLoadError(null);
     } catch (error) {
+      if (request !== loadRequest.current) return;
       if (error instanceof UnauthorizedError) login();
       else setLoadError(apiErrorMessage(error));
     }
@@ -110,9 +117,22 @@ export function ThemesPage() {
 
   useEffect(() => {
     void load();
+    return () => { loadRequest.current++; };
   }, [load]);
 
+  async function checkStorage() {
+    if (checkingStorage || busy !== null) return;
+    setCheckingStorage(true);
+    try {
+      const [capabilities] = await Promise.allSettled([backend.mutate(), load()]);
+      if (capabilities.status === 'rejected') setLoadError(apiErrorMessage(capabilities.reason));
+    } finally {
+      setCheckingStorage(false);
+    }
+  }
+
   const install = async (action: () => Promise<unknown>) => {
+    if (!storageReady || r2Unavailable || checkingStorage) return;
     setBusy('install');
     try {
       await action();
@@ -129,6 +149,7 @@ export function ThemesPage() {
   };
 
   const updateTheme = async (theme: InstalledTheme) => {
+    if (!storageReady || r2Unavailable || checkingStorage) return;
     setBusy(`update:${theme.short}`);
     try {
       const result = await themesApi.updateCheck(theme.short);
@@ -148,6 +169,7 @@ export function ThemesPage() {
   };
 
   async function openPreview(short: string, versionKey: string, theme: string) {
+    if (!storageReady || r2Unavailable || checkingStorage) return;
     const request = ++previewRequest.current;
     setPreviewBusy(`${short}:${versionKey}:${theme}`);
     try {
@@ -202,9 +224,11 @@ export function ThemesPage() {
           size="sm"
           variant="flat"
           startContent={<RefreshCw size={15} />}
-          onPress={() => void load()}
+          isLoading={checkingStorage}
+          isDisabled={busy !== null}
+          onPress={() => void checkStorage()}
         >
-          {t('refresh')}
+          {t(r2Unavailable ? 'checkStorage' : 'refresh')}
         </Button>
       }
     >
@@ -216,22 +240,29 @@ export function ThemesPage() {
             </p>
           </Panel>
         ) : null}
-        {!storageReady && themes !== null ? (
-          <div className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-small text-warning-700">
-            {t(backend.data?.themes.storage === 'filesystem' ? 'storageUnavailableFilesystem' : 'storageUnavailable')}
+        {r2Unavailable ? (
+          <Panel>
+            <PanelHeader icon={<Package />} title={t('storageUnavailableTitle')} />
+            <p role="status" className="max-w-2xl text-small leading-relaxed text-[var(--polaris-ink-3)]">
+              {t('storageUnavailable')}
+            </p>
+          </Panel>
+        ) : !storageReady && themes !== null && backend.data?.themes.storage === 'filesystem' ? (
+          <div role="status" className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-small text-warning-700">
+            {t('storageUnavailableFilesystem')}
           </div>
         ) : null}
         {themes ? (
           <PageThemes
-            themes={themes}
-            busy={busy !== null}
+            themes={r2Unavailable ? [] : themes}
+            busy={busy !== null || checkingStorage}
             onReset={(kind) => void applyTheme(kind, null)}
             onPreview={(short, version, theme) =>
               void openPreview(short, version, theme)
             }
           />
         ) : null}
-        <Panel>
+        {!r2Unavailable ? <Panel>
           <PanelHeader
             icon={<Package />}
             hue="pink"
@@ -247,7 +278,7 @@ export function ThemesPage() {
                 onValueChange={setUrl}
                 placeholder="https://example.com/theme.zip"
                 aria-label={t('urlLabel')}
-                isDisabled={!storageReady || busy !== null}
+                isDisabled={!storageReady || busy !== null || checkingStorage}
                 classNames={{
                   base: 'min-w-0 flex-1',
                   mainWrapper: 'h-full',
@@ -272,7 +303,7 @@ export function ThemesPage() {
                     <ArrowDownToLine size={15} />
                   )
                 }
-                isDisabled={!storageReady || !url.trim() || busy !== null}
+                isDisabled={!storageReady || !url.trim() || busy !== null || checkingStorage}
                 onPress={() =>
                   void install(() => themesApi.install(url.trim()))
                 }
@@ -280,44 +311,18 @@ export function ThemesPage() {
                 {t('installUrl')}
               </Button>
             </div>
-            {/* The file input stays a real input inside the drop zone's label, so
-                clicking anywhere on the zone opens the picker and a dropped file
-                lands in the same input.
-                文件输入框保留在拖放区域的 label 内，点击与拖放使用同一输入框。 */}
             <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-              <label
-                className={clsx(
-                  'flex min-h-14 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[var(--polaris-line-strong)] bg-[var(--polaris-well)] px-3.5 py-2.5 transition-colors hover:border-primary/50 hover:bg-primary/[0.04]',
-                  (!storageReady || busy !== null) &&
-                    'pointer-events-none opacity-60',
-                )}
-              >
-                <FileArchive size={18} className="shrink-0 text-default-400" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-tiny font-medium">
-                    {file ? file.name : t('dropHint')}
-                  </span>
-                  <span className="block text-[11px] text-default-400">
-                    application/zip
-                  </span>
-                </span>
-                <input
-                  type="file"
-                  accept=".zip,application/zip"
-                  aria-label={t('uploadLabel')}
-                  disabled={!storageReady || busy !== null}
-                  onChange={(event) =>
-                    setFile(event.currentTarget.files?.[0] ?? null)
-                  }
-                  className="sr-only"
-                />
-              </label>
+              <ZipDropZone
+                file={file}
+                disabled={!storageReady || busy !== null || checkingStorage}
+                onFile={setFile}
+              />
               <Button
                 size="sm"
                 variant="flat"
                 className="h-auto min-h-14 shrink-0"
                 startContent={<ArrowUpFromLine size={15} />}
-                isDisabled={!storageReady || !file || busy !== null}
+                isDisabled={!storageReady || !file || busy !== null || checkingStorage}
                 onPress={() =>
                   file && void install(() => themesApi.upload(file))
                 }
@@ -326,9 +331,9 @@ export function ThemesPage() {
               </Button>
             </div>
           </div>
-        </Panel>
+        </Panel> : null}
 
-        <Panel padded={false}>
+        {!r2Unavailable || (themes?.length ?? 0) > 0 ? <Panel padded={false}>
           <div className="p-4 pb-0 sm:p-5 sm:pb-0">
             <PanelHeader
               icon={<Layers />}
@@ -351,10 +356,10 @@ export function ThemesPage() {
             />
           ) : (
             <ul ref={versions} className="polaris-divide border-t border-[var(--polaris-line)]">
-              {themes.map((theme) => <ThemeCard key={theme.id} theme={theme} presentation={presentation.data} busy={busy} previewBusy={previewBusy} openPreview={openPreview} applyTheme={applyTheme} updateTheme={updateTheme} onDelete={(theme) => { setDeleteError(null); setPendingDelete(theme); }} />)}
+              {themes.map((theme) => <ThemeCard key={theme.id} theme={theme} storageReady={storageReady && !r2Unavailable} presentation={presentation.data} busy={busy ?? (checkingStorage ? 'refresh' : null)} previewBusy={previewBusy} openPreview={openPreview} applyTheme={applyTheme} updateTheme={updateTheme} onDelete={(theme) => { setDeleteError(null); setPendingDelete(theme); }} />)}
             </ul>
           )}
-        </Panel>
+        </Panel> : null}
       </div>
       {preview ? (
         <ThemePreviewFrame preview={preview} onClose={() => { previewRequest.current++; setPreviewBusy(null); setPreview(null); }} />
@@ -411,6 +416,105 @@ export function ThemesPage() {
   );
 }
 
+/** A dropped file is usable only as a single ZIP package. / 拖入的文件仅接受单个 ZIP 包。 */
+function isZipFile(file: File) {
+  const type = file.type.toLowerCase();
+  return /\.zip$/i.test(file.name) && (!type || type.includes('zip'));
+}
+
+/**
+ * ZIP picker that also accepts a drag and drop.
+ *
+ * A browser never forwards a drop on a `<label>` to the file input inside it, so
+ * the zone handles the drag itself and feeds the same `file` state as the picker.
+ * The inner input stays for click-to-pick and keyboard access.
+ *
+ * 浏览器不会把拖到 label 上的文件转交给内部文件输入框，因此由区域接收拖放，
+ * 并与点击选择共用同一份文件状态；内部输入框继续负责点击和键盘操作。
+ */
+function ZipDropZone({ file, disabled, onFile }: {
+  file: File | null;
+  disabled: boolean;
+  onFile: (file: File | null) => void;
+}) {
+  const t = useTranslations('admin.themes');
+  const dragDepth = useRef(0);
+  const [dragging, setDragging] = useState(false);
+  const [rejected, setRejected] = useState(false);
+  const active = dragging && !disabled;
+
+  return (
+    <label
+      aria-disabled={disabled}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        if (disabled) return;
+        dragDepth.current += 1;
+        setDragging(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = disabled ? 'none' : 'copy';
+      }}
+      onDragLeave={() => {
+        if (disabled) return;
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDragging(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        if (disabled) return;
+        const files = event.dataTransfer.files;
+        if (files.length !== 1 || !isZipFile(files[0])) {
+          setRejected(true);
+          return;
+        }
+        setRejected(false);
+        onFile(files[0]);
+      }}
+      className={clsx(
+        'flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-xl border border-dashed px-3.5 py-2.5 transition-colors',
+        disabled
+          ? 'cursor-not-allowed border-[var(--polaris-line-strong)] bg-[var(--polaris-well)] opacity-60'
+          : active
+            ? 'cursor-copy border-primary bg-primary/[0.06] ring-2 ring-primary/20'
+            : rejected
+              ? 'cursor-pointer border-danger/50 bg-[var(--polaris-well)] hover:border-primary/50 hover:bg-primary/[0.04]'
+              : 'cursor-pointer border-[var(--polaris-line-strong)] bg-[var(--polaris-well)] hover:border-primary/50 hover:bg-primary/[0.04]',
+      )}
+    >
+      <FileArchive size={18} className="shrink-0 text-default-400" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-tiny font-medium">
+          {file ? file.name : t('dropHint')}
+        </span>
+        {rejected ? (
+          <span role="alert" className="block text-[11px] text-danger">
+            {t('dropInvalid')}
+          </span>
+        ) : (
+          <span className="block text-[11px] text-default-400">
+            application/zip
+          </span>
+        )}
+      </span>
+      <input
+        type="file"
+        accept=".zip,application/zip"
+        aria-label={t('uploadLabel')}
+        disabled={disabled}
+        onChange={(event) => {
+          setRejected(false);
+          onFile(event.currentTarget.files?.[0] ?? null);
+        }}
+        className="sr-only"
+      />
+    </label>
+  );
+}
+
 /**
  * A small stand-in for a theme's look.
  *
@@ -449,8 +553,9 @@ function ThemeThumb({ seed }: { seed: string }) {
   );
 }
 
-function ThemeCard({ theme, presentation, busy, previewBusy, openPreview, applyTheme, updateTheme, onDelete }: {
+function ThemeCard({ theme, storageReady, presentation, busy, previewBusy, openPreview, applyTheme, updateTheme, onDelete }: {
   theme: InstalledTheme;
+  storageReady: boolean;
   presentation: ReturnType<typeof usePresentation>['data'];
   busy: string | null;
   previewBusy: string | null;
@@ -483,13 +588,13 @@ function ThemeCard({ theme, presentation, busy, previewBusy, openPreview, applyT
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {theme.versions.flatMap((version) => version.themes.map((definition) => <VersionRow key={`${version.versionKey}:${definition.id}`} theme={theme} version={version} definition={definition} presentation={presentation} busy={busy} previewBusy={previewBusy} openPreview={openPreview} applyTheme={applyTheme} />))}
+        {theme.versions.flatMap((version) => version.themes.map((definition) => <VersionRow key={`${version.versionKey}:${definition.id}`} theme={theme} version={version} definition={definition} storageReady={storageReady} presentation={presentation} busy={busy} previewBusy={previewBusy} openPreview={openPreview} applyTheme={applyTheme} />))}
 
         {theme.sourceUrl ? (
           <Button
             size="sm"
             variant="flat"
-            isDisabled={busy !== null}
+            isDisabled={!storageReady || busy !== null}
             isLoading={busy === `update:${theme.short}`}
             onPress={() => void updateTheme(theme)}
           >
@@ -514,10 +619,11 @@ function ThemeCard({ theme, presentation, busy, previewBusy, openPreview, applyT
   );
 }
 
-function VersionRow({ theme, version, definition, presentation, busy, previewBusy, openPreview, applyTheme }: {
+function VersionRow({ theme, version, definition, storageReady, presentation, busy, previewBusy, openPreview, applyTheme }: {
   theme: InstalledTheme;
   version: InstalledTheme['versions'][number];
   definition: InstalledTheme['versions'][number]['themes'][number];
+  storageReady: boolean;
   presentation: ReturnType<typeof usePresentation>['data'];
   busy: string | null;
   previewBusy: string | null;
@@ -553,7 +659,7 @@ function VersionRow({ theme, version, definition, presentation, busy, previewBus
         variant="light"
         aria-label={t('previewVersion')}
         isDisabled={
-          busy !== null || !definition.available
+          busy !== null || !storageReady || !definition.available
         }
         isLoading={
           previewBusy ===
@@ -576,6 +682,7 @@ function VersionRow({ theme, version, definition, presentation, busy, previewBus
           color="primary"
           isDisabled={
             busy !== null ||
+            !storageReady ||
             !definition.available ||
             !presentation ||
             selected

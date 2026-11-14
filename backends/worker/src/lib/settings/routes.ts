@@ -10,11 +10,9 @@ export const settingsRoutes = new Hono<{ Bindings: Env }>();
 
 import { Hono } from 'hono';
 import type { Env } from '../../types';
-import { getDB } from '../db/factory';
 import { migrateData, MigrationError, parseTargetUrl } from '../db/data-migration';
 import { databaseType } from '../db/setup-control';
 import { bytesToBase64, readBoundedBody } from '../http/binary';
-import { settingsSQL } from '../db/sql/settings';
 import { invalidateConfig } from '../monitor/store';
 import { invalidatePublicCache } from '../public/cache';
 import { clearSiteIcon, MAX_ICON_BYTES, readSiteIcon, validateIconUpload, writeSiteIcon } from './site-icon';
@@ -48,10 +46,7 @@ settingsRoutes.post('/api/admin/database-migration/:action', async (c) => {
 settingsRoutes.get('/api/admin/settings', async (c) => {
   c.header('cache-control', 'private, no-store');
   const snapshot = await readAll(c.env);
-  const db = getDB(c.env);
-  const rows = await db
-    .query<{ key: string }>(settingsSQL[db.type].load);
-  const stored = new Set(rows.map((r) => r.key));
+  const stored = new Set(snapshot.stored);
 
   return c.json({
     values: snapshot.values,

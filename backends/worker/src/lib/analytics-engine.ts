@@ -2,9 +2,12 @@ import type { Env, Heartbeat, RingHeartbeat } from '../types';
 import type { HistoryResult } from '../../../../shared/contracts';
 
 export const AE_POINT_LIMIT = 250;
-const DATASET = 'uptime_heartbeats';
-const queryCache = new Map<string, { expires: number; rows: Record<string, unknown>[] }>();
-const pendingQueries = new Map<string, Promise<Record<string, unknown>[]>>();
+export const ANALYTICS_DATASET = 'events.analyticsEngine."uptime_heartbeats"';
+interface QueryState {
+  cached: Map<string, { expires: number; rows: Record<string, unknown>[] }>;
+  pending: Map<string, Promise<Record<string, unknown>[]>>;
+}
+const queryStates = new WeakMap<AnalyticsSQLBinding, QueryState>();
 
 export interface AeRow {
   idx: string;
@@ -15,46 +18,50 @@ export interface AeRow {
 }
 
 export function analyticsReadable(env: Env): boolean {
-  return Boolean(env.UPTIME && env.CF_ACCOUNT_ID && env.CF_API_TOKEN);
-}
-
-export function aeLiteral(value: string): string {
-  return "'" + value.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+  return Boolean(env.UPTIME && env.ANALYTICS_SQL);
 }
 
 export async function queryAnalytics(
   env: Env,
   sql: string,
+  params: AnalyticsSQLQuery['params'] = {},
   cacheSeconds = 0,
 ): Promise<Record<string, unknown>[]> {
-  if (!analyticsReadable(env)) throw new Error('Analytics Engine query credentials are not configured');
-  const key = `${env.CF_ACCOUNT_ID}\0${env.CF_API_TOKEN}\0${sql}`;
-  const cached = queryCache.get(key);
+  const binding = env.ANALYTICS_SQL;
+  if (!analyticsReadable(env) || !binding) throw new Error('Analytics SQL binding is not configured');
+  let state = queryStates.get(binding);
+  if (!state) {
+    state = { cached: new Map(), pending: new Map() };
+    queryStates.set(binding, state);
+  }
+  const key = JSON.stringify([sql, params]);
+  const cached = state.cached.get(key);
   if (cacheSeconds > 0 && cached && cached.expires > Date.now()) return cached.rows;
-  const pending = pendingQueries.get(key);
+  const pending = state.pending.get(key);
   if (pending) return pending;
   const request = (async () => {
-    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(env.CF_ACCOUNT_ID)}/analytics_engine/sql`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${env.CF_API_TOKEN}`, 'content-type': 'text/plain' },
-      body: sql,
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) throw new Error(`Analytics Engine query failed (${response.status})`);
-    const result = await response.json() as { success?: boolean; data?: unknown };
-    if (result.success === false || !Array.isArray(result.data) || result.data.some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
-      throw new Error('Analytics Engine returned an invalid response');
-    }
-    const rows = result.data as Record<string, unknown>[];
-    if (cacheSeconds > 0) {
-      if (queryCache.size >= 64) queryCache.delete(queryCache.keys().next().value!);
-      queryCache.set(key, { expires: Date.now() + cacheSeconds * 1000, rows });
-    }
-    return rows;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        binding.query({ query: sql, params }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Analytics SQL query timed out')), 10_000);
+        }),
+      ]);
+      if (!result || !Array.isArray(result.data) || result.data.some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
+        throw new Error('Analytics SQL returned an invalid response');
+      }
+      const rows = result.data;
+      if (cacheSeconds > 0) {
+        if (state.cached.size >= 64) state.cached.delete(state.cached.keys().next().value!);
+        state.cached.set(key, { expires: Date.now() + cacheSeconds * 1000, rows });
+      }
+      return rows;
+    } finally { if (timer !== undefined) clearTimeout(timer); }
   })();
-  pendingQueries.set(key, request);
+  state.pending.set(key, request);
   try { return await request; }
-  finally { pendingQueries.delete(key); }
+  finally { state.pending.delete(key); }
 }
 
 export async function readAnalyticsHistory<T>(env: Env, read: () => Promise<{ points: T[]; sampled: boolean }>): Promise<HistoryResult<T>> {
@@ -79,16 +86,16 @@ const MONITOR_POINTS = "blob3 NOT IN ('agent_report', 'agent_summary')";
 export async function queryDaily(env: Env, day: string): Promise<Map<string, AeRow>> {
   const { start, end } = dayBounds(day);
   const rows = await queryAnalytics(env, `SELECT index1 AS idx,
-    sum(_sample_interval) AS total,
-    sum(if(double2 IN (1, 4), _sample_interval, 0)) AS up,
-    sum(if(double2 = 2, _sample_interval, 0)) AS warn,
-    sum(if(double2 IN (1, 2), double1 * _sample_interval, 0)) / if(sum(if(double2 IN (1, 2), _sample_interval, 0)) > 0, sum(if(double2 IN (1, 2), _sample_interval, 0)), 1) AS avg,
-    sum(if(double2 IN (1, 2), _sample_interval, 0)) AS latency_count
-    FROM ${DATASET}
-    WHERE timestamp >= toDateTime('${day} 00:00:00') - INTERVAL '1' DAY
-      AND ${MONITOR_OBSERVED_AT} >= ${start} AND ${MONITOR_OBSERVED_AT} < ${end}
+    COUNT() AS total,
+    countIf(double2 IN (1, 4)) AS up,
+    countIf(double2 = 2) AS warn,
+    avgIf(double1, double2 IN (1, 2)) AS avg,
+    countIf(double2 IN (1, 2)) AS latency_count
+    FROM ${ANALYTICS_DATASET}
+    WHERE timestamp >= $ingestedSince
+      AND ${MONITOR_OBSERVED_AT} >= $start AND ${MONITOR_OBSERVED_AT} < $end
       AND ${MONITOR_POINTS}
-    GROUP BY idx FORMAT JSON`);
+    GROUP BY idx`, { ingestedSince: new Date((start - 86400) * 1000).toISOString(), start, end });
   return new Map(rows.map(row => [String(row.idx), {
     idx: String(row.idx), total: Number(row.total) || 0, up: Number(row.up) || 0,
     warn: Number(row.warn) || 0, avg: row.avg == null || Number(row.latency_count) === 0 ? null : Number(row.avg),
@@ -101,12 +108,12 @@ export function queryMonitorHistory(env: Env, id: string, since: number, now: nu
   return readAnalyticsHistory(env, async () => {
     const rows = await queryAnalytics(env, `SELECT ${MONITOR_OBSERVED_AT} AS t,
       argMax(double2, timestamp) AS up, argMax(double1, timestamp) AS ms,
-      max(_sample_interval) AS sample_interval
-      FROM ${DATASET}
-      WHERE index1 = ${aeLiteral(id)} AND ${MONITOR_POINTS}
-        AND timestamp >= toDateTime(${start - 86400})
-        AND ${MONITOR_OBSERVED_AT} >= ${start} AND ${MONITOR_OBSERVED_AT} < ${end}
-      GROUP BY t ORDER BY t DESC LIMIT 100 FORMAT JSON`, 60);
+      APPROX_MAX("sampleInterval") AS sample_interval
+      FROM ${ANALYTICS_DATASET}
+      WHERE index1 = $id AND ${MONITOR_POINTS}
+        AND timestamp >= $ingestedSince
+        AND ${MONITOR_OBSERVED_AT} >= $start AND ${MONITOR_OBSERVED_AT} < $end
+      GROUP BY t ORDER BY t DESC LIMIT 100`, { id, ingestedSince: new Date((start - 86400) * 1000).toISOString(), start, end }, 60);
     const points = rows.map(row => ({ t: Number(row.t), up: Number(row.up),
       ms: Number(row.up) === 1 || Number(row.up) === 2 ? Number(row.ms) : null,
     })).filter(point => Number.isFinite(point.t) && [0, 1, 2, 4].includes(point.up) && (point.ms === null || Number.isFinite(point.ms)))

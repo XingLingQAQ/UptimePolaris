@@ -99,7 +99,7 @@ Choisissez le Worker si vous préférez ne pas maintenir de serveur. Choisissez 
 2. Dans le tableau de bord Cloudflare, ouvrez **Workers & Pages → Create application → GitHub** et sélectionnez votre fork. Utilisez `npm run build` comme commande de build et `npm run deploy` comme commande de déploiement.
 3. Ouvrez le site une fois le déploiement terminé. La page d'installation vérifie d'abord les bindings et les secrets. Configurez ce qui suit dans les **Settings** du Worker, comme la page l'indique :
    - **D1 (facultatif)** : pour utiliser D1, ajoutez une base sous **Bindings** avec le nom de variable `DB`. Sans D1, seule l’option PostgreSQL est proposée.
-   - **KV (requis pour saisir PostgreSQL sur la page)** : ajoutez un espace de noms KV sous **Bindings** avec le nom de variable `CONFIG` pour chiffrer les URL de connexion. Facultatif avec D1 seul ou un `DATABASE_URL` défini au déploiement.
+   - **KV (requis)** : ajoutez un espace de noms KV sous **Bindings** avec le nom de variable `CONFIG`. Il stocke la sélection de base de données et l’URL de connexion chiffrée.
    - **Clé d'initialisation** : ajoutez un secret `ADMIN_TOKEN` sous **Variables and Secrets**, avec une valeur aléatoire longue, par exemple la sortie de `openssl rand -hex 32`.
    - **Analytics Engine (obligatoire)** : activez Analytics Engine dans le tableau de bord et ajoutez le jeu de données sous **Bindings** avec le nom de variable `UPTIME`.
    - **R2 (facultatif)** : nécessaire pour les thèmes tiers. Ajoutez un bucket sous **Bindings** avec le nom de variable `THEMES`, ou ajoutez-le après l'installation.

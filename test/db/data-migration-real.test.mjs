@@ -18,7 +18,6 @@ export async function testDataMigration(url) {
   for (const file of readdirSync('database/schema/d1').filter((entry) => entry.endsWith('.sql')).sort()) {
     local.exec(readFileSync(`database/schema/d1/${file}`, 'utf8'));
   }
-  local.exec("INSERT INTO app_settings (key, value_json, updated_at) VALUES ('site.title', '\"Example\"', 100)");
   local.exec("INSERT INTO site_icon (singleton, bytes, content_type, byte_size, updated_at) VALUES (1, x'010203', 'image/png', 3, 100)");
   local.exec("INSERT INTO agents(id,name,token,created_at,updated_at) VALUES('machine','Machine','machine-token',100,100)");
   local.exec("INSERT INTO monitors(id,num_id,name,type,target,agent_id,is_public,created_at,updated_at) VALUES('private',1,'Private monitor','agent','','machine',0,100,100)");
@@ -46,13 +45,12 @@ export async function testDataMigration(url) {
     local.exec('UPDATE site_icon SET byte_size = 3 WHERE singleton = 1');
     const initial = await migrateDataWithConnection(d1, target, true);
     assert.equal(initial.targetNeedsInitialization, true);
-    assert.equal((await target`SELECT value_json FROM app_settings WHERE key = 'site.title'`)[0].value_json, '"Example"');
     assert.equal((await target`SELECT token FROM agents WHERE id='machine'`)[0].token, 'machine-token');
+    assert.equal((await target`SELECT name FROM monitors WHERE id='private'`)[0].name, 'Private monitor');
     assert.equal((await target`SELECT is_public FROM monitors WHERE id='private'`)[0].is_public, 0);
     assert.equal((await target`SELECT cpu_usage FROM machine_live WHERE agent_id='machine'`)[0].cpu_usage, 42);
     await target`DELETE FROM monitors`;
     await target`DELETE FROM agents`;
-    await target`DELETE FROM app_settings`;
     await target`DELETE FROM site_icon`;
     await target`DELETE FROM schema_migrations WHERE name = '0017_agent_runtime_config.postgres.sql'`;
     await assert.rejects(() => migrateDataWithConnection(d1, target, false), (error) => error.code === 'schema_mismatch');
@@ -63,15 +61,14 @@ export async function testDataMigration(url) {
     const preview = await migrateDataWithConnection(d1, target, false);
     assert.equal(preview.targetNeedsInitialization, false);
     assert.equal(preview.tables.find((table) => table.name === 'site_icon').rows, 1);
-    assert.equal((await target`SELECT COUNT(*)::int AS n FROM app_settings`)[0].n, 0);
     local.exec('UPDATE site_icon SET byte_size = 2147483648 WHERE singleton = 1');
     await assert.rejects(() => migrateDataWithConnection(d1, target, true));
-    assert.equal((await target`SELECT COUNT(*)::int AS n FROM app_settings`)[0].n, 0);
+    assert.equal((await target`SELECT COUNT(*)::int AS n FROM monitors`)[0].n, 0);
     assert.equal((await target`SELECT COUNT(*)::int AS n FROM auth_setup_state`)[0].n, 1);
     local.exec('UPDATE site_icon SET byte_size = 3 WHERE singleton = 1');
     const copied = await migrateDataWithConnection(d1, target, true);
     assert.equal(copied.copied, true);
-    assert.equal((await target`SELECT value_json FROM app_settings WHERE key = 'site.title'`)[0].value_json, '"Example"');
+    assert.equal((await target`SELECT COUNT(*)::int AS n FROM monitors`)[0].n, 1);
     assert.deepEqual([...((await target`SELECT bytes FROM site_icon`)[0].bytes)], [1, 2, 3]);
     await assert.rejects(() => migrateDataWithConnection(d1, target, true), (error) => error.code === 'target_not_empty');
     console.log('PASS D1 to PostgreSQL migration: preflight, complete copy, binary data and populated target rejection');

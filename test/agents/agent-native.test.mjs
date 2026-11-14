@@ -152,7 +152,7 @@ async function startWorker() {
     modules: true, script: bundled.outputFiles[0].text, compatibilityDate: '2025-01-01',
     compatibilityFlags: ['nodejs_compat'], host: '127.0.0.1', port: 0,
     bindings: { CF_ACCOUNT_ID: 'isolated', CF_API_TOKEN: 'isolated', ADMIN_TOKEN: adminToken },
-    analyticsEngineDatasets: { UPTIME: { dataset: 'setup_fixture' } }, d1Databases: { DB: 'native-agent-acceptance' },
+    analyticsEngineDatasets: { UPTIME: { dataset: 'setup_fixture' } }, d1Databases: { DB: 'native-agent-acceptance' }, kvNamespaces: { CONFIG: 'native-agent-acceptance-config' },
   });
   const origin = (await mf.ready).origin;
   const db = await mf.getD1Database('DB');

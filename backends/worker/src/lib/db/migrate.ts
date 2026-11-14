@@ -19,7 +19,6 @@ const EXPECTED_PG_MIGRATIONS = [
   '0006_theme_versions.postgres.sql',
   '0007_cron_tick_lease.postgres.sql',
   '0008_auth_setup.postgres.sql',
-  '0009_app_settings.postgres.sql',
   '0010_agent_commands.postgres.sql',
   '0011_agent_check_update.postgres.sql',
   '0012_notification_deliveries.postgres.sql',

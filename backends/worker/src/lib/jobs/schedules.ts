@@ -9,4 +9,3 @@
  * 并拒绝不可调用的导出。
  */
 export const CRON_TICK = '* * * * *';
-export const CRON_SYNC = '10 0 * * *';

@@ -21,8 +21,7 @@ Worker 的默认调度在部署配置里保持一致：
 
 | Cron（UTC） | 用途 |
 | --- | --- |
-| `* * * * *` | 检查到期监控、处理 Push 超时和 Agent 状态、推进通知等常规任务 |
-| `10 0 * * *` | 日汇总、AE 历史归档与回填、保留策略清理 |
+| `* * * * *` | 检查到期监控、处理 Push 超时和 Agent 状态、推进通知；UTC 00:10 后执行当天的日汇总、AE 历史归档与回填、保留策略清理 |
 
 监控自己的间隔决定什么时候到期，不是每次 Cron 都会对所有监控发请求。实际吞吐还受请求预算、并发、超时和目标响应影响。
 
@@ -32,7 +31,7 @@ Go 不依赖 Cloudflare Cron：进程每秒检查到期任务，启动时和每�
 
 Worker 把监控观测和 Agent 资源历史写入 AE。实时状态、检查时间和状态变化保存在业务数据库中，状态条按真实检查时间展开，漏检不会补成正常，历史延迟也不会用最新值填充。
 
-每天 UTC 00:10（北京时间 08:10）读取 AE，向业务数据库写入监控日统计和 Agent 资源日汇总。精确可用率保留原值，AE 仅补充延迟等历史指标。Agent 管理详情可切换“最近 24 小时”和“每日汇总”。任务分批推进并回查最近两天；查询失败后保留进度，下次重试。查询凭据见[配置参考](configuration.md#worker-环境变量)。
+每分钟调度在 UTC 00:10（北京时间 08:10）后执行当天的日汇总：读取 AE，向业务数据库写入监控日统计和 Agent 资源日汇总。精确可用率保留原值，AE 仅补充延迟等历史指标。Agent 管理详情可切换“最近 24 小时”和“每日汇总”。任务分批推进并回查最近两天；查询失败后保留进度，下次重试。历史读取使用部署配置中的 `ANALYTICS_SQL` 绑定，无需额外查询凭据。
 
 AE 单次调用最多写入 250 个点。一次 tick 超过上限时，历史写入轮换选取监控并记录 `history_write_partial`，不延长检查间隔；历史明细会有缺口。AE 查询还可能采样，界面会标明采样数据。精确状态、可用率和告警不依赖 AE 查询结果。
 
@@ -67,9 +66,10 @@ AE 单次调用最多写入 250 个点。一次 tick 超过上限时，历史写
 
 | 对象 | 备份内容 |
 | --- | --- |
-| 业务数据库 | 配置、账号、Token、监控历史、通知及主题版本元数据 |
+| 业务数据库 | 账号、Token、监控历史、通知及主题版本元数据 |
+| Worker `CONFIG` KV | 后台设置（`settings`）和初始化选库记录（`database`） |
 | R2 `THEMES` | 已安装主题的不可变资源，与数据库中的 prefix/revision 对应 |
-| Worker 密钥 | `ADMIN_TOKEN`、数据库 URL、AE 查询凭据；用独立的受保护渠道保存 |
+| Worker 密钥 | `ADMIN_TOKEN`、数据库 URL 和其他已配置的密钥；用独立的受保护渠道保存 |
 | Worker 初始化选库记录 | 网页选库所用的 D1 绑定及其控制记录；选择 PostgreSQL 后仍需保留该绑定 |
 | Go 数据与配置 | 停止服务后备份整个数据目录、主题、`POLARIS_*` 配置；PostgreSQL 另备份数据库 |
 | 部署配置 | 实际使用的配置、域名设置和服务版本 |
@@ -157,9 +157,9 @@ Before migration, recovery or domain changes, identify the account, backend, dat
 
 ### Scheduling
 
-Worker runs scheduled checks every minute and daily aggregation, AE archiving and retention cleanup at 00:10 UTC. A monitor's own interval controls when it is due. Monitor observations and Agent resource history go to AE; live state, actual check times and status changes remain in the business database. Missing checks are not filled with healthy states or copied latency values.
+Worker runs scheduled checks every minute; the same trigger runs daily aggregation, AE archiving and retention cleanup once per day after 00:10 UTC. A monitor's own interval controls when it is due. Monitor observations and Agent resource history go to AE; live state, actual check times and status changes remain in the business database. Missing checks are not filled with healthy states or copied latency values.
 
-Daily archiving preserves exact availability counts and supplements latency and resource statistics. Agent management details offer recent and daily views. Each run processes a bounded date batch and revisits the last two days; failed queries retain their progress for retry. History reads and archiving need the credentials listed in [configuration](configuration.md#english).
+Daily archiving preserves exact availability counts and supplements latency and resource statistics. Agent management details offer recent and daily views. Each run processes a bounded date batch and revisits the last two days; failed queries retain their progress for retry. History reads use the `ANALYTICS_SQL` binding included in the deployment configuration; no additional query credentials are needed.
 
 A Worker invocation can write at most 250 AE points. When a tick exceeds that limit, history writes rotate across monitors and emit `history_write_partial`, without changing check intervals. History will have gaps. AE queries may also return sampled data, which the UI identifies; exact status, availability and alerts do not depend on AE query results.
 
@@ -177,7 +177,7 @@ Rolling back an executable or Worker version does not automatically reverse data
 
 ### Backup and restore
 
-Back up the business database, theme files (`THEMES` R2 objects for Worker or the Go data directory), deployment configuration, required secrets and important Agent configuration. Treat exports as sensitive: they can contain tokens and notification settings. PostgreSQL also needs a database snapshot or `pg_dump`.
+Back up the business database, the Worker's `CONFIG` KV namespace (console settings and the setup selection), theme files (`THEMES` R2 objects for Worker or the Go data directory), deployment configuration, required secrets and important Agent configuration. Treat exports as sensitive: they can contain tokens and notification settings. PostgreSQL also needs a database snapshot or `pg_dump`.
 
 For a Worker PostgreSQL connection configured through setup, retain and back up the `CONFIG` KV namespace that stores the encrypted database selection. Go stores an explicit setup selection in the data directory's `database.json`; this file contains the plaintext connection URL and takes precedence on restart. Protect and back it up with the database credentials. It is created with POSIX mode `0600`; restrict Windows file and directory ACLs separately. A single executable does not replace persistent data and theme storage.
 

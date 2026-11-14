@@ -99,7 +99,7 @@ Uptime Polaris 定時檢查網站、端口和定時任務，採集伺服器指�
 2. 在 Cloudflare 控制台打開 **Workers & Pages → Create application → GitHub**，選擇 fork 後的倉庫。構建命令填寫 `npm run build`，部署命令填寫 `npm run deploy`。
 3. 部署完成後打開站點，初始化頁面會先檢查綁定和密鑰。請按頁面提示在 Worker 的 **Settings** 中配置：
    - **D1（可選）**：使用 D1 時，在 **Bindings** 中新增數據庫，變量名填寫 `DB`。未綁定 D1 時，初始化只提供 PostgreSQL。
-   - **KV（在頁面設定 PostgreSQL 時必需）**：在 **Bindings** 中新增 KV 命名空間，變量名填寫 `CONFIG`，用於加密儲存連線地址。只使用 D1 或部署時設定的 `DATABASE_URL` 時可不綁定。
+   - **KV（必需）**：在 **Bindings** 中新增 KV 命名空間，變量名填寫 `CONFIG`，用於保存數據庫選擇和加密的連接地址。
    - **初始化密鑰**：在 **Variables and Secrets** 中添加 Secret `ADMIN_TOKEN`，值使用足夠長的隨機字符串，例如 `openssl rand -hex 32` 的輸出。
    - **Analytics Engine（必需）**：在控制台啟用 Analytics Engine，並在 **Bindings** 中添加數據集，變量名填 `UPTIME`。
    - **R2（可選）**：安裝第三方主題時需要。在 **Bindings** 中添加存儲桶，變量名填 `THEMES`，也可以在初始化後再添加。

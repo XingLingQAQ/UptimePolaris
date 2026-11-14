@@ -99,7 +99,7 @@ Uptime Polaris는 웹사이트, 포트, 예약 작업을 주기적으로 확인�
 2. Cloudflare 대시보드에서 **Workers & Pages → Create application → GitHub**을 열고 fork한 저장소를 고릅니다. 빌드 명령에는 `npm run build`, 배포 명령에는 `npm run deploy`를 지정합니다.
 3. 배포가 끝나면 사이트를 엽니다. 설정 페이지가 먼저 바인딩과 시크릿을 확인하므로, 안내에 따라 Worker의 **Settings**에서 다음을 설정합니다.
    - **D1(선택)**: D1을 사용하려면 **Bindings**에서 데이터베이스를 추가하고 변수 이름을 `DB`로 지정합니다. D1을 바인딩하지 않으면 초기 설정에서 PostgreSQL만 선택할 수 있습니다.
-   - **KV(화면에서 PostgreSQL 설정 시 필수)**: **Bindings**에서 변수 이름이 `CONFIG`인 KV 네임스페이스를 추가합니다. 연결 주소를 암호화해 저장합니다. D1만 사용하거나 배포 시 `DATABASE_URL`을 설정한 경우에는 선택 사항입니다.
+   - **KV(필수)**: **Bindings**에서 변수 이름 `CONFIG`인 KV 네임스페이스를 추가합니다. 데이터베이스 선택과 암호화된 연결 주소를 저장합니다.
    - **초기 설정 키**: **Variables and Secrets**에서 Secret `ADMIN_TOKEN`을 추가합니다. 값은 `openssl rand -hex 32`의 출력처럼 충분히 긴 무작위 문자열을 사용합니다.
    - **Analytics Engine(필수)**: 대시보드에서 Analytics Engine을 활성화하고 **Bindings**에 데이터셋을 추가한 뒤 변수 이름을 `UPTIME`으로 지정합니다.
    - **R2(선택)**: 서드파티 테마에 필요합니다. **Bindings**에 버킷을 추가하고 변수 이름을 `THEMES`로 지정하며, 설정 후에 추가해도 됩니다.

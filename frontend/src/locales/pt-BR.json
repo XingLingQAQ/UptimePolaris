@@ -139,7 +139,7 @@
     "reload": "Recarregar página"
   },
   "detail": {
-    "historyUnconfigured": "As consultas de histórico não estão configuradas. O administrador deve definir CF_ACCOUNT_ID e CF_API_TOKEN com a permissão Analytics Read.",
+    "historyUnconfigured": "Faltam bindings para consultar o histórico. Peça a um administrador para verificar a configuração de implantação e reimplantar.",
     "historyUnavailable": "O histórico está temporariamente indisponível. Tente novamente mais tarde.",
     "historySampled": "O histórico inclui dados amostrados; as estatísticas são aproximadas.",
     "historyRecent": "Últimas 24 horas",

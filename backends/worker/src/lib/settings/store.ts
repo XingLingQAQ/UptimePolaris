@@ -1,10 +1,8 @@
-/** Runtime defaults and validation for app_settings; deployment bindings and secrets remain in Worker configuration. / app_settings 的运行时默认值和验证；部署绑定与密钥仍留在 Worker 配置中。 */
+/** Runtime defaults and validation for the KV settings object; deployment bindings and secrets remain in Worker configuration. / KV 设置对象的运行时默认值和验证；部署绑定与密钥仍留在 Worker 配置中。 */
 
 import type { Env } from '../../types';
 import { PROJECT_NAME } from '../../../../../shared/project';
-import { getDB } from '../db/factory';
-import { databaseIdentity } from '../db/setup-control';
-import { settingsSQL } from '../db/sql/settings';
+import { deploymentEnv } from '../db/setup-control';
 
 /** Every setting this build understands, with its default and validator. / 此构建认识的所有设置及其默认值和验证器。 */
 export interface SettingSpec<T> {
@@ -101,60 +99,99 @@ export type SettingValue<K extends SettingKey> = (typeof SPECS)[K]['default'];
 
 export const SETTING_KEYS = Object.keys(SPECS) as SettingKey[];
 
+/**
+ * One JSON object holds every override, so a write is one read-modify-write and a read is one
+ * `get` per cache miss. `database` in the same namespace belongs to the setup selection.
+ * 单个 JSON 对象保存全部覆盖值：一次读取一次 get，一次写入一次读改写；同命名空间的
+ * `database` 键属于初始化选库记录。
+ */
+const SETTINGS_KEY = 'settings';
+
+interface StoredSettings {
+  [key: string]: unknown;
+}
+
 // Writes invalidate this isolate; other isolates refresh after the TTL.
 // 写入使当前 isolate 的缓存失效；其他 isolate 在 TTL 后刷新。
 const CACHE_TTL_MS = 15_000;
-let cache: { at: number; target: string | D1Database; values: Record<SettingKey, unknown> } | null = null;
+let cache: { at: number; target: KVNamespace | null; values: Record<SettingKey, unknown>; stored: Set<string> } | null = null;
+
+// 同一 isolate 内的并发读改写排队执行，避免两个请求互相覆盖。
+// Serialize read-modify-write pairs inside one isolate so concurrent requests do not lose each other's keys.
+let writeChain: Promise<unknown> = Promise.resolve();
+function serializeWrite<T>(work: () => Promise<T>): Promise<T> {
+  const next = writeChain.then(work, work);
+  writeChain = next.catch(() => {});
+  return next;
+}
+
+function settingsNamespace(env: Env): KVNamespace | null {
+  return deploymentEnv(env).CONFIG ?? null;
+}
+
+/** Missing namespace means no overrides; a malformed stored object is a read failure, not defaults. / 未绑定命名空间视为没有覆盖值；存储对象格式错误是读取故障，不是默认值。 */
+async function loadStored(namespace: KVNamespace | null): Promise<StoredSettings> {
+  if (!namespace) return {};
+  const value = await namespace.get(SETTINGS_KEY, 'json');
+  if (value === null) return {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('settings_unavailable');
+  return value as StoredSettings;
+}
+
+async function mutateStored(env: Env, mutate: (stored: StoredSettings) => boolean): Promise<void> {
+  const namespace = settingsNamespace(env);
+  if (!namespace) throw new Error('settings_unavailable');
+  await serializeWrite(async () => {
+    const stored = await loadStored(namespace);
+    if (!mutate(stored)) return;
+    if (Object.keys(stored).length === 0) await namespace.delete(SETTINGS_KEY);
+    else await namespace.put(SETTINGS_KEY, JSON.stringify(stored));
+  });
+  resetSettingsCache();
+}
 
 /** Test hook: drop the cache so a suite can assert a value it just wrote. / 测试钩子：清除缓存，使测试可断言刚写入的值。 */
 export function resetSettingsCache(): void {
   cache = null;
 }
 
-/** Values resolved against declared defaults; invalid lists rejected stored rows on a fresh read. / 按声明默认值解析的设置；invalid 列出本次新读取中被拒绝的存储记录。 */
+/** Values resolved against declared defaults; invalid lists rejected stored values on a fresh read. / 按声明默认值解析的设置；invalid 列出本次新读取中被拒绝的存储值。 */
 export interface SettingsSnapshot {
   values: Record<SettingKey, unknown>;
   /** Keys whose stored value was rejected, with the reason. / 存储值被拒绝的键及其原因。 */
   invalid: Array<{ key: string; reason: string }>;
+  /** Keys that have an override stored. / 已存储覆盖值的键。 */
+  stored: string[];
 }
 
 export async function readAll(env: Env, fresh = false): Promise<SettingsSnapshot> {
   const now = Date.now();
-  if (!fresh && cache && cache.target === databaseIdentity(env) && now - cache.at < CACHE_TTL_MS) {
-    return { values: cache.values as Record<SettingKey, unknown>, invalid: [] };
+  const namespace = settingsNamespace(env);
+  if (!fresh && cache && cache.target === namespace && now - cache.at < CACHE_TTL_MS) {
+    return { values: cache.values as Record<SettingKey, unknown>, invalid: [], stored: [...cache.stored] };
   }
 
   const values = {} as Record<SettingKey, unknown>;
   for (const key of SETTING_KEYS) values[key] = SPECS[key].default;
 
+  const stored = await loadStored(namespace);
   const invalid: Array<{ key: string; reason: string }> = [];
-  const db = getDB(env);
-  const rows = await db.query<{ key: string; value_json: string }>(settingsSQL[db.type].load);
-
-  for (const row of rows) {
-    if (!Object.hasOwn(SPECS, row.key)) {
-      // A dropped setting stays in the table but is reported as leftover. / 已移除的设置保留在表中，但会报告为遗留项。
-      invalid.push({ key: row.key, reason: 'unknown_key' });
+  for (const [key, value] of Object.entries(stored)) {
+    if (!Object.hasOwn(SPECS, key)) {
+      // A dropped setting stays in the object but is reported as leftover. / 已移除的设置保留在对象中，但会报告为遗留项。
+      invalid.push({ key, reason: 'unknown_key' });
       continue;
     }
-    const key = row.key as SettingKey;
-    let parsedJson: unknown;
-    try {
-      parsedJson = JSON.parse(row.value_json);
-    } catch {
-      invalid.push({ key, reason: 'invalid_json' });
-      continue;
-    }
-    const accepted = SPECS[key].parse(parsedJson);
+    const accepted = SPECS[key as SettingKey].parse(value);
     if (accepted === null) {
       invalid.push({ key, reason: 'invalid_value' });
       continue;
     }
-    values[key] = accepted;
+    values[key as SettingKey] = accepted;
   }
 
-  cache = { at: now, target: databaseIdentity(env), values };
-  return { values, invalid };
+  cache = { at: now, target: namespace, values, stored: new Set(Object.keys(stored)) };
+  return { values, invalid, stored: [...cache.stored] };
 }
 
 /** Read one setting, already narrowed to its declared type. / 读取单项设置，结果已收窄为声明的类型。 */
@@ -164,21 +201,22 @@ export async function readSetting<K extends SettingKey>(env: Env, key: K): Promi
 }
 
 export async function writeSettings(env: Env, values: Partial<Record<SettingKey, unknown>>): Promise<void> {
-  const db = getDB(env);
-  const now = Math.floor(Date.now() / 1000);
-  await db.commit(Object.entries(values).map(([key, value]) => ({
-    sql: settingsSQL[db.type].upsert,
-    params: [key, JSON.stringify(value), now],
-  })));
-  resetSettingsCache();
+  const entries = Object.entries(values);
+  if (entries.length === 0) return;
+  await mutateStored(env, (stored) => {
+    for (const [key, value] of entries) stored[key] = value;
+    return true;
+  });
 }
 
 /** Remove an override, so the key falls back to its declared default. / 删除覆盖值，使键回退到声明的默认值。 */
 export async function clearSetting(env: Env, key: string): Promise<boolean> {
   if (!Object.hasOwn(SPECS, key)) return false;
-  const db = getDB(env);
-  await db.execute(settingsSQL[db.type].remove, [key]);
-  resetSettingsCache();
+  await mutateStored(env, (stored) => {
+    if (!Object.hasOwn(stored, key)) return false;
+    delete stored[key];
+    return true;
+  });
   return true;
 }
 

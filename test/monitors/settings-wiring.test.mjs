@@ -115,10 +115,12 @@ const mf = new Miniflare({
   compatibilityFlags: ['nodejs_compat'],
   bindings: { ADMIN_TOKEN, PBKDF2_ITERATIONS: '3000' },
   d1Databases: { DB: 'settings-wiring-test' },
+  kvNamespaces: { CONFIG: 'settings-wiring-config' },
 });
 
 const origin = 'http://localhost';
 const db = await mf.getD1Database('DB');
+const kv = await mf.getKVNamespace('CONFIG');
 await applyD1Migrations(db);
 
 let pass = 0;
@@ -409,13 +411,14 @@ try {
       check(`${key} is present in the GET payload`, key in r.body.values, Object.keys(r.body.values));
     }
   }
-  // 查询失败与未配置是不同状态；缓存清空后不得返回默认维护状态。
-  // A query failure is distinct from unset values; do not return default maintenance state.
-  await db.prepare('ALTER TABLE app_settings RENAME TO unavailable_settings').run();
+  // 读取失败与未配置是不同状态；缓存清空后不得返回默认维护状态。
+  // A read failure is distinct from unset values; do not return default maintenance state.
+  await kv.put('settings', 'not-json');
   await req('/__reset-cache');
   eq('unreadable settings reject public maintenance', (await req('/api/public/maintenance')).status, 500);
-  await db.prepare('ALTER TABLE unavailable_settings RENAME TO app_settings').run();
-  eq('settings recover after the table is restored', (await req('/api/admin/settings', { headers: authed })).status, 200);
+  await kv.delete('settings');
+  await req('/__reset-cache');
+  eq('settings recover after the key is removed', (await req('/api/admin/settings', { headers: authed })).status, 200);
 } finally {
   await mf.dispose();
   clearTimeout(watchdog);

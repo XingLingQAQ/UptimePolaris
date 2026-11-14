@@ -188,7 +188,7 @@ const worker = await build({
     api.get('/api/__bad-request', () => { throw new HTTPException(422); });
     export default { fetch(request, env, ctx) {
       if (new URL(request.url).pathname === '/__startup') return worker.fetch(request, { ...env, CONFIG: { get() { throw new Error('private-bootstrap-credential'); } } }, ctx);
-      if (new URL(request.url).pathname === '/__settings') return api.fetch(new Request('https://fixture.test/api/admin/settings', { headers: request.headers }), { ...env, DB: { prepare() { throw new Error('private-settings-credential'); } } }, ctx);
+      if (new URL(request.url).pathname === '/__settings') return api.fetch(new Request('https://fixture.test/api/admin/settings', { headers: request.headers }), { ...env, CONFIG: { get() { throw new Error('private-settings-credential'); } } }, ctx);
       if (new URL(request.url).pathname === '/__no-storage') return api.fetch(new Request('https://fixture.test/api/themes/install', request), { ...env, THEMES: undefined }, ctx);
       return api.fetch(request, env, ctx);
     } };
@@ -199,7 +199,7 @@ const worker = await build({
     builder.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export default function() { throw new Error("unused Postgres driver"); }' }));
   } }],
 });
-const mf = new Miniflare({ modules: true, script: worker.outputFiles[0].text, compatibilityDate: '2025-01-01', compatibilityFlags: ['nodejs_compat'], bindings: { ADMIN_TOKEN: 'api-error-fixture' }, d1Databases: { DB: 'api-error-fixture' }, r2Buckets: { THEMES: 'api-error-themes' } });
+const mf = new Miniflare({ modules: true, script: worker.outputFiles[0].text, compatibilityDate: '2025-01-01', compatibilityFlags: ['nodejs_compat'], bindings: { ADMIN_TOKEN: 'api-error-fixture' }, d1Databases: { DB: 'api-error-fixture' }, kvNamespaces: { CONFIG: 'api-error-config' }, r2Buckets: { THEMES: 'api-error-themes' } });
 const headers = { authorization: 'Bearer api-error-fixture', 'content-type': 'application/json' };
 const request = (path, init = {}) => mf.dispatchFetch('https://fixture.test' + path, { ...init, headers: { ...headers, ...init.headers } });
 async function expectError(path, status, code, init) {
