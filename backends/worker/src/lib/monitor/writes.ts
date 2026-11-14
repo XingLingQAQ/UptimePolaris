@@ -1,6 +1,7 @@
 import type { Env, Monitor } from '../../types';
 import type { DBAdapter } from '../db/adapter';
 import { getDB } from '../db/factory';
+import { liveStateSQL } from '../db/sql/live-state';
 import { monitorSQL } from '../db/sql/monitors';
 import { invalidateConfig, invalidateLive } from './store';
 import { visibilityRevisionWrite } from '../public/cache';
@@ -22,6 +23,20 @@ export function monitorSnapshotGuard(monitors: Monitor[], now: number): { sql: s
       ON CONFLICT(id) DO UPDATE SET json=excluded.json`,
     params: [JSON.stringify(monitors), now],
   };
+}
+
+export function guardMonitorWrites(monitors: Monitor[], now: number, writes: { sql: string; params: unknown[] }[]): { sql: string; params: unknown[] }[] {
+  if (!monitors.length) return writes;
+  const index = writes.findIndex(write => write.sql === liveStateSQL.d1.merge);
+  if (index < 0) return [monitorSnapshotGuard(monitors, now), ...writes];
+  const mismatch = CHECK_FIELDS.map(field => `m.${field} IS NOT json_extract(snapshot.value, '$.${field}')`).join(' OR ');
+  return writes.map((write, i) => i !== index ? write : {
+    sql: write.sql.replace('VALUES (?, ?, ?)', `VALUES (?, CASE WHEN NOT EXISTS (
+      SELECT 1 FROM json_each(?) snapshot LEFT JOIN monitors m ON m.id=json_extract(snapshot.value, '$.id')
+      WHERE m.id IS NULL OR ${mismatch}
+    ) THEN ? ELSE NULL END, ?)`),
+    params: [write.params[0], JSON.stringify(monitors), write.params[1], write.params[2]],
+  });
 }
 
 export async function lockMonitorSnapshots(tx: DBAdapter, monitors: Monitor[]): Promise<void> {
@@ -46,7 +61,7 @@ export async function commitMonitorWrites(db: DBAdapter, monitor: Monitor, now: 
     return;
   }
   try {
-    await db.commit([monitorSnapshotGuard([monitor], now), ...writes]);
+    await db.commit(guardMonitorWrites([monitor], now, writes));
   } catch (error) {
     if (String(error).includes('NOT NULL constraint failed: live_state.json')) throw new MonitorChanged();
     throw error;

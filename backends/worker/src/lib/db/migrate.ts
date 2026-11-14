@@ -93,6 +93,7 @@ export async function probeSchema(
     ...['id', 'owner', 'lease_until', 'completed_minute'].map((column) => `cron_tick_lease.${column}`),
     ...['key_hash', 'attempts', 'window_started', 'locked_until'].map((column) => `auth_login_limits.${column}`),
     ...['agent_id', 'version', 'public_ipv6', 'report_interval_secs', 'probe_capabilities'].map((column) => `machine_live.${column}`),
+    ...['agent_id', 'days_json', 'updated_at'].map(column => `agent_history_daily.${column}`),
     ...['agent_id', 'sample_count', 'duration_sec', 'quality', 'net_up_bytes', 'net_down_bytes', 'network_duration_sec'].map((column) => `machine_history.${column}`),
   ];
   const missingColumns = required.filter((column) => !columns.has(column));

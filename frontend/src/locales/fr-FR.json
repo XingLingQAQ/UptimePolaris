@@ -139,6 +139,11 @@
     "reload": "Recharger la page"
   },
   "detail": {
+    "historyUnconfigured": "Les requêtes historiques ne sont pas configurées. Un administrateur doit définir CF_ACCOUNT_ID et CF_API_TOKEN avec la permission Analytics Read.",
+    "historyUnavailable": "L’historique est temporairement indisponible. Réessayez plus tard.",
+    "historySampled": "Les données historiques sont échantillonnées ; les statistiques sont approximatives.",
+    "historyRecent": "Dernières 24 heures",
+    "historyDaily": "Synthèses quotidiennes",
     "dns": "DNS",
     "dnsCheckedAt": "Vérifié à {time}",
     "dnsRecords": "Enregistrements",

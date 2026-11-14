@@ -1,3 +1,5 @@
+import type { HistoryStatus } from '../../../../../shared/contracts';
+import { loadAgentDaily, queryAgentHistory, type AgentHistoryBucket } from './history';
 /** Agent detail: fleet row, mounts, interfaces, alert rules, a day of history. / Agent 详情：集群记录、挂载点、网卡、告警规则及一天的历史。 */
 
 import { parseOptions, type AgentOptions, type Env, type LiveState } from '../../types';
@@ -32,6 +34,10 @@ export interface AgentDetail {
   interfaces: FleetAgent['interfaces'];
   alerts: AgentAlertRule[];
   history: AgentHistoryPoint[];
+  history_status: HistoryStatus;
+  history_sampled: boolean;
+  history_daily: AgentHistoryPoint[];
+  history_daily_sampled: boolean;
   /** Monitors this agent is the probe source for. / 以此 Agent 为探测来源的监控。 */
   probe_targets: AgentProbeTarget[];
   /** The most recent probe runs, newest first. / 最近的探测运行记录，最新的排在前面。 */
@@ -41,39 +47,6 @@ export interface AgentDetail {
 }
 
 const RESOURCES: readonly AlertResource[] = ['cpu', 'memory', 'disk', 'load'];
-
-const d1 = {
-  monitor: "SELECT id, options_json, token FROM agents WHERE id = ?",
-  history: `SELECT (bucket_ts / 300) * 300 AS ts,
-                  AVG(cpu_avg) AS cpu, AVG(mem_pct_avg) AS mem_pct,
-                  AVG(net_up_bytes) AS net_up, AVG(net_down_bytes) AS net_down
-             FROM machine_history
-            WHERE agent_id = ? AND bucket_ts >= ? AND quality = 'aggregate'
-            GROUP BY (bucket_ts / 300)
-            ORDER BY ts DESC
-            LIMIT 288`,
-} as const;
-
-type DetailSQL = { [K in keyof typeof d1]: string };
-
-const postgres: DetailSQL = {
-  monitor: "SELECT id, options_json, token FROM agents WHERE id = $1",
-  // AVG(bigint) is numeric on PG and arrives as a string; the caller converts.
-  // PG 中 AVG(bigint) 的结果为 numeric，以字符串返回；由调用方转换。
-  history: `SELECT (bucket_ts / 300) * 300 AS ts,
-                  AVG(cpu_avg) AS cpu, AVG(mem_pct_avg) AS mem_pct,
-                  AVG(net_up_bytes) AS net_up, AVG(net_down_bytes) AS net_down
-             FROM machine_history
-            WHERE agent_id = $1 AND bucket_ts >= $2 AND quality = 'aggregate'
-            GROUP BY (bucket_ts / 300)
-            ORDER BY ts DESC
-            LIMIT 288`,
-};
-
-const detailSQL: Record<'d1' | 'postgres', DetailSQL> = {
-  d1,
-  postgres,
-};
 
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -106,7 +79,7 @@ function alertRules(options: AgentOptions, liveState: LiveState, monitor: { id: 
 export async function loadAgentDetail(env: Env, agentId: string, now: number): Promise<AgentDetail | null> {
   const db = getDB(env);
   const monitor = await db.queryOne<{ id: string; options_json: string | null; token: string }>(
-    detailSQL[db.type].monitor,
+    db.type === 'postgres' ? "SELECT id, options_json, token FROM agents WHERE id = $1" : "SELECT id, options_json, token FROM agents WHERE id = ?",
     [agentId],
   );
   if (!monitor) return null;
@@ -118,8 +91,9 @@ export async function loadAgentDetail(env: Env, agentId: string, now: number): P
     db.type === 'postgres' ? "SELECT id,name,options_json FROM monitors WHERE agent_id=$1 AND type='agent'" : "SELECT id,name,options_json FROM monitors WHERE agent_id=? AND type='agent'", [agentId]);
   const liveState: LiveState = monitors.length ? await loadLiveFresh(env) : {};
 
-  const [rows, probeTargets, probeJobs] = await Promise.all([
-    db.query<Record<string, unknown>>(detailSQL[db.type].history, [agentId, now - 86_400]),
+  const [recent, daily, probeTargets, probeJobs] = await Promise.all([
+    queryAgentHistory(env, agentId, now - 86_400, now),
+    loadAgentDaily(env, agentId),
     loadAgentProbeTargets(env, agentId),
     // One screenful. The full history is a diagnostic endpoint of its own, and
     // a dialog that rendered hundreds of rows would be unreadable anyway.
@@ -127,15 +101,7 @@ export async function loadAgentDetail(env: Env, agentId: string, now: number): P
     loadAgentProbeJobs(env, agentId, 12),
   ]);
 
-  // Selected newest-first so the cap keeps the most recent 288 buckets.
-  // 按最新优先选择，使上限保留最近的 288 个时间桶。
-  const history = rows.reverse().map((row) => ({
-    ts: toNumber(row.ts) ?? 0,
-    cpu: toNumber(row.cpu),
-    mem_pct: toNumber(row.mem_pct),
-    net_up: toNumber(row.net_up),
-    net_down: toNumber(row.net_down),
-  }));
+  const history = aggregateAgentHistory(recent.points);
 
   return {
     agent,
@@ -143,8 +109,39 @@ export async function loadAgentDetail(env: Env, agentId: string, now: number): P
     interfaces: agent.interfaces,
     alerts: monitors.flatMap(row => alertRules(parseOptions<AgentOptions>(row.options_json), liveState, row)),
     history,
+    history_status: recent.status,
+    history_sampled: recent.sampled,
+    history_daily: daily.map(day => ({ ts: Date.parse(`${day.d}T00:00:00Z`) / 1000, cpu: day.cpu_avg, mem_pct: day.mem_pct_avg,
+      net_up: day.network_duration_sec && day.net_up_bytes != null ? day.net_up_bytes / day.network_duration_sec : null,
+      net_down: day.network_duration_sec && day.net_down_bytes != null ? day.net_down_bytes / day.network_duration_sec : null })),
+    history_daily_sampled: daily.some(day => day.sampled),
     probe_targets: probeTargets,
     probe_jobs: probeJobs,
     install: { token: monitor.token },
   };
+}
+
+export function aggregateAgentHistory(buckets: AgentHistoryBucket[]): AgentHistoryPoint[] {
+  const groups = new Map<number, AgentHistoryBucket[]>();
+  for (const point of buckets) {
+    const ts = Math.floor(point.bucket_ts / 300) * 300;
+    groups.set(ts, [...(groups.get(ts) ?? []), point]);
+  }
+  return [...groups].sort(([a], [b]) => a - b).slice(-288).map(([ts, rows]) => {
+    const average = (field: 'cpu_avg' | 'mem_pct_avg', weight: 'cpu_samples' | 'mem_samples') => {
+      let sum = 0, samples = 0;
+      for (const row of rows) if (row[field] != null && row[weight] > 0) {
+        sum += row[field]! * row[weight]; samples += row[weight];
+      }
+      return samples > 0 ? sum / samples : null;
+    };
+    const rate = (field: 'net_up_bytes' | 'net_down_bytes') => {
+      let bytes = 0, seconds = 0;
+      for (const row of rows) if (row[field] != null && row.network_duration_sec != null && row.network_duration_sec > 0) {
+        bytes += row[field]!; seconds += row.network_duration_sec;
+      }
+      return seconds > 0 ? bytes / seconds : null;
+    };
+    return { ts, cpu: average('cpu_avg', 'cpu_samples'), mem_pct: average('mem_pct_avg', 'mem_samples'), net_up: rate('net_up_bytes'), net_down: rate('net_down_bytes') };
+  });
 }

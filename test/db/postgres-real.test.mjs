@@ -10,6 +10,7 @@ import { eventsSQL } from '../../backends/worker/src/lib/db/sql/events.ts';
 import { liveStateSQL } from '../../backends/worker/src/lib/db/sql/live-state.ts';
 import { monitorSQL } from '../../backends/worker/src/lib/db/sql/monitors.ts';
 import { commitMonitorWrites, deleteMonitor, MonitorChanged } from '../../backends/worker/src/lib/monitor/writes.ts';
+import { storeAgentDaily, loadAgentDaily, pruneAgentDaily } from '../../backends/worker/src/lib/agent/history.ts';
 import { deleteAgent } from '../../backends/worker/src/lib/agent/registry.ts';
 import { scheduleAgentProbeJobs, pollAgentProbeJobs, submitAgentProbeResult, latestAgentProbeObservation } from '../../backends/worker/src/lib/agent/probes.ts';
 import { tickLeaseSQL } from '../../backends/worker/src/lib/db/sql/heartbeat.ts';
@@ -61,6 +62,31 @@ try {
   }
   const schemaProbe = await probeSchema({ DATABASE_TYPE: 'postgres', DATABASE_URL: url }, db);
   assert.equal(schemaProbe.ok, true, `full schema probe: ${schemaProbe.missing.join(', ')}`);
+
+  const historyEnv = { DATABASE_TYPE: 'postgres', DATABASE_URL: url };
+  const archiveDay = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const earlierDay = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
+  const expiredDay = new Date(Date.now() - 401 * 86400000).toISOString().slice(0, 10);
+  const dayPoint = { d: archiveDay, sample_count: 3, duration_sec: 60, cpu_samples: 0, mem_samples: 3,
+    cpu_avg: null, cpu_max: null, mem_pct_avg: 50, mem_pct_max: 60, load_1_avg: null, load_5_avg: null,
+    net_up_bytes: null, net_down_bytes: null, network_duration_sec: 0, sampled: false };
+  await db.execute("INSERT INTO agents(id,name,token,created_at,updated_at) VALUES('history-agent','History','history-token',1,1)");
+  const archive = (day, point = dayPoint) => withDBScope(historyEnv, env => storeAgentDaily(env, day, new Map([['history-agent', point]]), 400));
+  await Promise.all([archive(earlierDay), archive(archiveDay)]);
+  let days = await withDBScope(historyEnv, env => loadAgentDaily(env, 'history-agent'));
+  assert.deepEqual(days.map(day => day.d), [earlierDay, archiveDay]);
+  await db.execute("UPDATE agent_history_daily SET updated_at=1 WHERE agent_id='history-agent'");
+  await archive(archiveDay);
+  assert.equal((await db.queryOne("SELECT updated_at FROM agent_history_daily WHERE agent_id='history-agent'")).updated_at, '1');
+  await archive(archiveDay, { ...dayPoint, mem_pct_avg: 55 });
+  days = await withDBScope(historyEnv, env => loadAgentDaily(env, 'history-agent'));
+  assert.equal(days.find(day => day.d === archiveDay).mem_pct_avg, 55);
+  days.unshift({ ...dayPoint, d: expiredDay });
+  await db.execute("UPDATE agent_history_daily SET days_json=$1 WHERE agent_id='history-agent'", [JSON.stringify(days)]);
+  await withDBScope(historyEnv, env => pruneAgentDaily(env, 400));
+  assert.deepEqual((await withDBScope(historyEnv, env => loadAgentDaily(env, 'history-agent'))).map(day => day.d), [earlierDay, archiveDay]);
+  await db.execute("DELETE FROM agents WHERE id='history-agent'");
+  assert.equal((await db.queryOne("SELECT count(*)::int AS n FROM agent_history_daily WHERE agent_id='history-agent'")).n, 0);
 
   /* 每次在独立数据库作用域内验证已迁移结构。
    * Validate the migrated schema inside a separate database scope for each call. */
@@ -117,7 +143,7 @@ try {
    * D1 上守卫为空操作，因此可安全放在所有请求前而不只放在 PG 分支。测试完全不提供 DB 绑定，
    * 若访问数据库就会抛错；通过表示 D1 路径在查询前返回。
    */
-  assert.deepEqual(await ensureSchemaReady({}), { ok: true }, 'the guard must be a no-op on D1');
+  assert.deepEqual(await ensureSchemaReady({ DB: {} }), { ok: true }, 'the guard must be a no-op on D1');
 
   /* 这里只核对入口调用关系；运行时结构行为由上方断言验证。
    * This assertion checks entry-point wiring; the preceding assertions exercise schema behavior. */

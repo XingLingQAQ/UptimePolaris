@@ -1,3 +1,5 @@
+import { pruneAgentDaily, queryAgentDaily, storeAgentDaily } from '../agent/history';
+import { mergeDayObservation } from '../monitor/daily-stats';
 import type { SyncResult } from '../../../../../shared/contracts';
 import type { DayStat, Env, LiveState } from '../../types';
 import { pruneCommands } from '../agent/commands';
@@ -56,6 +58,9 @@ export function runSync(env: Env): Promise<SyncResult> {
 async function runSyncScoped(env: Env): Promise<SyncResult> {
   const db = getDB(env);
   const monitors = await db.query<{ id: string; type: string; active?: number }>(monitorSQL[db.type].listAll);
+  const agents = await db.query<{ id: string }>('SELECT id FROM agents');
+  const { values } = await readAll(env);
+  const availabilityDays = values['retention.availabilityDays'] as number;
   let attempted = 0;
   let succeeded = 0;
   let failed = 0;
@@ -63,7 +68,7 @@ async function runSyncScoped(env: Env): Promise<SyncResult> {
   let days = 0;
 
   try {
-    const exactDays = await materializeEndedNativeDays(env, monitors);
+    await materializeEndedNativeDays(env, monitors);
     if (configured) {
       const latest = dayKeyOffset(1);
       let cursor = await readSyncCursor(env);
@@ -88,23 +93,23 @@ async function runSyncScoped(env: Env): Promise<SyncResult> {
         try {
           for (const m of monitors) {
             if (m.type === 'agent') continue;
-            if (exactDays.has(`${m.id}:${day}`)) continue;
             const existing = storedDays.get(m.id)?.find((entry) => entry.d === day);
-            if (existing?.exact || existing?.avg === null) continue;
             const agg = rows.get(m.id);
             if (!agg || agg.total <= 0) continue;
-            const stat: DayStat = {
+            const stat = mergeDayObservation(existing, {
               d: day,
               t: Math.round(agg.total),
               u: Math.round(agg.up),
               w: Math.round(agg.warn),
-              avg: Math.round(agg.avg * 100) / 100,
-            };
+              avg_source: 'ae',
+              avg: agg.avg == null ? null : Math.round(agg.avg * 100) / 100,
+            });
             await upsertDay(env, m.id, stat);
             const previous = (storedDays.get(m.id) ?? []).filter((entry) => entry.d !== day);
             previous.push(stat);
             storedDays.set(m.id, previous);
           }
+          if (agents.length) await storeAgentDaily(env, day, await queryAgentDaily(env, day), availabilityDays);
           succeeded++;
           if (day > cursor) {
             const nextExpected = shiftDay(cursor, 1);
@@ -132,13 +137,12 @@ async function runSyncScoped(env: Env): Promise<SyncResult> {
       因此在冷 isolate 中读取三个保留值只需一条语句，热 isolate 无需额外语句；
       默认值集中在 `settings.ts`，避免各清理函数分别引用不同常量。
     */
-    const { values } = await readAll(env);
-    const availabilityDays = values['retention.availabilityDays'] as number;
     const detailDays = values['retention.detailDays'] as number;
     const eventDays = values['retention.eventDays'] as number;
 
     const housekeeping = await Promise.allSettled([
       pruneHistory(env, availabilityDays),
+      ...(agents.length ? [pruneAgentDaily(env, availabilityDays)] : []),
       pruneMachineHistory(env, detailDays),
       pruneEvents(env, eventDays),
       pruneAgentAvailability(env, availabilityDays),

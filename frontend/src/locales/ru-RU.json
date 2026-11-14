@@ -139,6 +139,11 @@
     "reload": "Перезагрузить страницу"
   },
   "detail": {
+    "historyUnconfigured": "Запросы истории не настроены. Администратору нужно задать CF_ACCOUNT_ID и CF_API_TOKEN с правом Analytics Read.",
+    "historyUnavailable": "История временно недоступна. Повторите попытку позже.",
+    "historySampled": "История содержит выборочные данные; статистика приблизительная.",
+    "historyRecent": "Последние 24 часа",
+    "historyDaily": "Дневные сводки",
     "dns": "DNS",
     "dnsCheckedAt": "Проверено в {time}",
     "dnsRecords": "Записи",

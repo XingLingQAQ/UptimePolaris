@@ -67,7 +67,7 @@ createRoot(root, {
     <RootErrorBoundary>
       <div className="min-h-screen bg-background">
         <BrowserRouter>
-          <App />
+          <App httpStatus={Number(root.dataset.httpStatus) || undefined} />
         </BrowserRouter>
       </div>
     </RootErrorBoundary>

@@ -1,3 +1,4 @@
+import { HistoryNotice } from '@/components/charts/HistoryNotice';
 import { loadTone, percentOf } from '@/lib/resource-metrics';
 import { Drawer } from '@/components/ui/MotionOverlays';
 import { TrendChart, type TrendPoint } from '@/components/charts/TrendChart';
@@ -19,7 +20,7 @@ import {
   Radar,
   Timer
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'use-intl';
 import { Meter, Ring } from '../../components/ui/MetricMeters';
 import { Segmented } from '../../components/ui/Segmented';
@@ -32,7 +33,7 @@ import { OsBadge } from '../components/OsBadge';
 import { formatBytes, formatClock, formatRate } from '../format';
 import { StatusPill } from '../monitors/MonitorIndicators';
 import { agentsApi } from './api';
-import type { AgentAlertRule, AgentDetailResponse, AgentHistoryPoint, AgentInterface, AgentMount, FleetAgent } from './types';
+import type { AgentAlertRule, AgentDetailResponse, AgentInterface, AgentMount, FleetAgent } from './types';
 
 function formatPercent(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return '—';
@@ -87,6 +88,7 @@ export function AgentDetailDialog({
   const { locale } = useLocale();
   const open = agent !== null;
   const [detail, setDetail] = useState<AgentDetailResponse | null>(null);
+  const detailRequest = useRef<AbortController | null>(null);
   const [detailState, setDetailState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const probeEnabled = (detail?.agent ?? agent)?.probe_enabled !== false;
 
@@ -98,7 +100,11 @@ export function AgentDetailDialog({
   const probeTargets = detail?.probe_targets ?? [];
   const probeJobs = detail?.probe_jobs ?? [];
 
-  const refresh = useCallback(async (id: string, signal: AbortSignal) => {
+  const refresh = useCallback(async (id: string) => {
+    detailRequest.current?.abort();
+    const controller = new AbortController();
+    detailRequest.current = controller;
+    const { signal } = controller;
     setDetailState('loading');
     try {
       const response = await agentsApi.agentDetail(id, signal);
@@ -114,10 +120,9 @@ export function AgentDetailDialog({
 
   useEffect(() => {
     if (!agent) return;
-    const controller = new AbortController();
     setDetail(null);
-    void refresh(agent.id, controller.signal);
-    return () => controller.abort();
+    void refresh(agent.id);
+    return () => detailRequest.current?.abort();
   }, [agent?.id, refresh]);
   const liveState: 'online' | 'offline' | 'never' | 'paused' = !agent
     ? 'never'
@@ -212,7 +217,7 @@ export function AgentDetailDialog({
               ) : null}
 
               {detailState === 'ready' ? (
-                <TrendCard history={detail?.history ?? []} t={t} />
+                <TrendCard detail={detail} t={t} onRetry={() => { if (agent) void refresh(agent.id); }} />
               ) : detailState === 'loading' ? (
                 <div className="polaris-card flex h-[17rem] items-center justify-center">
                   <Loader2 size={18} className="animate-spin text-default-300" />
@@ -389,32 +394,30 @@ function Gauge({
 
 type TrendMetric = 'cpu' | 'mem' | 'net';
 
-/** The last 24 hours, one metric at a time, on the console's shared chart. / 使用控制台共用图表显示过去 24 小时数据，每次展示一个指标。 */
+/** 近期资源和每日归档。 / Recent resources and daily archives. */
 function TrendCard({
-  history,
+  detail,
   t,
+  onRetry,
 }: {
-  history: AgentHistoryPoint[];
+  detail: AgentDetailResponse | null;
+  onRetry: () => void;
   t: ReturnType<typeof useTranslations<'admin.agents'>>;
 }) {
   const { locale } = useLocale();
   const [metric, setMetric] = useState<TrendMetric>('cpu');
+  const [range, setRange] = useState('recent');
+  const labels = useTranslations('detail');
+  const history = range === 'daily' ? detail?.history_daily ?? [] : detail?.history ?? [];
+  const sampled = range === 'daily' ? detail?.history_daily_sampled : detail?.history_sampled;
 
-  const points = useMemo<TrendPoint[]>(
-    () =>
-      history.map((point) => ({
-        t: point.ts,
-        value:
-          metric === 'cpu'
-            ? point.cpu
-            : metric === 'mem'
-              ? point.mem_pct
-              : point.net_up === null || point.net_down === null
-                ? null
-                : point.net_up + point.net_down,
-      })),
-    [history, metric],
-  );
+  const points = useMemo<TrendPoint[]>(() => history.flatMap((point, index) => {
+    const reading = { t: point.ts, value: metric === 'cpu' ? point.cpu : metric === 'mem' ? point.mem_pct
+      : point.net_up === null || point.net_down === null ? null : point.net_up + point.net_down };
+    const interval = range === 'daily' ? 86400 : 300;
+    return index && point.ts - history[index - 1].ts > interval * 1.5
+      ? [{ t: history[index - 1].ts + interval, value: null }, reading] : [reading];
+  }), [history, metric, range]);
   const last = lastFinite(points.map((p) => p.value));
   const format = metric === 'net' ? formatRate : formatPercent;
 
@@ -423,10 +426,10 @@ function TrendCard({
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <IconTile icon={<ChartSpline />} size="sm" />
         <div className="min-w-0">
-          <h3 className="text-small font-semibold">{t('sectionTrend')}</h3>
-          <p className="text-[11px] text-default-400">
+          <h3 className="text-small font-semibold">{range === 'daily' ? labels('historyDaily') : t('sectionTrend')}</h3>
+          {range === 'recent' ? <p className="text-[11px] text-default-400">
             {t('trendNow')} · <span className="font-semibold text-default-600 tabular-nums">{format(last)}</span>
-          </p>
+          </p> : null}
         </div>
         <Segmented
           className="ml-auto"
@@ -440,17 +443,33 @@ function TrendCard({
           ]}
         />
       </div>
+      {detail?.history_daily !== undefined ? (
+        <div className="mb-3">
+          <Segmented
+            label={t('sectionTrend')}
+            value={range}
+            onChange={setRange}
+            options={[
+              { value: 'recent', label: labels('historyRecent') },
+              { value: 'daily', label: labels('historyDaily') },
+            ]}
+          />
+        </div>
+      ) : null}
+      <HistoryNotice status={range === 'daily' ? undefined : detail?.history_status} sampled={sampled} onRetry={onRetry} />
       {points.some((p) => p.value !== null) ? (
         <TrendChart
           data={points}
           label={metric === 'cpu' ? t('colCpu') : metric === 'mem' ? t('colMemory') : t('sectionNetwork')}
           format={(v) => format(v)}
-          formatX={(v) => formatClock(v, locale)}
-          formatTip={(v) => new Date(v * 1000).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}
+          formatX={(v) => range === 'daily' ? new Date(v * 1000).toLocaleDateString(locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }) : formatClock(v, locale)}
+          formatTip={(v) => range === 'daily'
+            ? new Date(v * 1000).toLocaleDateString(locale, { dateStyle: 'medium', timeZone: 'UTC' })
+            : new Date(v * 1000).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}
           domain={metric === 'net' ? undefined : [0, 100]}
           height={190}
         />
-      ) : (
+      ) : range !== 'daily' && detail?.history_status && detail.history_status !== 'ready' ? null : (
         <p className="polaris-well py-10 text-center text-tiny text-default-500">{t('trendNoData')}</p>
       )}
     </section>

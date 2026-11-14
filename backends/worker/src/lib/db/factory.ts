@@ -3,7 +3,7 @@ import type { Env } from '../../types';
 import type { DBAdapter } from './adapter';
 import { D1Adapter } from './d1';
 import { PostgresAdapter } from './postgres';
-import { databaseType, deploymentEnv, pendingDatabase, rememberDeployment, resolveDatabase } from './setup-control';
+import { databaseType, pendingDatabase, rememberDeployment, resolveDatabase } from './setup-control';
 
 interface Scope {
   adapter?: DBAdapter;
@@ -61,9 +61,7 @@ async function runInScope<T, C extends { waitUntil(promise: Promise<unknown>): v
       (inherited.active || inherited.pending > 0)) return work(env, executionCtx);
 
   const scope: Scope = { active: true, pending: 0 };
-  const deployment = deploymentEnv(env);
-  if (independent && !selection && await pendingDatabase(deployment)) throw new Error('database_configuration_failed');
-  const scopedEnv = Object.assign(Object.create(env), selection ?? await resolveDatabase(deployment)) as Env;
+  const scopedEnv = Object.create(env) as Env;
   rememberDeployment(scopedEnv, env);
   scopes.set(scopedEnv, scope);
 
@@ -93,6 +91,8 @@ async function runInScope<T, C extends { waitUntil(promise: Promise<unknown>): v
   }) as C;
 
   try {
+    Object.assign(scopedEnv, selection ?? await resolveDatabase(scopedEnv));
+    if (independent && !selection && await pendingDatabase(scopedEnv)) throw new Error('database_configuration_failed');
     return await work(scopedEnv, scopedContext);
   } finally {
     scope.active = false;

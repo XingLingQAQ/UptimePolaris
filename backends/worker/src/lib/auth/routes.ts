@@ -9,7 +9,7 @@ import { bootstrapSchema } from '../db/bootstrap';
 import { getDB, withSelectedDatabase } from '../db/factory';
 import { databaseType, deployedDatabaseType } from '../db/setup-control';
 import { initializePostgres } from '../db/setup-postgres';
-import { abandonDatabaseClaim, claimDatabase, completedOperation, d1HasUsers, databaseClaimActive, deployedDatabase, discardPendingDatabase, finishDatabaseClaim, markAccountStarted, pendingDatabase, pendingDatabaseUrl, releaseDatabaseClaim, resetAccountStarted, setupDatabaseOptions } from '../db/setup-control';
+import { abandonDatabaseClaim, claimDatabase, completedOperation, d1HasUsers, databaseClaimActive, deployedDatabase, discardPendingDatabase, finishDatabaseClaim, markAccountStarted, pendingDatabase, pendingDatabaseUrl, releaseDatabaseClaim, resetAccountStarted, saveDatabaseConfiguration, setupDatabaseOptions } from '../db/setup-control';
 import { visibilityRevisionWrite } from '../public/cache';
 import { MAX_AVATAR_BYTES, readAvatarImage, readAvatarInfo, removeAvatar, validAvatarImage, writeAvatar } from './avatar';
 import { databaseConfigured, setupRequirements } from './setup-requirements';
@@ -146,7 +146,7 @@ async function setupSelection(env: Env, selection: unknown, allowChange = false)
     try { savedUrl = await pendingDatabaseUrl(env); } catch { throw new Error('database_configuration_failed'); }
   }
   if (type === 'd1' && suppliedUrl) throw new Error('invalid_database_url');
-  if (suppliedUrl && !env.DB && !env.SETUP_CONFIG) throw new Error('invalid_database_url');
+  if (suppliedUrl && !env.CONFIG) throw new Error('invalid_database_url');
   let url: string | undefined;
   if (type === 'postgres') {
     if (suppliedUrl) {
@@ -185,29 +185,31 @@ authRoutes.post('/api/auth/setup/database', async (c) => {
   }
   if (selected.changed && !await discardPendingDatabase(c.env)) return c.json({ error: 'setup_in_progress' }, 409);
   const { type, url } = selected;
-  const claim = await claimDatabase(c.env, type, url);
-  if (!claim) return c.json({ error: 'setup_in_progress' }, 409);
   let failure = 'database_connection_failed';
   try {
-    const available = await withSelectedDatabase(c.env, { DATABASE_TYPE: type, DATABASE_URL: url }, async (targetEnv) => {
+    return await withSelectedDatabase(c.env, { DATABASE_TYPE: type, DATABASE_URL: url }, async (targetEnv) => {
       await getDB(targetEnv).queryOne('SELECT 1 AS n');
       failure = 'database_initialization_failed';
       if (type === 'postgres') await initializePostgres(targetEnv);
       else await bootstrapSchema(targetEnv);
-      return claim.accountStarted || await isSetupRequired(targetEnv);
+      failure = 'database_configuration_failed';
+      const claim = await claimDatabase(targetEnv, type, url);
+      if (!claim) return c.json({ error: await isSetupRequired(targetEnv) ? 'setup_in_progress' : 'setup_complete' }, 409);
+      try {
+        if (!claim.accountStarted && !await isSetupRequired(targetEnv)) {
+          await abandonDatabaseClaim(targetEnv, claim.operation, claim.lease);
+          return c.json({ error: 'setup_complete' }, 409);
+        }
+        const configurationId = await saveDatabaseConfiguration(targetEnv);
+        await releaseDatabaseClaim(targetEnv, claim.operation, claim.lease);
+        return c.json({ ok: true, type, ...(configurationId ? { configurationId } : {}) });
+      } catch (error) {
+        if (claim.accountStarted) await releaseDatabaseClaim(targetEnv, claim.operation, claim.lease);
+        else await abandonDatabaseClaim(targetEnv, claim.operation, claim.lease);
+        throw error;
+      }
     });
-    if (!available) {
-      await abandonDatabaseClaim(c.env, claim.operation, claim.lease);
-      return c.json({ error: 'setup_complete' }, 409);
-    }
-    failure = 'database_configuration_failed';
-    await releaseDatabaseClaim(c.env, claim.operation, claim.lease);
-    return c.json({ ok: true, type });
   } catch {
-    try {
-      if (claim.accountStarted) await releaseDatabaseClaim(c.env, claim.operation, claim.lease);
-      else await abandonDatabaseClaim(c.env, claim.operation, claim.lease);
-    } catch { failure = 'database_configuration_failed'; }
     return c.json({ error: failure }, 503);
   }
 });
@@ -260,71 +262,65 @@ authRoutes.post('/api/auth/setup', async (c) => {
     const code = error instanceof Error ? error.message : 'database_configuration_failed';
     return c.json({ error: code }, code === 'setup_in_progress' ? 409 : code === 'database_configuration_failed' ? 503 : 400);
   }
-  const { type, url, deployed } = selected;
-
-  let claim: { operation: string; lease: string; accountStarted: boolean; source: 'deployment' | 'selected' } | null;
-  try { claim = await claimDatabase(c.env, type, url); } catch { return c.json({ error: 'database_configuration_failed' }, 503); }
-  if (!claim) return await d1HasUsers(c.env) && !await pendingDatabase(c.env) ? c.json({ error: 'setup_complete' }, 409) : c.json({ error: 'setup_in_progress' }, 409);
+  const { type, url } = selected;
   let failure: 'database_connection_failed' | 'database_initialization_failed' | 'database_configuration_failed' = 'database_connection_failed';
-  let accountWriteStarted = claim.accountStarted;
   try {
-    const result = await withSelectedDatabase(c.env, { DATABASE_TYPE: type, DATABASE_URL: url }, async (targetEnv) => {
+    return await withSelectedDatabase(c.env, { DATABASE_TYPE: type, DATABASE_URL: url }, async (targetEnv) => {
       const db = getDB(targetEnv);
       await db.queryOne('SELECT 1 AS n');
       failure = 'database_initialization_failed';
       if (type === 'postgres') await initializePostgres(targetEnv);
       else await bootstrapSchema(targetEnv);
-
-      let userId: string | null;
-      if (await isSetupRequired(targetEnv)) {
-        failure = 'database_configuration_failed';
-        accountWriteStarted = true;
-        await markAccountStarted(c.env, claim!.operation, claim!.lease);
-        failure = 'database_initialization_failed';
-        userId = await finishSetup(targetEnv, username, password, claim!.operation || undefined);
-        if (!userId) {
-          failure = 'database_configuration_failed';
-          await resetAccountStarted(c.env, claim!.operation, claim!.lease);
-          accountWriteStarted = false;
-        }
-      } else {
-        const operationUser = claim!.operation ? await db.queryOne<{ id: string }>(type === 'postgres' ? 'SELECT id FROM users WHERE id = $1' : 'SELECT id FROM users WHERE id = ?', [claim!.operation]) : null;
-        if (!operationUser) {
-          failure = 'database_configuration_failed';
-          await resetAccountStarted(c.env, claim!.operation, claim!.lease);
-          accountWriteStarted = false;
-          return null;
-        }
-        const existing = await findUser(targetEnv, username);
-        if (!existing || existing.id !== claim!.operation || !(await verifyPassword(password, existing.password_hash, pbkdf2Iterations(targetEnv))).ok) return null;
-        userId = existing.id;
-      }
-      if (!userId) return null;
-      const session = await createSession(targetEnv, userId, c.req.header('user-agent') ?? null);
-      const revision = visibilityRevisionWrite(Math.floor(Date.now() / 1000), type === 'postgres');
-      await db.execute(revision.sql, revision.params);
       failure = 'database_configuration_failed';
+      const claim = await claimDatabase(targetEnv, type, url);
+      if (!claim) return c.json({ error: await isSetupRequired(targetEnv) ? 'setup_in_progress' : 'setup_complete' }, 409);
+      let accountWriteStarted = claim.accountStarted;
       try {
-        await finishDatabaseClaim(c.env, claim!.operation, claim!.lease);
-      } catch {
-        const deploymentTarget = claim!.source === 'deployment' && type === deployedDatabaseType(c.env) && (type === 'd1' || url === deployed.DATABASE_URL);
-        if (!await completedOperation(c.env, claim!.operation) && !(deploymentTarget && !await pendingDatabase(c.env))) throw new Error('database_configuration_failed');
+        await saveDatabaseConfiguration(targetEnv);
+        let userId: string | null;
+        if (await isSetupRequired(targetEnv)) {
+          await markAccountStarted(targetEnv, claim.operation, claim.lease);
+          accountWriteStarted = true;
+          failure = 'database_initialization_failed';
+          userId = await finishSetup(targetEnv, username, password, claim.operation);
+          if (!userId) {
+            failure = 'database_configuration_failed';
+            await resetAccountStarted(targetEnv, claim.operation, claim.lease);
+            accountWriteStarted = false;
+          }
+        } else {
+          const operationUser = await db.queryOne<{ id: string }>(type === 'postgres' ? 'SELECT id FROM users WHERE id = $1' : 'SELECT id FROM users WHERE id = ?', [claim.operation]);
+          if (!operationUser) {
+            await resetAccountStarted(targetEnv, claim.operation, claim.lease);
+            accountWriteStarted = false;
+            await abandonDatabaseClaim(targetEnv, claim.operation, claim.lease);
+            return c.json({ error: 'setup_complete' }, 409);
+          }
+          const existing = await findUser(targetEnv, username);
+          userId = existing?.id === claim.operation && (await verifyPassword(password, existing.password_hash, pbkdf2Iterations(targetEnv))).ok ? existing.id : null;
+        }
+        if (!userId) {
+          if (accountWriteStarted) await releaseDatabaseClaim(targetEnv, claim.operation, claim.lease);
+          else await abandonDatabaseClaim(targetEnv, claim.operation, claim.lease);
+          return c.json({ error: 'setup_complete' }, 409);
+        }
+        const session = await createSession(targetEnv, userId, c.req.header('user-agent') ?? null);
+        const revision = visibilityRevisionWrite(Math.floor(Date.now() / 1000), type === 'postgres');
+        await db.execute(revision.sql, revision.params);
+        failure = 'database_configuration_failed';
+        try { await finishDatabaseClaim(targetEnv, claim.operation, claim.lease); }
+        catch { if (!await completedOperation(targetEnv, claim.operation)) throw new Error('database_configuration_failed'); }
+        c.header('set-cookie', sessionCookie(session.token, session.expiresAt - Math.floor(Date.now() / 1000), isSecureRequest(c.req.url)));
+        return c.json({ ok: true, user: { id: userId, username: username.trim().toLowerCase() } });
+      } catch (error) {
+        try {
+          if (accountWriteStarted) await releaseDatabaseClaim(targetEnv, claim.operation, claim.lease);
+          else await abandonDatabaseClaim(targetEnv, claim.operation, claim.lease);
+        } catch { failure = 'database_configuration_failed'; }
+        throw error;
       }
-      return { userId, ...session };
     });
-    if (!result) {
-      if (accountWriteStarted) await releaseDatabaseClaim(c.env, claim.operation, claim.lease);
-      else await abandonDatabaseClaim(c.env, claim.operation, claim.lease);
-      return c.json({ error: 'setup_complete' }, 409);
-    }
-    c.header('set-cookie', sessionCookie(result.token, result.expiresAt - Math.floor(Date.now() / 1000), isSecureRequest(c.req.url)));
-    return c.json({ ok: true, user: { id: result.userId, username: username.trim().toLowerCase() } });
   } catch {
-    try {
-      if (accountWriteStarted) await releaseDatabaseClaim(c.env, claim.operation, claim.lease);
-      else if (failure === 'database_connection_failed' || failure === 'database_initialization_failed') await abandonDatabaseClaim(c.env, claim.operation, claim.lease);
-      else await releaseDatabaseClaim(c.env, claim.operation, claim.lease);
-    } catch { failure = 'database_configuration_failed'; }
     return c.json({ error: failure }, 503);
   }
 });

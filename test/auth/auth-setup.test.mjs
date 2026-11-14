@@ -57,6 +57,7 @@ try {
   assert.equal(initial.body.setupCredential, 'ADMIN_TOKEN');
   assert.deepEqual(initial.body.setupRequirements, [
     { key: 'database', required: false, ok: true },
+    { key: 'config', required: false, ok: false },
     { key: 'adminToken', required: true, ok: true },
     { key: 'themes', required: false, ok: false },
     { key: 'analytics', required: true, ok: true },

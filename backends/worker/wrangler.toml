@@ -12,17 +12,20 @@ directory = "../../public"
 binding = "ASSETS"
 # 公开深链接选择主题；管理、登录与初始化使用内置 SPA。
 # Public deep links select themes; management, login, and setup use the built-in SPA.
-run_worker_first = true
+run_worker_first = [
+  "/api", "/api/*", "/install.sh", "/install.ps1",
+  "/", "/admin", "/admin/*", "/login", "/login/*", "/setup", "/setup/*",
+  "/monitor/*", "/status/*", "/server/*",
+  "/theme/*", "/polaris-maintenance.js", "/agent/*", "/__scheduled"
+]
 not_found_handling = "single-page-application"
 html_handling = "auto-trailing-slash"
 
-[[durable_objects.bindings]]
-name = "SETUP_CONFIG"
-class_name = "SetupConfiguration"
-
-[[migrations]]
-tag = "setup-config-v1"
-new_sqlite_classes = ["SetupConfiguration"]
+# 页面配置 PostgreSQL 时绑定已创建的 KV 命名空间。
+# Bind an existing KV namespace to configure PostgreSQL in the setup page.
+# [[kv_namespaces]]
+# binding = "CONFIG"
+# id = "<KV namespace ID>"
 
 [[d1_databases]]
 # 部署前核对实际账号的数据库 UUID。

@@ -108,7 +108,7 @@ export async function buildPublicMonitorPayload(
 }> {
   const monitors = await pageMonitors(env, request);
   const live = await loadLive(env);
-  const heartbeats = await loadHeartbeats(env, monitors.map((m) => m.id));
+  const heartbeats = await loadHeartbeats(env, monitors.map((m) => m.id), live);
   const pushHeartbeats = monitors.some((m) => m.type === 'push') ? await loadPushHeartbeats(env) : new Map();
   const db = getDB(env);
   const agentLives = await db.query<Record<string, unknown>>(agentLiveSQL[db.type].allLive);

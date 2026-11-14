@@ -139,6 +139,11 @@
     "reload": "重新載入頁面"
   },
   "detail": {
+    "historyUnconfigured": "歷史查詢尚未設定。管理員需設定 CF_ACCOUNT_ID 和 CF_API_TOKEN（Analytics Read 權限）。",
+    "historyUnavailable": "暫時無法讀取歷史資料，請稍後重試。",
+    "historySampled": "歷史資料包含抽樣，統計值僅供參考。",
+    "historyRecent": "最近 24 小時",
+    "historyDaily": "每日彙總",
     "dns": "DNS",
     "dnsCheckedAt": "檢查於 {time}",
     "dnsRecords": "解析結果",

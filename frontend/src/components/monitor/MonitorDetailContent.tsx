@@ -1,3 +1,4 @@
+import { HistoryNotice } from '@/components/charts/HistoryNotice';
 
 import { requestJson } from '@/api/client';
 import { ApiError, isRetryableApiError } from '@/api/errors';
@@ -30,7 +31,7 @@ import { Suspense, lazy, useCallback, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import useSWR from 'swr';
 import { useFormatter, useLocale, useTranslations } from 'use-intl';
-import type { DayStat } from '../../../../shared/contracts';
+import type { DayStat, HistoryStatus } from '../../../../shared/contracts';
 
 /** Lazy-load machine details and the latency chart only when the current monitor can display them. / 仅在当前监控项可显示机器详情和延迟图表时延迟加载。 */
 const TrendChart = lazy(() =>
@@ -174,24 +175,29 @@ function ProbeDetail({ monitor, heartbeats, uptime24h }: { monitor: Monitor; hea
   const status = monitorStatus(monitor, heartbeats);
   const ratio = monitor.sourceAvailable === false ? null : uptime24h;
 
-  const { data: longRange, error: historyError, mutate: reloadHistory } = useSWR<{ days?: DayStat[]; uptime?: number }>(
+  const { data: longRange, error: historyError, mutate: reloadHistory } = useSWR<{ days?: DayStat[]; uptime?: number; history?: { t: number; up: number; ms: number | null }[]; history_status?: HistoryStatus; history_sampled?: boolean }>(
     `/api/public/monitors/${monitor.id}`,
     (url: string) => requestJson<{ days: DayStat[] }>(url),
-    { revalidateOnFocus: false, refreshInterval: 300_000, shouldRetryOnError: isRetryableApiError, errorRetryCount: 2 },
+    { revalidateOnFocus: false, refreshInterval: 60_000, shouldRetryOnError: isRetryableApiError, errorRetryCount: 2 },
   );
   const days = longRange?.days ?? [];
 
-  const series = useMemo<TrendPoint[]>(
-    () =>
-      heartbeats
-        .map((beat) => ({
-          t: Math.floor(new Date(beat.time).getTime() / 1000),
-          value: isPush || (beat.status !== 1 && beat.status !== 2) || beat.ping === null ? null : beat.ping,
-          note: beat.status === 0 ? beat.msg || t('node.offline') : undefined,
-        }))
-        .filter((point) => Number.isFinite(point.t)),
-    [heartbeats, isPush, t],
-  );
+  const series = useMemo<TrendPoint[]>(() => {
+    const points = longRange?.history;
+    const rows = points === undefined ? heartbeats.map(beat => ({
+      t: Date.parse(beat.time) / 1000, up: beat.status, ms: beat.ping,
+    })) : [...new Map([
+      ...heartbeats.map(beat => { const t = Date.parse(beat.time) / 1000; return [t, { t, up: beat.status, ms: null }] as const; }),
+      ...points.map(point => [point.t, point] as const),
+    ]).values()].sort((a, b) => a.t - b.t);
+    const interval = Math.max(1, monitor.intervalSec ?? 60);
+    return rows.flatMap((point, index) => {
+      const reading: TrendPoint = { t: point.t, value: isPush || ![1, 2].includes(point.up) ? null : point.ms,
+        note: point.up === 0 ? t('node.offline') : undefined };
+      return index && point.t - rows[index - 1].t > interval * 1.5
+        ? [{ t: rows[index - 1].t + interval, value: null }, reading] : [reading];
+    }).filter(point => Number.isFinite(point.t));
+  }, [heartbeats, longRange?.history, monitor.intervalSec, isPush, t]);
   const bands = useMemo(() => {
     const step = series.length > 1 ? Math.max(30, (series[series.length - 1].t - series[0].t) / series.length) : 60;
     return series.filter((point) => point.note).map((point) => ({ x1: point.t - step / 2, x2: point.t + step / 2 }));
@@ -205,8 +211,8 @@ function ProbeDetail({ monitor, heartbeats, uptime24h }: { monitor: Monitor; hea
   const ms = (v: number | null | undefined) => (v === null || v === undefined || !Number.isFinite(v) ? '—' : `${Math.round(v)}ms`);
 
   const changes = useMemo(() => transitions(heartbeats).slice(0, 8), [heartbeats]);
-  const first = series[0]?.t;
-  const last = series[series.length - 1]?.t;
+  const first = heartbeats.length ? Date.parse(heartbeats[0].time) / 1000 : undefined;
+  const last = heartbeats.length ? Date.parse(heartbeats[heartbeats.length - 1].time) / 1000 : undefined;
   const clock = (sec: number) => new Date(sec * 1000).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 
   return (
@@ -286,7 +292,7 @@ function ProbeDetail({ monitor, heartbeats, uptime24h }: { monitor: Monitor; hea
             label: t(isPush ? 'common.quick.pushTimeout' : 'common.quick.avgLatency'),
             value: isPush ? (monitor.intervalSec ? `${monitor.intervalSec}s` : '—') : avg === null ? '—' : <AnimatedNumber value={Math.round(avg)} suffix="ms" />,
             ink: undefined,
-            sub: !isPush && p95 !== null ? `P95 ${ms(p95)}` : undefined,
+            sub: !isPush && p95 !== null ? `P95${longRange?.history_sampled ? ' ≈' : ''} ${ms(p95)}` : undefined,
           },
           {
             label: `${t('common.col.uptime')} · 24h`,
@@ -320,8 +326,9 @@ function ProbeDetail({ monitor, heartbeats, uptime24h }: { monitor: Monitor; hea
       {!isPush ? <section className="polaris-card mt-5 p-5">
         <div className="mb-4 flex items-baseline gap-2">
           <h2 className="text-[14px] font-semibold">{t('common.insights.metricLatency')}</h2>
-          <span className="polaris-num text-[12px] text-[var(--polaris-ink-4)]">{heartbeats.length}</span>
+          <span className="polaris-num text-[12px] text-[var(--polaris-ink-4)]">{pings.length}</span>
         </div>
+        <HistoryNotice status={historyError ? 'unavailable' : longRange?.history_status} sampled={longRange?.history_sampled} onRetry={() => void reloadHistory()} />
         {pings.length > 1 ? (
           <Suspense fallback={<ChartSkeleton height={260} />}>
             <TrendChart
@@ -340,7 +347,7 @@ function ProbeDetail({ monitor, heartbeats, uptime24h }: { monitor: Monitor; hea
             {[
               { label: t('common.insights.statNow'), value: status === 'down' ? null : (latest?.ping ?? null) },
               { label: t('common.insights.statAvg'), value: avg },
-              { label: 'P95', value: p95 },
+              { label: longRange?.history_sampled ? 'P95 ≈' : 'P95', value: p95 },
               { label: t('common.insights.statMax'), value: sorted.length ? sorted[sorted.length - 1] : null },
             ].map((figure) => (
               <div key={figure.label} className="min-w-0">
@@ -349,7 +356,7 @@ function ProbeDetail({ monitor, heartbeats, uptime24h }: { monitor: Monitor; hea
               </div>
             ))}
           </div>
-        ) : (
+        ) : longRange?.history_status === 'unconfigured' || longRange?.history_status === 'unavailable' || historyError ? null : (
           <div className="polaris-well polaris-grid-bg flex h-[260px] items-center justify-center text-[12.5px] text-[var(--polaris-ink-3)]">
             {t('detail.noData')}
           </div>

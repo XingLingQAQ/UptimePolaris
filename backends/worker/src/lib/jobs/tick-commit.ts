@@ -1,6 +1,6 @@
 import type { Monitor } from '../../types';
 import type { DBAdapter } from '../db/adapter';
-import { lockMonitorSnapshots, MonitorChanged, monitorSnapshotGuard } from '../monitor/writes';
+import { lockMonitorSnapshots, MonitorChanged, guardMonitorWrites } from '../monitor/writes';
 
 export class TickLeaseLost extends Error {}
 
@@ -24,8 +24,7 @@ export async function commitTickWrites(
                   THEN cron_tick_lease.lease_until ELSE NULL END`,
           params: [owner, owner, now, owner, now],
         },
-        ...(monitors.length ? [monitorSnapshotGuard(monitors, now)] : []),
-        ...writes,
+        ...guardMonitorWrites(monitors, now, writes),
       ]);
     } catch (error) {
       if (String(error).includes('cron_tick_lease.lease_until')) throw new TickLeaseLost();

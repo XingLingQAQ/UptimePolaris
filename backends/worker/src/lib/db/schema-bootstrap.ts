@@ -412,4 +412,10 @@ export const BOOTSTRAP_FILES: readonly BootstrapFile[] = [
       "UPDATE presentation_state SET config_json=json_set(config_json,'$.domains',json((\n  SELECT json_group_array(json_object('hostname',json_extract(value,'$.hostname'),'page',json_extract(value,'$.page')))\n  FROM json_each(presentation_state.config_json,'$.domains')\n))),revision='refinements-'||revision",
     ],
   },
+  {
+    name: "0044_agent_history_daily.sql",
+    statements: [
+      "CREATE TABLE IF NOT EXISTS agent_history_daily (\r\n  agent_id TEXT PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE,\r\n  days_json TEXT NOT NULL,\r\n  updated_at INTEGER NOT NULL\r\n) WITHOUT ROWID",
+    ],
+  },
 ];

@@ -3,17 +3,15 @@
 
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
-import { build } from 'esbuild';
 import { Miniflare } from 'miniflare';
 import app from '../../backends/worker/src/index.ts';
 
 const port = Number(process.env.UPTIME_FIXTURE_PORT);
 assert.ok(Number.isInteger(port) && port > 0);
-const configuration = await build({ entryPoints: ['backends/worker/src/lib/db/setup-configuration.ts'], bundle: true, format: 'esm', platform: 'neutral', write: false });
 const workerOptions = {
-  modules: true, script: configuration.outputFiles[0].text + '\nexport default {fetch(){return new Response("fixture")}}',
+  modules: true, script: 'export default {fetch(){return new Response("fixture")}}',
   compatibilityDate: '2025-01-01', bindings: { ADMIN_TOKEN: 'fixture-setup-credential' },
-  durableObjects: { SETUP_CONFIG: { className: 'SetupConfiguration', useSQLite: true } },
+  kvNamespaces: { CONFIG: crypto.randomUUID(), D1_CONFIG: crypto.randomUUID() },
   d1Databases: { DB: crypto.randomUUID() },
 };
 const mf = new Miniflare(workerOptions);
@@ -31,7 +29,7 @@ async function request(env, path, body, cookie) {
   return { response, body: text ? JSON.parse(text) : null };
 }
 async function scenario(name, withD1) {
-  const env = { ...config(name), ...(withD1 ? { DB: db } : {}) };
+  const env = { ...config(name), ...(withD1 ? { DB: db, CONFIG: await mf.getKVNamespace('D1_CONFIG') } : {}) };
   if (!withD1) {
     const before = await request({ ...env, DATABASE_URL: undefined }, '/api/auth/session');
     assert.equal(before.response.status, 200);
@@ -68,23 +66,28 @@ async function scenario(name, withD1) {
     assert.equal(user.n, 1); assert.equal(sessions.n, 1); assert.ok(migrations.n > 0);
   } finally { await sql.end(); }
   if (withD1) {
-    const row = await db.prepare('SELECT phase, type, encrypted_url FROM _polaris_database WHERE id = 1').first();
+    const sql = postgres(env.DATABASE_URL, { max: 1 });
+    const [row] = await sql`SELECT phase, type FROM _polaris_database WHERE id = 1`;
+    await sql.end();
+    const saved = await env.CONFIG.get('database', 'json');
     assert.equal(row.phase, 'active'); assert.equal(row.type, 'postgres');
-    assert.ok(row.encrypted_url.startsWith('v1.'));
-    assert.equal(row.encrypted_url.includes('127.0.0.1'), false);
+    assert.ok(saved.encrypted_url.startsWith('v1.'));
+    assert.equal(saved.encrypted_url.includes('127.0.0.1'), false);
     const coldEnv = { ...env, DATABASE_TYPE: 'd1', DATABASE_URL: undefined };
     const cold = await request(coldEnv, '/api/auth/session', undefined, cookie);
     assert.equal(cold.response.status, 200, JSON.stringify(cold.body));
     assert.equal(cold.body.authenticated, true);
     assert.equal(cold.body.user.username, 'owner');
   }
-  console.log(`PASS real PostgreSQL setup ${withD1 ? 'with D1 pointer and fresh scope' : 'without D1 binding'}`);
+  console.log(`PASS real PostgreSQL setup ${withD1 ? 'with KV configuration, optional D1 and fresh scope' : 'without D1 binding'}`);
 }
 async function pageConfiguration() {
   await admin`CREATE DATABASE polaris_setup_page`;
   await admin`CREATE DATABASE polaris_setup_reselected`;
-  const store = await mf.getDurableObjectNamespace('SETUP_CONFIG');
-  const env = { ADMIN_TOKEN: 'fixture-setup-credential', PBKDF2_ITERATIONS: '3000', UPTIME: { writeDataPoint() {} }, SETUP_CONFIG: store };
+  const store = await mf.getKVNamespace('CONFIG');
+  let writes = 0;
+  const kv = { get: (...args) => store.get(...args), put: async (...args) => { writes++; return store.put(...args); } };
+  const env = { ADMIN_TOKEN: 'fixture-setup-credential', PBKDF2_ITERATIONS: '3000', UPTIME: { writeDataPoint() {} }, CONFIG: kv };
   const credential = env.ADMIN_TOKEN;
   const target = name => ({ type: 'postgres', url: `postgresql://fixture:private-password@db.fixture.test/${name}?sslmode=require` });
   const session = await request(env, '/api/auth/session');
@@ -106,20 +109,29 @@ async function pageConfiguration() {
   assert.equal(pending.body.needsSetup, true);
   assert.equal(pending.body.setupDatabase.postgresConfigured, true);
   assert.ok(!JSON.stringify(pending.body).includes('private-password'));
-  const configuredStore = store.get(store.idFromName('database'));
-  const saved = await (await configuredStore.fetch('https://fixture.test', { method: 'POST', body: JSON.stringify({ action: 'read' }) })).json();
-  assert.equal(saved.phase, 'pending');
+  const saved = await store.get('database', 'json');
+  assert.ok(saved.id);
+  assert.equal(saved.phase, undefined, 'KV stores configuration, not initialization leases');
   assert.ok(saved.encrypted_url.startsWith('v1.'));
   assert.ok(!JSON.stringify(saved).includes('private-password'));
-  let failFinish = true;
-  const interruptedStore = {
-    idFromName: name => store.idFromName(name),
-    get: id => ({ fetch: async (url, init) => {
-      if (JSON.parse(init.body).action === 'finish' && failFinish) { failFinish = false; return new Response(null, { status: 500 }); }
-      return store.get(id).fetch(url, init);
-    } }),
-  };
-  const interrupted = await request({ ...env, SETUP_CONFIG: interruptedStore }, '/api/auth/setup', { credential, username: 'page-owner', password: 'fixture-password', database: { type: 'postgres' } });
+  let reads = 0;
+  const lagging = await request({ ...env, CONFIG: { ...kv, get: async (...args) => reads++ === 0 ? null : store.get(...args) } }, '/api/auth/session');
+  assert.equal(reads, 1, 'each request uses one consistent configuration snapshot');
+  assert.equal(lagging.body.setupDatabase.postgresConfigured, false);
+  assert.notEqual(lagging.body.setupDatabase.configurationId, saved.id, 'a stale KV read cannot confirm the new configuration');
+  assert.equal(pending.body.setupDatabase.configurationId, saved.id);
+  const failure = postgres(`postgres://postgres@127.0.0.1:${port}/polaris_setup_reselected`, { max: 1 });
+  await failure.unsafe(`CREATE SEQUENCE finish_attempt;
+    CREATE FUNCTION interrupt_finish() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF NEW.phase = 'active' AND OLD.phase = 'pending' AND nextval('finish_attempt') = 1 THEN
+        RAISE EXCEPTION 'fixture interrupted finish';
+      END IF;
+      RETURN NEW;
+    END $$;
+    CREATE TRIGGER interrupt_finish BEFORE UPDATE ON _polaris_database FOR EACH ROW EXECUTE FUNCTION interrupt_finish();`);
+  await failure.end();
+  const writesBeforeAccount = writes;
+  const interrupted = await request(env, '/api/auth/setup', { credential, username: 'page-owner', password: 'fixture-password', database: { type: 'postgres' } });
   assert.equal(interrupted.body.error, 'database_configuration_failed');
   const resumed = await request(env, '/api/auth/setup/database', { credential, database: { type: 'postgres' } });
   assert.equal(resumed.response.status, 200, 'the database step must allow resuming after an interrupted account write');
@@ -127,7 +139,8 @@ async function pageConfiguration() {
   assert.equal(completed.response.status, 200, JSON.stringify(completed.body));
   const cookie = completed.response.headers.get('set-cookie').split(';')[0];
   await mf.setOptions(workerOptions);
-  const fresh = { ...env, SETUP_CONFIG: await mf.getDurableObjectNamespace('SETUP_CONFIG') };
+  const fresh = { ...env, CONFIG: await mf.getKVNamespace('CONFIG') };
+  assert.equal(writes, writesBeforeAccount, 'account setup and retries must not rewrite the KV key');
   const after = await request(fresh, '/api/auth/session', undefined, cookie);
   assert.equal(after.body.authenticated, true);
   assert.equal(after.body.user.username, 'page-owner');
@@ -135,7 +148,7 @@ async function pageConfiguration() {
   assert.equal(lateD1.body.user.username, 'page-owner', 'a late D1 binding must not replace the saved PostgreSQL selection');
   const blocked = await request(fresh, '/api/auth/setup/database', { credential, database: target('polaris_setup_page') });
   assert.equal(blocked.body.error, 'setup_complete');
-  console.log('PASS page-configured PostgreSQL, account last, encrypted Durable Object persistence and late D1 binding');
+  console.log('PASS page-configured PostgreSQL, account last, encrypted KV persistence and late D1 binding');
 }
 
 try {

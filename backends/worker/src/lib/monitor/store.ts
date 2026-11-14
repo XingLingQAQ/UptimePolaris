@@ -5,7 +5,7 @@ import { databaseIdentity } from '../db/setup-control';
 import { heartbeatSQL } from '../db/sql/heartbeat';
 import { liveStateSQL } from '../db/sql/live-state';
 import { monitorSQL } from '../db/sql/monitors';
-import { mergeDay } from './daily-stats';
+import { mergeDay, mergeDayObservation } from './daily-stats';
 import { readSetting } from '../settings/store';
 
 /** The last heartbeat of one push monitor, as `push_heartbeats` stores it. / `push_heartbeats` 中存储的单个 Push 监控最新心跳。 */
@@ -125,24 +125,41 @@ export async function upsertDay(
     }
   }
 
-  const existingDay = existing.find((entry) => entry.d === day.d);
-  const source = day.exact === true
-    ? day
-    : existingDay?.exact === true || existingDay?.avg === null && day.avg !== null
-      ? existingDay
-      : day;
-  const preserved = source.exact === true
-    ? { ...source, avg: source.avg ?? existingDay?.avg ?? null }
-    : source;
+  const preserved = mergeDayObservation(existing.find(entry => entry.d === day.d), day);
   const retentionDays = await readSetting(env, 'retention.availabilityDays');
   const merged = mergeDay(existing, preserved).slice(-retentionDays);
   const now = Math.floor(Date.now() / 1000);
 
-  await db.execute(monitorSQL[db.type].uptimeUpsert, [monitorId, JSON.stringify(merged), now]);
+  if (JSON.stringify(merged) !== JSON.stringify(existing)) {
+    await db.execute(monitorSQL[db.type].uptimeUpsert, [monitorId, JSON.stringify(merged), now]);
+  }
+}
+
+export function expandHeartbeatHistory(entry: LiveState[string] | undefined, transitions: RingHeartbeat[]): RingHeartbeat[] {
+  const changes = [...transitions].sort((a, b) => a.t - b.t);
+  const times = entry?.recent_checks?.length ? entry.recent_checks : changes.map(point => point.t);
+  const recent = times.length ? [...new Set(times)].sort((a, b) => a - b).slice(-RING_SIZE) : [];
+  const points: RingHeartbeat[] = [];
+  let cursor = -1;
+  for (const t of recent) {
+    while (cursor + 1 < changes.length && changes[cursor + 1].t <= t) cursor++;
+    const change = changes[cursor];
+    const latest = entry?.recent_observation?.t === t ? entry.recent_observation : undefined;
+    if (!latest && !change) continue;
+    points.push({ t, up: latest ? latest.up : change.up,
+      ms: latest ? latest.ms : change.t === t ? change.ms : null });
+  }
+  return points;
+}
+
+export async function loadHeartbeats(env: Env, ids: string[], state?: LiveState): Promise<Map<string, RingHeartbeat[]>> {
+  if (!ids.length) return new Map();
+  const [changes, live] = await Promise.all([loadHeartbeatTransitions(env, ids), state ? Promise.resolve(state) : loadLive(env)]);
+  return new Map(ids.map(id => [id, expandHeartbeatHistory(live[id], changes.get(id) ?? [])]));
 }
 
 /** Read recent history in chunks of at most 80 IDs; each monitor stores its ring in one row. / 分批读取近期历史，每批最多 80 个 ID；每个监控用一行保存环形数据。 */
-export async function loadHeartbeats(
+async function loadHeartbeatTransitions(
   env: Env,
   ids: string[],
 ): Promise<Map<string, RingHeartbeat[]>> {
@@ -181,11 +198,13 @@ export async function saveHeartbeats(
 export async function prepareHeartbeatWrites(
   env: Env,
   fresh: Map<string, RingHeartbeat>,
+  previous?: LiveState,
 ): Promise<{ sql: string; params: unknown[] }[]> {
+  if (previous) fresh = new Map([...fresh].filter(([id, hb]) => !previous[id]?.recent_checks?.length || (previous[id].recent_observation?.up ?? previous[id].st) !== hb.up));
   if (fresh.size === 0) return [];
 
   const ids = [...fresh.keys()];
-  const existing = await loadHeartbeats(env, ids);
+  const existing = await loadHeartbeatTransitions(env, ids);
   const now = Math.floor(Date.now() / 1000);
 
   const db = getDB(env);
@@ -225,12 +244,7 @@ export async function prepareAvailabilityDayWrites(
   return [...completed].map(([monitorId, day]) => {
     const days = existing.get(monitorId) ?? [];
     const previous = days.find((entry) => entry.d === day.d);
-    const source = day.exact === true
-      ? day
-      : previous?.exact === true || previous?.avg === null && day.avg !== null
-        ? previous
-        : day;
-    const merged = mergeDay(days, { ...source, avg: source.avg ?? previous?.avg ?? null }).slice(-retentionDays);
+    const merged = mergeDay(days, mergeDayObservation(previous, day)).slice(-retentionDays);
     return { sql: monitorSQL[db.type].uptimeUpsert, params: [monitorId, JSON.stringify(merged), now] };
   });
 }

@@ -1,3 +1,4 @@
+import { HistoryNotice } from '@/components/charts/HistoryNotice';
 import { formatBytes, formatClock, formatRate } from '@/admin/format';
 import { Meter } from '@/components/ui/MetricMeters';
 import { Segmented } from '@/components/ui/Segmented';
@@ -126,6 +127,7 @@ export function CompareView({ ids, servers, now, interval, refreshKey, onRefresh
                 <span className="server-compare-legend flex min-w-0 flex-wrap items-center gap-3">{picked.map(server => <span key={server.id} className="inline-flex min-w-0 items-center gap-1.5 text-[11.5px] text-[var(--polaris-ink-3)]"><span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-[3px]" style={{ backgroundColor: color(server.id) }} /><span className="[overflow-wrap:anywhere]">{server.name}</span></span>)}</span>
                 <Segmented className="ml-auto" label={t('historyRange')} value={String(hours)} onChange={value => setHours(Number(value) as (typeof RANGES)[number])} options={RANGES.map(value => ({ value: String(value), label: t('hoursRange', { n: value }) }))} />
               </div>
+              {histories.map(({server,detail}) => detail?.history_status && (detail.history_status !== 'ready' || detail.history_sampled) ? <div key={server.id}><p className="mb-1 text-[13px] font-medium">{server.name}</p><HistoryNotice status={detail.history_status} sampled={detail.history_sampled} onRetry={() => { const load = loads.find(load => load.data?.server.id === server.id); if (load) void load.refresh(); }} /></div> : null)}
               {failed.length ? <div role="alert" className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-[var(--polaris-well)] p-3 text-[13px] text-[var(--polaris-ink-2)]">
                 <p className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t('compareHistoryFailed', { names: failed.map(id => servers.find(server => server.id === id)!.name).join('、') })}</p>
                 <button type="button" className="server-button" disabled={refreshing} onClick={retry}>{t('retry')}</button>

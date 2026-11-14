@@ -4,12 +4,15 @@
   "compatibility_date": "2025-01-01",
   "compatibility_flags": ["nodejs_compat"],
   "keep_vars": true,
-  "durable_objects": { "bindings": [{ "name": "SETUP_CONFIG", "class_name": "SetupConfiguration" }] },
-  "migrations": [{ "tag": "setup-config-v1", "new_sqlite_classes": ["SetupConfiguration"] }],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": true,
+    "run_worker_first": [
+      "/api", "/api/*", "/install.sh", "/install.ps1",
+      "/", "/admin", "/admin/*", "/login", "/login/*", "/setup", "/setup/*",
+      "/monitor/*", "/status/*", "/server/*",
+      "/theme/*", "/polaris-maintenance.js", "/agent/*", "/__scheduled"
+    ],
     "not_found_handling": "single-page-application",
     "html_handling": "auto-trailing-slash"
   },

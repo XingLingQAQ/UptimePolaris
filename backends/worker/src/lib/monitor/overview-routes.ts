@@ -35,7 +35,7 @@ overviewRoutes.get('/api/overview', async (c) => {
   const monitors = await loadAllMonitors(c.env);
   const live = await loadLive(c.env);
   const history = await loadUptime(c.env, monitors.map((m) => m.id));
-  const heartbeats = await loadHeartbeats(c.env, monitors.map((m) => m.id));
+  const heartbeats = await loadHeartbeats(c.env, monitors.map((m) => m.id), live);
   const pushHeartbeats = monitors.some((m) => m.type === 'push') ? await loadPushHeartbeats(c.env) : new Map();
 
   // One query for every monitor's tags, not one per row - the same reason

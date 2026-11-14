@@ -1,5 +1,6 @@
 import type { Agent, Env } from '../../types';
 import { getDB, withDBScope } from '../db/factory';
+import { writeAgentHistory } from './history';
 import { agentLiveSQL } from '../db/sql/agent';
 import { asBasicReportParams, asReportParams, type AgentRpcFrame } from './protocol';
 
@@ -151,28 +152,6 @@ async function persistReport(
     now, // updated_at / 更新时间
   ]);
 
-  for (const summary of p.summaries) {
-    // 仅接收对齐分钟且不晚于当前上报的有效历史摘要。
-    // Accept only valid historical summaries aligned to a minute and no later than the current report.
-    if (!Number.isInteger(summary.bucket_ts) || summary.bucket_ts % 60 !== 0 ||
-      summary.bucket_ts < now - 86_400 || summary.bucket_ts > now + 300 ||
-      summary.bucket_ts > observedAt || summary.duration_sec > 3600) continue;
-    await db.execute(agentLiveSQL[db.type].upsertFinalized, [
-      monitorId,
-      summary.bucket_ts,
-      summary.cpu_avg,
-      summary.cpu_max,
-      summary.mem_pct_avg,
-      summary.mem_pct_max,
-      summary.load_1_avg,
-      summary.load_5_avg,
-      summary.sample_count,
-      summary.duration_sec,
-      summary.net_up_bytes,
-      summary.net_down_bytes,
-      summary.network_duration_sec,
-      monitorId,
-    ]);
-  }
+  writeAgentHistory(env, monitorId, p, now);
   return true;
 }

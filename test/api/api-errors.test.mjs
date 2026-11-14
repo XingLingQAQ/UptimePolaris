@@ -58,6 +58,19 @@ try {
   };
   await siteIconApi.upload(iconFile);
 
+  const redirects = [];
+  window.location.replace = path => redirects.push(path);
+  for (const code of ['setup_required', 'setup_in_progress', 'deployment_incomplete']) {
+    response(JSON.stringify({ error: code }), 503);
+    await rejected(code, 503);
+  }
+  assert.deepEqual(redirects, ['/setup', '/setup', '/setup']);
+  window.location.pathname = '/setup';
+  response('{"error":"setup_in_progress"}', 503);
+  await rejected('setup_in_progress', 503);
+  assert.equal(redirects.length, 3);
+  window.location.pathname = '/';
+
   response('{"error":"invalid_credentials"}', 401);
   await assert.rejects(requestJson('/api/auth/login'), error => error instanceof ApiError && !(error instanceof UnauthorizedError) && error.code === 'invalid_credentials');
   response('{"error":"invalid_setup_credential"}', 401);
@@ -174,7 +187,7 @@ const worker = await build({
     api.get('/api/__failure/:credential', () => { throw new Error('private-credential-and-driver-text'); });
     api.get('/api/__bad-request', () => { throw new HTTPException(422); });
     export default { fetch(request, env, ctx) {
-      if (new URL(request.url).pathname === '/__startup') return worker.fetch(request, { ...env, DB: { prepare() { throw new Error('private-bootstrap-credential'); } } }, ctx);
+      if (new URL(request.url).pathname === '/__startup') return worker.fetch(request, { ...env, CONFIG: { get() { throw new Error('private-bootstrap-credential'); } } }, ctx);
       if (new URL(request.url).pathname === '/__settings') return api.fetch(new Request('https://fixture.test/api/admin/settings', { headers: request.headers }), { ...env, DB: { prepare() { throw new Error('private-settings-credential'); } } }, ctx);
       if (new URL(request.url).pathname === '/__no-storage') return api.fetch(new Request('https://fixture.test/api/themes/install', request), { ...env, THEMES: undefined }, ctx);
       return api.fetch(request, env, ctx);

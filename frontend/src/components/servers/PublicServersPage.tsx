@@ -207,7 +207,7 @@ export function PublicServersPage({ config, configError, configRefreshing, onRef
         {!fleet.data && fleet.error ? <RouteError code="render" error={fleet.error} onRetry={refresh} embedded />
           : !fleet.data ? <Skeleton />
           : id ? (
-            current ? <ServerDetail server={current} history={detail.data!.history} serverNow={detail.data!.now} now={now} samples={live[current.id]} showHistory={presentation.showHistory} accent={presentation.accent}
+            current ? <ServerDetail server={current} history={detail.data!.history} historyStatus={detail.error ? 'unavailable' : detail.data!.history_status} historySampled={detail.data!.history_sampled} onRetryHistory={() => void detail.refresh()} serverNow={detail.data!.now} now={now} samples={live[current.id]} showHistory={presentation.showHistory} accent={presentation.accent}
                 listHref={href()} prev={prev ? { href: href(prev.id), name: prev.name } : null} next={next ? { href: href(next.id), name: next.name } : null}
                 pinned={pins.includes(current.id)} onPin={() => togglePin(current.id)} selected={selection.includes(current.id)} selectionFull={selection.length >= COMPARE_LIMIT}
                 onSelect={() => toggleSelect(current.id)} onTag={tag => navigate(`/?${new URLSearchParams([...new URLSearchParams(listQuery), ['tag', tag]]).toString()}`)} />

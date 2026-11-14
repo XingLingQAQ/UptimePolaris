@@ -5,6 +5,7 @@ export interface SetupDatabaseOptions {
   defaultType: SetupDatabaseType;
   postgresConfigured: boolean;
   postgresUrlEditable: boolean;
+  configurationId?: string;
 }
 
 export interface SetupDatabaseSelection {
@@ -13,7 +14,7 @@ export interface SetupDatabaseSelection {
 }
 
 /** Worker 初始化前检查的部署项；Go 后端不返回。 / Deployment items the Worker checks before setup; the Go backend does not report them. */
-export type SetupRequirementKey = 'database' | 'adminToken' | 'themes' | 'analytics';
+export type SetupRequirementKey = 'database' | 'config' | 'adminToken' | 'themes' | 'analytics';
 
 export interface SetupRequirement {
   key: SetupRequirementKey;

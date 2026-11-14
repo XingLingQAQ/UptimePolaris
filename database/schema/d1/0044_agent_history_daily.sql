@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS agent_history_daily (
+  agent_id TEXT PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE,
+  days_json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+) WITHOUT ROWID;

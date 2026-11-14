@@ -1,3 +1,5 @@
+import type { HistoryStatus } from '../../../../shared/contracts';
+import { HistoryNotice } from '@/components/charts/HistoryNotice';
 
 import { requestJson } from '@/api/client';
 import { isRetryableApiError } from '@/api/errors';
@@ -131,6 +133,8 @@ interface AgentDetailResponse {
   online: boolean | null;
   staleAfterSec: number;
   buckets: MachineHistoryBucket[];
+  history_status?: HistoryStatus;
+  history_sampled?: boolean;
   /** Per-day availability rows for the 90-day rail. / 90 天栏使用的每日可用率。 */
   availability?: Array<{ d: string; t: number; u: number; w: number; avg: number }>;
 }
@@ -275,7 +279,7 @@ interface AgentDetailContentProps {
 export function AgentDetailContent({ numId, monitorName, target }: AgentDetailContentProps) {
   // Top-level catalog: `detail.*` is not under the admin namespace. / 顶层词表：`detail.*` 不在 admin 命名空间。
   const t = useTranslations();
-  const { data, error, isLoading } = useSWR<AgentDetailResponse>(
+  const { data, error, isLoading, mutate } = useSWR<AgentDetailResponse>(
     `/api/public/agent/detail/${numId}?minutes=60`,
     fetcher,
     { refreshInterval: 15_000, revalidateOnFocus: false, dedupingInterval: 5_000, shouldRetryOnError: isRetryableApiError, errorRetryCount: 2 },
@@ -304,13 +308,6 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
       ? (live.disk_used / live.disk_total) * 100
       : null;
 
-  /**
-   * Network is a rate, not a counter.
-   *
-   * `machine_history` stores byte totals, so charting totals would be a line that
-   * only climbs; the delta between adjacent buckets is what a viewer wants.
-   * 历史存的是字节总量；画总量只会一路上涨，必须画相邻桶差值。
-   */
   const series = useMemo(() => {
     const buckets = data?.buckets ?? [];
     const now = data?.now ?? Math.floor(Date.now() / 1000);
@@ -327,7 +324,7 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
         : null,
     }));
     return { cpu, mem, load, net };
-  }, [data?.buckets]);
+  }, [data?.buckets, data?.now]);
 
   const interfaces = useMemo(
     () => parseInterfaces(live?.interfaces_json),
@@ -347,7 +344,7 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
     );
   }
 
-  if (error || !data) {
+  if (!data) {
     return (
       <div className="py-1">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 py-16">
@@ -590,6 +587,7 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
           <Card>
             <CardBody className="gap-4 px-5 py-5">
               <h2 className="text-small font-semibold">{t('detail.lastHour')}</h2>
+              <HistoryNotice status={error ? 'unavailable' : data.history_status} sampled={data.history_sampled} onRetry={() => void mutate()} />
               {/* `grid-cols-1` for the same reason as the identity card: a bare
                   grid's `auto` tracks cannot shrink below their content, and a
                   recharts container has a min-content width of its own.

@@ -14,7 +14,7 @@ export type ServerPageConfig = {
   config: { footerText: string };
 };
 export type FleetResponse = { servers: PublicServer[]; now: number };
-export type DetailResponse = { server: PublicServer; history: PublicServerHistory[]; now: number };
+export type DetailResponse = { server: PublicServer; history: PublicServerHistory[]; now: number; history_status?: import('../../../../shared/contracts').HistoryStatus; history_sampled?: boolean };
 
 export const serverStates: ServerState[] = ['online', 'offline', 'unknown'];
 export const serverSorts: ServerSort[] = ['default', 'name', 'cpu', 'memory', 'disk', 'load', 'network', 'uptime'];

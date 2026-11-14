@@ -50,6 +50,7 @@ export function SetupPage() {
   const [error, setError] = useState<string | null>(null);
   const [databaseType, setDatabaseType] = useState<SetupDatabaseType | null>(null);
   const [databaseUrl, setDatabaseUrl] = useState('');
+  const [savedDatabase, setSavedDatabase] = useState<{ type: SetupDatabaseType; configurationId?: string } | null>(null);
   const [stage, setStage] = useState<'check' | 'database' | 'account'>('check');
   const [phase, setPhase] = useState<'form' | 'creating' | 'finishing' | 'titleFailed'>('form');
   const submissionPending = useRef(false);
@@ -78,6 +79,7 @@ export function SetupPage() {
   const deploymentReady = requirements?.every(item => !item.required || item.ok) ?? true;
   const showCheck = requirements !== null && (stage === 'check' || !deploymentReady || sessionError);
   const showDatabase = requirements !== null && !showCheck && stage === 'database';
+  const syncingDatabase = showDatabase && savedDatabase?.configurationId && options?.configurationId !== savedDatabase.configurationId;
   const credentialMissing = requirements === null && session.setupCredential === null && !session.authenticated;
   const busy = submitting || checkingDatabase;
   const databaseReady = databaseAvailable && (!needsUrl || editable && databaseUrl.trim().length > 0);
@@ -109,8 +111,13 @@ export function SetupPage() {
     setCheckingDatabase(true);
     setError(null);
     try {
-      await authApi.configureDatabase(credential, selection());
-      if (!await refresh()) { setError(t('setup.databaseOptionsUnavailable')); return; }
+      const saved = savedDatabase ?? await authApi.configureDatabase(credential, selection());
+      setSavedDatabase(saved);
+      const latest = await refresh();
+      if (!latest) { setError(t('setup.databaseOptionsUnavailable')); return; }
+      if (saved.configurationId && latest.setupDatabase?.configurationId !== saved.configurationId) {
+        return;
+      }
       setDatabaseUrl('');
       setStage('account');
     } catch (err) { await recover(err); }
@@ -185,7 +192,7 @@ export function SetupPage() {
                         disallowEmptySelection
                         onSelectionChange={keys => {
                           const value = [...keys][0] as SetupDatabaseType;
-                          if (options.types.includes(value)) { setDatabaseType(value); setError(null); }
+                          if (options.types.includes(value)) { setDatabaseType(value); setSavedDatabase(null); setError(null); }
                         }}
                         isDisabled={busy}
                       >
@@ -200,7 +207,7 @@ export function SetupPage() {
                         placeholder="postgresql://user:password@host:5432/database?sslmode=require"
                         isRequired={needsUrl}
                         value={databaseUrl}
-                        onValueChange={setDatabaseUrl}
+                        onValueChange={value => { setDatabaseUrl(value); setSavedDatabase(null); }}
                         isDisabled={busy}
                         description={t(configured ? 'setup.databaseUrlConfigured' : 'setup.databaseUrlRequired')}
                       /> : selectedDatabase === 'postgres' ? <p role={needsUrl ? 'alert' : undefined} className="rounded-lg border border-[var(--polaris-line)] bg-[var(--polaris-well)] px-3 py-2 text-[12px] leading-relaxed text-[var(--polaris-ink-3)]">{t(needsUrl ? 'setup.databaseUrlUnavailable' : 'setup.databaseUrlDeploymentOnly')}</p> : null}
@@ -265,6 +272,7 @@ export function SetupPage() {
                       description={t('setup.siteNameHint')}
                     />
                   </> : null}
+                  {syncingDatabase && !error ? <p role="status" className="rounded-lg bg-[var(--polaris-well)] px-3 py-2.5 text-[13px] leading-relaxed text-[var(--polaris-ink-3)]">{t('setup.databaseConfigurationPending')}</p> : null}
                   {error ? <p role="alert" className="flex items-start gap-2 rounded-[10px] border border-danger/20 bg-danger/[0.04] px-3 py-2.5 text-[12.5px] text-danger-600"><AlertCircle size={15} className="mt-px shrink-0" />{error}</p> : null}
                   <Button
                     type="submit"

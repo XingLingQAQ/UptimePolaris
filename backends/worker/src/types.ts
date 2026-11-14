@@ -240,6 +240,7 @@ export type Status = typeof UP | typeof DOWN | typeof WARN | typeof PENDING;
 
 /** Check observation for Analytics Engine and the database ring. / 写入 Analytics Engine 和数据库环形缓冲区的检查观测值。 */
 export interface Heartbeat {
+  addons?: { ssl?: AddonReading; domain?: AddonReading; dns?: DnsAddonReading };
   monitorId: string;
   /** epoch seconds / Unix 时间戳（秒） */
   ts: number;
@@ -313,6 +314,8 @@ export interface LiveEntry {
   /** present only when the monitor has check_dns on / 仅在监控启用 check_dns 时存在 */
   dns?: DnsAddonReading;
   resource_alerts?: Record<string, { since: number; last_alert: number; active: boolean; observed_at?: number }>;
+  recent_checks?: number[];
+  recent_observation?: RingHeartbeat;
   availability?: {
     /** The minute the window's newest slot belongs to. / 窗口中最新时间槽所属的分钟。 */
     endMinute: number;
@@ -341,7 +344,7 @@ export const RING_SIZE = 100;
 
 export interface Env {
   DB: D1Database;
-  SETUP_CONFIG?: DurableObjectNamespace;
+  CONFIG?: KVNamespace;
   AUTOMATIC_NOTIFICATIONS_DISABLED?: string;
   /** Required for Worker setup; query credentials are only needed for SQL backfill. / Worker 初始化必需；查询凭据仅用于 SQL 回填。 */
   UPTIME?: AnalyticsEngineDataset;

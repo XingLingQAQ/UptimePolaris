@@ -17,7 +17,7 @@ import {
 } from '../../types';
 import { latestAgentProbeObservation, loadProbeAgentStates, monitorProbeSource, probeAgentAvailable, pruneAgentProbeJobs, scheduleAgentProbeJobs } from '../agent/probes';
 import { rollupAgentMetrics } from '../agent/rollup';
-import { writeHeartbeat } from '../analytics-engine';
+import { writeHeartbeat, writeHeartbeatBatch } from '../analytics-engine';
 import { checkPush } from '../check/push';
 import { runAddons, runCheck } from '../check/run';
 import type { CheckResult } from '../check/types';
@@ -265,11 +265,7 @@ async function runClaimedTick(env: Env, now: number, tickOwner: string, ensureOw
     };
   };
 
-  /**
-   * Roll up agent snapshots whenever the deployment has agent monitors, even
-   * when `due` is empty: history buckets still need this minute's write.
-   * 部署中有 Agent 就汇总；即使 due 为空，也要写本分钟历史桶。
-   */
+  // 每轮刷新 Agent 状态，沿用全局可用率记录。 / Refresh Agent state through the shared availability record.
   const anyAgent = agentDue.length > 0 || monitors.some((m) => m.type === 'agent');
   let agentEntries: Map<string, LiveEntry> = new Map();
   let agentAlerts: Awaited<ReturnType<typeof rollupAgentMetrics>>['alerts'] = [];
@@ -311,7 +307,7 @@ async function runClaimedTick(env: Env, now: number, tickOwner: string, ensureOw
     const writes = [
       { sql: liveStateSQL[db.type].merge, params: ['all', JSON.stringify(next), Math.floor(Date.now() / 1000)] },
       ...await prepareAvailabilityDayWrites(env, completedDays, Math.floor(Date.now() / 1000)),
-      ...await prepareHeartbeatWrites(env, ring),
+      ...await prepareHeartbeatWrites(env, ring, live),
       ...agentAlerts.map((alert) => ({
         sql: eventsSQL[db.type].insert,
         params: [alert.monitor.id, alert.status, alert.message.slice(0, 512), alert.at],
@@ -496,6 +492,7 @@ async function runClaimedTick(env: Env, now: number, tickOwner: string, ensureOw
       latencyMs: heartbeat.ms ?? 0,
       statusCode: primary.statusCode,
       message: primary.message,
+      addons,
     });
 
     const transition = transitionWrites(env, m, live[m.id], entry, addons, nowSec, maxRetries);
@@ -514,7 +511,7 @@ async function runClaimedTick(env: Env, now: number, tickOwner: string, ensureOw
   const commitWrites = [
     { sql: liveStateSQL[db.type].merge, params: ['all', JSON.stringify(next), nowSec] },
     ...await prepareAvailabilityDayWrites(env, completedDays, nowSec),
-    ...await prepareHeartbeatWrites(env, ring),
+    ...await prepareHeartbeatWrites(env, ring, live),
     ...eventWrites,
     ...agentAlerts.map((alert) => ({
       sql: eventsSQL[db.type].insert,
@@ -536,10 +533,7 @@ async function runClaimedTick(env: Env, now: number, tickOwner: string, ensureOw
       reason: 'no Analytics Engine binding; live status still updates, history does not',
     }));
   } else {
-    for (const point of historyPoints) {
-      try { writeHeartbeat(env, point); }
-      catch (error) { console.error(JSON.stringify({ event: 'history_write_failed', monitor: point.monitorId, err: String(error) })); }
-    }
+    writeHeartbeatBatch(env, historyPoints, nowSec);
   }
 
   /** Send eligible outbox notifications after live state, history and transitions commit together. / 实时状态、历史和状态变化一起提交后，发送符合条件的发件箱通知。 */
@@ -691,7 +685,7 @@ async function runMonitorCheckSnapshot(env: Env, monitor: Monitor): Promise<Moni
   await commitMonitorWrites(db, monitor, nowSec, [
     { sql: liveStateSQL[db.type].merge, params: ['all', JSON.stringify({ [monitor.id]: preserved }), nowSec] },
     ...await prepareAvailabilityDayWrites(env, completedDays, nowSec),
-    ...await prepareHeartbeatWrites(env, ring),
+    ...await prepareHeartbeatWrites(env, ring, live),
     ...eventWrites.rows,
     ...outbox,
   ]);
@@ -704,6 +698,7 @@ async function runMonitorCheckSnapshot(env: Env, monitor: Monitor): Promise<Moni
       latencyMs: heartbeat.ms ?? 0,
       statusCode: primary.statusCode,
       message: primary.message,
+      addons,
     });
   } catch (error) {
     console.error(JSON.stringify({ event: 'history_write_failed', monitor: monitor.id, err: String(error) }));

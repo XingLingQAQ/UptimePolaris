@@ -19,7 +19,7 @@ Uptime Polaris 提供 Cloudflare Worker 和 Go 两种后端。两者用同一套
 
 不想维护服务器时建议使用 Worker；需要直接探测内网服务、使用 UDP 或更多协议、或者需要更短的检查间隔时，请选择 Go。ICMP 需要主机开放原始套接字权限；界面只列出当前后端或在线 Agent 支持的检查类型。
 
-Worker 初始化分为部署检查、数据库配置和管理员账号三步。第二步可在页面填写并验证 PostgreSQL 连接地址；绑定 D1 后也可选择 D1。未绑定 D1 时，连接配置加密保存在随部署提供的 Durable Object 中，无需预先设置 `DATABASE_URL`。已配置的 PostgreSQL 连接可留空复用。第三步才创建管理员账号和会话，后续请求和重启继续使用所选数据库。
+Worker 初始化分为部署检查、数据库配置和管理员账号三步。第二步可在页面填写并验证 PostgreSQL 连接地址；绑定 D1 后也可选择 D1。页面填写的连接加密保存在 `CONFIG` KV 命名空间，需先绑定该命名空间，无需预先设置 `DATABASE_URL`。已配置的 PostgreSQL 连接可留空复用。第三步才创建管理员账号和会话，后续请求和重启继续使用所选数据库。
 
 Go 保持单页初始化，可选 SQLite 或 PostgreSQL。字段和错误码见[初始化数据库契约](api.md#初始化数据库契约)。
 
@@ -49,7 +49,7 @@ Uptime Polaris has two backends: Cloudflare Worker and Go. Both serve the same f
 
 Choose Worker when you do not want to run a server. Choose Go when you need direct private-network probes, UDP, or the extra native protocols. ICMP requires raw-socket permission on the host. The interface lists only the checks the active backend or an online Agent can run.
 
-Worker setup has three steps: deployment checks, database configuration, and administrator account creation. Enter and verify a PostgreSQL connection URL in step two; D1 is also available when bound. Without D1, the encrypted connection configuration is saved in the deployment-provided Durable Object, so no deployment `DATABASE_URL` is required. Leave the URL blank to reuse an existing PostgreSQL connection. Step three creates the administrator and session in the selected database, which remains active after restarts.
+Worker setup has three steps: deployment checks, database configuration, and administrator account creation. Enter and verify a PostgreSQL connection URL in step two; D1 is also available when bound. Page-entered connections are encrypted in a KV namespace bound as `CONFIG`, so no deployment `DATABASE_URL` is required. Leave the URL blank to reuse an existing PostgreSQL connection. Step three creates the administrator and session in the selected database, which remains active after restarts.
 
 Go keeps its single setup form with SQLite or PostgreSQL. See the [setup database contract](api.md#setup-database-contract).
 

@@ -16,4 +16,13 @@ export interface DayStat {
   w: number;
   avg: number | null;
   exact?: boolean;
+  avg_source?: 'ae';
+}
+
+export type HistoryStatus = 'ready' | 'unconfigured' | 'unavailable';
+
+export interface HistoryResult<T> {
+  status: HistoryStatus;
+  points: T[];
+  sampled: boolean;
 }

@@ -11,6 +11,7 @@ import { OverflowTooltip } from './components/ui/OverflowTooltip';
 import { IntlProvider } from './i18n/IntlProvider';
 import { MonitorDetailRoute } from './routes/MonitorDetailRoute';
 import { RouteError, RouteLoading } from './routes/RouteStates';
+import { NotFoundRoute } from './routes/NotFoundRoute';
 import { StatusPageRoute } from './routes/StatusPageRoute';
 import { PublicPageRoute } from './routes/PublicPageRoute';
 import { PublicMaintenance } from './components/status-page/PublicMaintenance';
@@ -46,19 +47,20 @@ function ConsoleLayout() {
   );
 }
 
-export function App() {
+export function App({ httpStatus }: { httpStatus?: number }) {
   useEffect(() => subscribeMotionPreference(() => {}), []);
   return (
     <MotionConfig reducedMotion="never">
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="theme">
         <IntlProvider>
           <MonitorFilterProvider>
-            <Routes>
+            {httpStatus === 404 ? <NotFoundRoute /> : httpStatus && httpStatus >= 500 ? <RouteError code="render" /> : <Routes>
               <Route element={<PublicMaintenance />}>
                 <Route path="/" element={<PublicPageRoute />} />
                 <Route path="/server/:id" element={<PublicPageRoute />} />
                 <Route path="/status/:pageId" element={<StatusPageRoute />} />
                 <Route path="/monitor/:id" element={<MonitorDetailRoute />} />
+                <Route path="*" element={<NotFoundRoute />} />
               </Route>
 
               <Route element={<ConsoleLayout />}>
@@ -80,9 +82,7 @@ export function App() {
                   <Route path="*" element={<RouteError code="notFound" embedded />} />
                 </Route>
               </Route>
-
-              <Route path="*" element={<RouteError code="notFound" />} />
-            </Routes>
+            </Routes>}
             <ToastHost />
             <OverflowTooltip />
           </MonitorFilterProvider>

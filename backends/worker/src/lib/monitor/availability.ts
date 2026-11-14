@@ -68,6 +68,8 @@ export function preserveAvailability<T extends LiveState[string]>(entry: T, prev
   const current = previous?.availability ?? entry.availability;
   return {
     ...entry,
+    ...(previous?.recent_observation ? { recent_observation: previous.recent_observation } : {}),
+    ...(previous?.recent_checks ? { recent_checks: previous.recent_checks } : {}),
     ...(current ? {
       availability: {
         endMinute: current.endMinute,
@@ -86,6 +88,8 @@ export function recordAvailability(state: LiveState, observations: Map<string, R
     if (!mark) continue;
     const entry = state[id];
     if (!entry) continue;
+    if (!entry.recent_observation || observation.t >= entry.recent_observation.t) entry.recent_observation = observation;
+    entry.recent_checks = [...(entry.recent_checks ?? []).filter(t => t !== observation.t), observation.t].sort((a, b) => a - b).slice(-100);
 
     const minute = Math.floor(observation.t / 60);
     const dayNumber = Math.floor(observation.t / 86400);

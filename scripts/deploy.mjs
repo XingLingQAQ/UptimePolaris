@@ -9,7 +9,7 @@ const args = process.argv.slice(2);
 
 // wrangler.jsonc 不声明资源绑定，用户在控制台绑定；这里列出部署时要保留的绑定名和类型。
 // wrangler.jsonc declares no resource bindings because users add them in the dashboard; these are the ones a deploy keeps.
-const DASHBOARD_BINDINGS = { DB: 'd1', THEMES: 'r2_bucket', UPTIME: 'analytics_engine' };
+const DASHBOARD_BINDINGS = { DB: 'd1', THEMES: 'r2_bucket', UPTIME: 'analytics_engine', CONFIG: 'kv_namespace' };
 const API = 'https://api.cloudflare.com/client/v4';
 
 async function cloudflare(path, token) {
@@ -49,6 +49,9 @@ function bindingConfig(bindings) {
       (config.d1_databases ??= []).push({ binding: binding.name, database_id: binding.id });
     } else if (binding.type === 'r2_bucket') {
       (config.r2_buckets ??= []).push({ binding: binding.name, bucket_name: binding.bucket_name, ...(binding.jurisdiction ? { jurisdiction: binding.jurisdiction } : {}) });
+    } else if (binding.type === 'kv_namespace') {
+      if (typeof binding.namespace_id !== 'string' || !binding.namespace_id) throw new Error(`KV binding ${binding.name} has no namespace ID.`);
+      (config.kv_namespaces ??= []).push({ binding: binding.name, id: binding.namespace_id });
     } else {
       (config.analytics_engine_datasets ??= []).push({ binding: binding.name, dataset: binding.dataset });
     }

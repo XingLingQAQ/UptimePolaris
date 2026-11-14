@@ -1,4 +1,3 @@
-export { SetupConfiguration } from './lib/db/setup-configuration';
 import { api } from './api';
 import { setupRedirect } from './lib/auth/setup-redirect';
 import { databaseConfigured, setupRequirements } from './lib/auth/setup-requirements';
@@ -8,6 +7,7 @@ import { ensureSchemaReady } from './lib/db/schema-guard';
 import { postgresIsEmpty } from './lib/db/setup-postgres';
 import { DatabaseConfigurationError, databaseType, pendingDatabase, requireReadyDatabase } from './lib/db/setup-control';
 import { internalErrorResponse } from './lib/http/errors';
+import { pageErrorResponse } from './lib/http/page-errors';
 import { runSync } from './lib/jobs/daily-sync';
 import { CRON_SYNC, CRON_TICK } from './lib/jobs/schedules';
 import { runTick } from './lib/jobs/tick';
@@ -99,8 +99,9 @@ async function handleDatabaseRequest(request: Request, env: Env, ctx: ExecutionC
 export default {
   /** 在请求数据库作用域内处理初始化和结构检查，再进入页面或 API 路由。 / Handle setup and schema checks in the request database scope before page or API routing. */
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let response: Response;
     try {
-      return await withDBScope(env, async (scopedEnv, scopedCtx) => {
+      response = await withDBScope(env, async (scopedEnv, scopedCtx) => {
         if (!databaseConfigured(scopedEnv)) {
           const incomplete = setupRequirements(scopedEnv).some((item) => item.required && !item.ok);
           return routeBeforeReady(request, scopedEnv, scopedCtx ?? ctx, incomplete ? 'deployment_incomplete' : 'setup_required');
@@ -109,10 +110,12 @@ export default {
       }, ctx);
     } catch (error) {
       if (error instanceof DatabaseConfigurationError) {
-        return Response.json({ error: 'database_configuration_failed' }, { status: 503, headers: { 'cache-control': 'private, no-store' } });
+        response = Response.json({ error: 'database_configuration_failed' }, { status: 503, headers: { 'cache-control': 'private, no-store' } });
+      } else {
+        response = internalErrorResponse(error, request.method);
       }
-      return internalErrorResponse(error, request.method);
     }
+    return pageErrorResponse(request, env, response);
   },
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {

@@ -139,6 +139,11 @@
     "reload": "ページを再読み込み"
   },
   "detail": {
+    "historyUnconfigured": "履歴の取得が未設定です。管理者は CF_ACCOUNT_ID と Analytics Read 権限を持つ CF_API_TOKEN を設定してください。",
+    "historyUnavailable": "履歴を一時的に取得できません。しばらくしてから再試行してください。",
+    "historySampled": "履歴にはサンプリングされたデータが含まれるため、統計値は概算です。",
+    "historyRecent": "過去24時間",
+    "historyDaily": "日別集計",
     "dns": "DNS",
     "dnsCheckedAt": "{time} に確認",
     "dnsRecords": "レコード",

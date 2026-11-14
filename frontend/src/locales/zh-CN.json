@@ -139,6 +139,11 @@
     "reload": "重新加载页面"
   },
   "detail": {
+    "historyUnconfigured": "历史查询尚未配置。管理员需设置 CF_ACCOUNT_ID 和 CF_API_TOKEN（Analytics Read 权限）。",
+    "historyUnavailable": "历史数据暂时无法读取，请稍后重试。",
+    "historySampled": "历史数据包含采样，统计值仅供参考。",
+    "historyRecent": "最近 24 小时",
+    "historyDaily": "每日汇总",
     "dns": "DNS",
     "dnsCheckedAt": "检查于 {time}",
     "dnsRecords": "解析结果",

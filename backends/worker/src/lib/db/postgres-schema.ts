@@ -87,5 +87,9 @@ export const POSTGRES_MIGRATIONS: readonly { name: string; sql: string }[] = [
   {
     "name": "0024_presentation_refinements.postgres.sql",
     "sql": "UPDATE app_settings SET value_json=(\n  SELECT COALESCE(jsonb_agg(jsonb_build_object('kind','weekly','day',value->'day','start',value->'start','end',value->'end')),'[]'::jsonb)::text\n  FROM jsonb_array_elements(app_settings.value_json::jsonb)\n) WHERE key='alerts.maintenanceWindows';\nUPDATE presentation_state SET config_json=jsonb_set(config_json::jsonb,'{domains}',(\n  SELECT COALESCE(jsonb_agg(jsonb_build_object('hostname',value->'hostname','page',value->'page')),'[]'::jsonb)\n  FROM jsonb_array_elements(presentation_state.config_json::jsonb->'domains')\n))::text,revision='refinements-'||revision;\n"
+  },
+  {
+    "name": "0025_agent_history_daily.postgres.sql",
+    "sql": "CREATE TABLE IF NOT EXISTS agent_history_daily (\r\n  agent_id TEXT PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE,\r\n  days_json TEXT NOT NULL,\r\n  updated_at BIGINT NOT NULL\r\n);\r\n"
   }
 ];

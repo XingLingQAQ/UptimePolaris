@@ -60,6 +60,7 @@ try {
   assert.deepEqual(session.body.setupDatabase, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: false, postgresUrlEditable: false });
   assert.deepEqual(session.body.setupRequirements, [
     { key: 'database', required: false, ok: false },
+    { key: 'config', required: false, ok: false },
     { key: 'adminToken', required: true, ok: false },
     { key: 'themes', required: false, ok: false },
     { key: 'analytics', required: true, ok: false },
@@ -155,6 +156,7 @@ try {
 
   resources.analyticsEngineDatasets = { UPTIME: { dataset: 'uptime_fixture' } };
   resources.r2Buckets = { THEMES: 'themes-fixture' };
+  resources.kvNamespaces = { CONFIG: 'config-fixture' };
   await rebound.setOptions(options(bindings, resources));
   const ready = await request(rebound, '/api/auth/session');
   assert.ok(ready.body.setupRequirements.every((item) => item.ok));
@@ -176,17 +178,16 @@ try {
   assert.equal((await request(rebound, '/api/auth/session')).body.setupRequirements, null);
 } finally { await rebound.dispose(); }
 
-// 只配置 PostgreSQL 也满足数据库要求，DATABASE_TYPE 可以省略；没有 D1 时初始化只能选 PostgreSQL。
-// A PostgreSQL URL alone satisfies the database requirement, DATABASE_TYPE is optional, and D1 is not offered without its binding.
+// 只配置 PostgreSQL 也满足数据库要求，DATABASE_TYPE 可以省略；选库行为由 PostgreSQL 初始化夹具验证。
+// A PostgreSQL URL alone satisfies the database requirement, DATABASE_TYPE is optional,; database choices are covered by the PostgreSQL setup fixture.
 const pgOnly = await build({
   stdin: {
     contents: [
       "import { databaseConfigured, setupRequirements } from './backends/worker/src/lib/auth/setup-requirements.ts';",
-      "import { setupDatabaseOptions } from './backends/worker/src/lib/db/setup-control.ts';",
-      'export default { async fetch(request, env) {',
+            'export default { async fetch(request, env) {',
       "  if (new URL(request.url).pathname === '/fixture/pg-only') {",
       '    const session = { DATABASE_URL: env.DATABASE_URL };',
-      '    return Response.json({ configured: databaseConfigured(session), requirements: setupRequirements(session), options: await setupDatabaseOptions(session) });',
+      '    return Response.json({ configured: databaseConfigured(session), requirements: setupRequirements(session) });',
       '  }',
       '  return new Response(null, { status: 404 });',
       '} };',
@@ -199,7 +200,11 @@ const pgOnly = await build({
   platform: 'neutral',
   target: 'es2022',
   write: false,
-  external: ['cloudflare:sockets', 'postgres'],
+  external: ['cloudflare:sockets'],
+  plugins: [{ name: 'unused-postgres', setup(builder) {
+    builder.onResolve({ filter: /^postgres$/ }, () => ({ path: 'postgres', namespace: 'stub' }));
+    builder.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: "export default function postgres() { throw new Error('unexpected connection'); }" }));
+  } }],
 });
 const pgOnlyWorker = new Miniflare({
   modules: true,
@@ -213,7 +218,6 @@ try {
   const body = await response.json();
   assert.equal(body.configured, true);
   assert.deepEqual(body.requirements.find((item) => item.key === 'database'), { key: 'database', required: false, ok: false });
-  assert.deepEqual(body.options, { types: ['postgres'], defaultType: 'postgres', postgresConfigured: true, postgresUrlEditable: false });
 } finally { await pgOnlyWorker.dispose(); }
 
 clearTimeout(watchdog);

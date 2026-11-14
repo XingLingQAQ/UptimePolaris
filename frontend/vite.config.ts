@@ -35,7 +35,25 @@ export default defineConfig({
   // the app owns the whole origin.
   // 应用占用整个域名，从根路径提供资源，避免路由、资源和图标额外添加前缀。
   base: '/',
-  plugins: [react(), stagewise({ publicOrigin: devOrigin?.origin }), stagewiseToolbar(), {
+  plugins: [{
+    name: 'polaris-error-pages',
+    apply: 'build',
+    enforce: 'post',
+    generateBundle(_options, bundle) {
+      const index = bundle['index.html'];
+      if (index?.type !== 'asset' || typeof index.source !== 'string' || !index.source.includes('<div id="root"></div>')) {
+        throw new Error('Cannot generate error pages without the built SPA shell');
+      }
+      for (const status of [404, 500, 503]) {
+        this.emitFile({
+          type: 'asset',
+          fileName: status + '.html',
+          source: index.source.replace('<head>', '<head><meta name="robots" content="noindex" />')
+            .replace('<div id="root"></div>', '<div id="root" data-http-status="' + status + '"></div>'),
+        });
+      }
+    },
+  }, react(), stagewise({ publicOrigin: devOrigin?.origin }), stagewiseToolbar(), {
     name: 'polaris-clean-generated-assets',
     apply: 'build',
     buildStart() {

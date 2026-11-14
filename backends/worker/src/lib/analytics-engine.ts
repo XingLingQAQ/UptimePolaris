@@ -1,94 +1,151 @@
-import type { Env, Heartbeat } from '../types';
+import type { Env, Heartbeat, RingHeartbeat } from '../types';
+import type { HistoryResult } from '../../../../shared/contracts';
 
-/** 通过账号级 HTTP 接口查询 Analytics Engine。 / Query Analytics Engine through the account-level HTTP endpoint. */
-const SQL_API = (accountId: string) =>
-  `https://api.cloudflare.com/client/v4/accounts/${accountId}/analytics_engine/sql`;
+export const AE_POINT_LIMIT = 250;
+const DATASET = 'uptime_heartbeats';
+const queryCache = new Map<string, { expires: number; rows: Record<string, unknown>[] }>();
+const pendingQueries = new Map<string, Promise<Record<string, unknown>[]>>();
 
 export interface AeRow {
   idx: string;
   total: number;
   up: number;
   warn: number;
-  avg: number;
+  avg: number | null;
 }
 
-/** 按 UTC 日汇总，并用 _sample_interval 为计数和延迟加权。 / Aggregate a UTC day, weighting counts and latency by _sample_interval. */
-export async function queryDaily(
+export function analyticsReadable(env: Env): boolean {
+  return Boolean(env.UPTIME && env.CF_ACCOUNT_ID && env.CF_API_TOKEN);
+}
+
+export function aeLiteral(value: string): string {
+  return "'" + value.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+}
+
+export async function queryAnalytics(
   env: Env,
-  day: string,
-): Promise<Map<string, AeRow>> {
-  /** Missing AE configuration is reported as disabled by `runSync`. / AE 配置缺失时，`runSync` 将其报告为已禁用。 */
-  if (!env.UPTIME) throw new Error('Analytics Engine binding is not configured');
-  if (!env.CF_ACCOUNT_ID || !env.CF_API_TOKEN) throw new Error('Analytics Engine credentials are not configured');
-
-  // The AE SQL API does not support bound parameters, so `day` would be
-  // concatenated verbatim. Whitelist the format here so a future call-site
-  // with user-influenced input cannot smuggle SQL into the date literal.
-  // AE SQL API 不支持绑定参数，`day` 将被原样拼接；此处以格式白名单限制，
-  // 防止未来调用方传入受用户影响的值时将 SQL 注入日期字面量。
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
-    throw new Error(`Invalid day key format (expected YYYY-MM-DD): ${JSON.stringify(day)}`);
-  }
-
-  const sql = `
-    SELECT
-      index1                    AS idx,
-      sum(_sample_interval)     AS total,
-      sumIf(_sample_interval, double2 IN (1, 4))  AS up,
-      sumIf(_sample_interval, double2 = 2)  AS warn,
-      sum(double1 * _sample_interval) / greatest(sum(_sample_interval), 1) AS avg
-    FROM uptime_heartbeats
-    WHERE timestamp >= toDateTime('${day} 00:00:00')
-      AND timestamp <  toDateTime('${day} 00:00:00') + INTERVAL '1' DAY
-    GROUP BY idx
-    FORMAT JSON
-  `;
-
-  const res = await fetch(SQL_API(env.CF_ACCOUNT_ID), {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${env.CF_API_TOKEN}`,
-      'content-type': 'text/plain',
-    },
-    body: sql,
-  });
-
-  if (!res.ok) {
-    throw new Error(`AE query failed: ${res.status} ${await res.text()}`);
-  }
-
-  const json = (await res.json()) as { success?: boolean; errors?: unknown[]; data?: unknown };
-  if (json.success === false || !Array.isArray(json.data)) {
-    throw new Error(`AE query returned an invalid response: ${JSON.stringify(json.errors ?? 'missing data')}`);
-  }
-  const out = new Map<string, AeRow>();
-  for (const value of json.data) {
-    if (!value || typeof value !== 'object') throw new Error('AE query returned an invalid row');
-    const r = value as Record<string, unknown>;
-    out.set(String(r.idx), {
-      idx: String(r.idx),
-      total: Number(r.total) || 0,
-      up: Number(r.up) || 0,
-      warn: Number(r.warn) || 0,
-      avg: Number(r.avg) || 0,
+  sql: string,
+  cacheSeconds = 0,
+): Promise<Record<string, unknown>[]> {
+  if (!analyticsReadable(env)) throw new Error('Analytics Engine query credentials are not configured');
+  const key = `${env.CF_ACCOUNT_ID}\0${env.CF_API_TOKEN}\0${sql}`;
+  const cached = queryCache.get(key);
+  if (cacheSeconds > 0 && cached && cached.expires > Date.now()) return cached.rows;
+  const pending = pendingQueries.get(key);
+  if (pending) return pending;
+  const request = (async () => {
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(env.CF_ACCOUNT_ID)}/analytics_engine/sql`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${env.CF_API_TOKEN}`, 'content-type': 'text/plain' },
+      body: sql,
+      signal: AbortSignal.timeout(10_000),
     });
-  }
-  return out;
+    if (!response.ok) throw new Error(`Analytics Engine query failed (${response.status})`);
+    const result = await response.json() as { success?: boolean; data?: unknown };
+    if (result.success === false || !Array.isArray(result.data) || result.data.some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
+      throw new Error('Analytics Engine returned an invalid response');
+    }
+    const rows = result.data as Record<string, unknown>[];
+    if (cacheSeconds > 0) {
+      if (queryCache.size >= 64) queryCache.delete(queryCache.keys().next().value!);
+      queryCache.set(key, { expires: Date.now() + cacheSeconds * 1000, rows });
+    }
+    return rows;
+  })();
+  pendingQueries.set(key, request);
+  try { return await request; }
+  finally { pendingQueries.delete(key); }
 }
 
-/**
- * 字段与 queryDaily 对应：index1 为监控 ID，double1/2/3 为上报值、状态和响应码。
- * Match queryDaily: index1 is the monitor ID; double1/2/3 hold the reported value, status, and response code.
- * 缺少绑定时返回 false；true 表示已调用写入接口。
- * Return false without the binding; true means the write API was called.
- */
-export function writeHeartbeat(env: Env, hb: Heartbeat): boolean {
-  if (!env.UPTIME) return false;
+export async function readAnalyticsHistory<T>(env: Env, read: () => Promise<{ points: T[]; sampled: boolean }>): Promise<HistoryResult<T>> {
+  if (!analyticsReadable(env)) return { status: 'unconfigured', points: [], sampled: false };
+  try { return { status: 'ready', ...await read() }; }
+  catch (error) {
+    console.error(JSON.stringify({ event: 'history_query_failed', err: String(error) }));
+    return { status: 'unavailable', points: [], sampled: false };
+  }
+}
 
-  env.UPTIME.writeDataPoint({
-    indexes: [hb.monitorId],
-    blobs: [String(hb.status), hb.message.slice(0, 512)],
-    doubles: [hb.latencyMs, hb.status, hb.statusCode],
+export function dayBounds(day: string): { start: number; end: number } {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error(`Invalid day key format: ${day}`);
+  const start = Date.parse(`${day}T00:00:00Z`) / 1000;
+  if (!Number.isFinite(start) || new Date(start * 1000).toISOString().slice(0, 10) !== day) throw new Error(`Invalid day: ${day}`);
+  return { start, end: start + 86400 };
+}
+
+const MONITOR_OBSERVED_AT = 'if(double4 > 0, double4, toUnixTimestamp(timestamp))';
+const MONITOR_POINTS = "blob3 NOT IN ('agent_report', 'agent_summary')";
+
+export async function queryDaily(env: Env, day: string): Promise<Map<string, AeRow>> {
+  const { start, end } = dayBounds(day);
+  const rows = await queryAnalytics(env, `SELECT index1 AS idx,
+    sum(_sample_interval) AS total,
+    sum(if(double2 IN (1, 4), _sample_interval, 0)) AS up,
+    sum(if(double2 = 2, _sample_interval, 0)) AS warn,
+    sum(if(double2 IN (1, 2), double1 * _sample_interval, 0)) / if(sum(if(double2 IN (1, 2), _sample_interval, 0)) > 0, sum(if(double2 IN (1, 2), _sample_interval, 0)), 1) AS avg,
+    sum(if(double2 IN (1, 2), _sample_interval, 0)) AS latency_count
+    FROM ${DATASET}
+    WHERE timestamp >= toDateTime('${day} 00:00:00') - INTERVAL '1' DAY
+      AND ${MONITOR_OBSERVED_AT} >= ${start} AND ${MONITOR_OBSERVED_AT} < ${end}
+      AND ${MONITOR_POINTS}
+    GROUP BY idx FORMAT JSON`);
+  return new Map(rows.map(row => [String(row.idx), {
+    idx: String(row.idx), total: Number(row.total) || 0, up: Number(row.up) || 0,
+    warn: Number(row.warn) || 0, avg: row.avg == null || Number(row.latency_count) === 0 ? null : Number(row.avg),
+  }]));
+}
+
+export function queryMonitorHistory(env: Env, id: string, since: number, now: number): Promise<HistoryResult<RingHeartbeat>> {
+  const end = Math.floor(now / 60) * 60 + 60;
+  const start = Math.max(end - 90 * 86400, Math.floor(since / 60) * 60);
+  return readAnalyticsHistory(env, async () => {
+    const rows = await queryAnalytics(env, `SELECT ${MONITOR_OBSERVED_AT} AS t,
+      argMax(double2, timestamp) AS up, argMax(double1, timestamp) AS ms,
+      max(_sample_interval) AS sample_interval
+      FROM ${DATASET}
+      WHERE index1 = ${aeLiteral(id)} AND ${MONITOR_POINTS}
+        AND timestamp >= toDateTime(${start - 86400})
+        AND ${MONITOR_OBSERVED_AT} >= ${start} AND ${MONITOR_OBSERVED_AT} < ${end}
+      GROUP BY t ORDER BY t DESC LIMIT 100 FORMAT JSON`, 60);
+    const points = rows.map(row => ({ t: Number(row.t), up: Number(row.up),
+      ms: Number(row.up) === 1 || Number(row.up) === 2 ? Number(row.ms) : null,
+    })).filter(point => Number.isFinite(point.t) && [0, 1, 2, 4].includes(point.up) && (point.ms === null || Number.isFinite(point.ms)))
+      .sort((a, b) => a.t - b.t);
+    return { points, sampled: rows.some(row => Number(row.sample_interval) > 1) };
   });
-  return true;
+}
+
+export class AnalyticsWriter {
+  private written = 0;
+
+  constructor(private env: Env) {}
+
+  write(point: Parameters<AnalyticsEngineDataset['writeDataPoint']>[0]): boolean {
+    if (!this.env.UPTIME || this.written >= AE_POINT_LIMIT) return false;
+    this.written++;
+    this.env.UPTIME.writeDataPoint(point);
+    return true;
+  }
+}
+
+export function writeHeartbeat(env: Env, hb: Heartbeat, writer = new AnalyticsWriter(env)): boolean {
+  return writer.write({
+    indexes: [hb.monitorId],
+    blobs: [String(hb.status), hb.message.slice(0, 512), 'monitor', JSON.stringify(hb.addons ?? {})],
+    doubles: [hb.latencyMs, hb.status, hb.statusCode, hb.ts],
+  });
+}
+
+export function writeHeartbeatBatch(env: Env, points: Heartbeat[], now: number): void {
+  if (!points.length) return;
+  const writer = new AnalyticsWriter(env);
+  const ordered = [...points].sort((a, b) => a.monitorId.localeCompare(b.monitorId));
+  const offset = (Math.floor(now / 60) * AE_POINT_LIMIT) % ordered.length;
+  let written = 0;
+  let failed = 0;
+  for (let i = 0; i < Math.min(AE_POINT_LIMIT, ordered.length); i++) {
+    try { written += Number(writeHeartbeat(env, ordered[(offset + i) % ordered.length], writer)); }
+    catch { failed++; }
+  }
+  if (written < points.length) console.warn(JSON.stringify({ event: 'history_write_partial', total: points.length, written, failed, reason: env.UPTIME ? 'point_budget_or_write_failure' : 'binding_missing' }));
 }

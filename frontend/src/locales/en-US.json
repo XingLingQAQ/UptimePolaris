@@ -139,6 +139,11 @@
     "reload": "Reload page"
   },
   "detail": {
+    "historyUnconfigured": "History queries are not configured. An administrator must set CF_ACCOUNT_ID and CF_API_TOKEN with Analytics Read permission.",
+    "historyUnavailable": "History is temporarily unavailable. Please try again later.",
+    "historySampled": "History includes sampled data; statistics are approximate.",
+    "historyRecent": "Last 24 hours",
+    "historyDaily": "Daily summaries",
     "dns": "DNS",
     "dnsCheckedAt": "Checked at {time}",
     "dnsRecords": "Records",

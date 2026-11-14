@@ -1,3 +1,5 @@
+import { HistoryNotice } from '@/components/charts/HistoryNotice';
+import type { HistoryStatus } from '../../../../shared/contracts';
 import { CountryFlag } from '@/admin/components/CountryFlag';
 import { formatBytes, formatClock, formatRate } from '@/admin/format';
 import { Ring } from '@/components/ui/MetricMeters';
@@ -25,7 +27,8 @@ const ICONS: Record<ResourceKind, ReactNode> = { cpu: <Cpu />, memory: <MemorySt
  * One machine: its live readings first, then its published history, then the facts that do not change minute to minute.
  * 单台机器：先显示实时读数，再显示已公开的历史，最后是不随分钟变化的信息。
  */
-export function ServerDetail({ server, history, serverNow, now, samples, showHistory, accent, listHref, prev, next, pinned, onPin, selected, selectionFull, onSelect, onTag }: {
+export function ServerDetail({ server, history, historyStatus, historySampled, onRetryHistory, serverNow, now, samples, showHistory, accent, listHref, prev, next, pinned, onPin, selected, selectionFull, onSelect, onTag }: {
+  historyStatus?: HistoryStatus; historySampled?: boolean; onRetryHistory: () => void;
   server: PublicServer; history: PublicServerHistory[]; serverNow: number; now: number; samples: LiveSample[] | undefined; showHistory: boolean; accent: string;
   listHref: string; prev: { href: string; name: string } | null; next: { href: string; name: string } | null;
   pinned: boolean; onPin: () => void; selected: boolean; selectionFull: boolean; onSelect: () => void; onTag: (id: string) => void;
@@ -86,7 +89,7 @@ export function ServerDetail({ server, history, serverNow, now, samples, showHis
         </div>
       ) : null}
 
-      {showHistory && (server.cpu !== undefined || server.memoryUsed !== undefined || network) ? <History server={server} history={history} now={serverNow} accent={accent} /> : null}
+      {showHistory && (server.cpu !== undefined || server.memoryUsed !== undefined || network) ? <History server={server} history={history} now={serverNow} accent={accent} status={historyStatus} sampled={historySampled} onRetry={onRetryHistory} /> : null}
 
       <section className="server-detail-system polaris-card p-5">
         <h2 className="mb-3 flex items-center gap-2 text-[14px] font-semibold tracking-[-0.01em] text-[var(--polaris-ink)]"><Info size={15} className="text-[var(--polaris-ink-4)]" aria-hidden="true" />{t('systemInfo')}</h2>
@@ -145,7 +148,7 @@ function Gauge({ kind, server, samples }: { kind: ResourceKind; server: PublicSe
   );
 }
 
-function History({ server, history, now, accent }: { server: PublicServer; history: PublicServerHistory[]; now: number; accent: string }) {
+function History({ server, history, now, accent, status, sampled, onRetry }: { server: PublicServer; history: PublicServerHistory[]; now: number; accent: string; status?: HistoryStatus; sampled?: boolean; onRetry: () => void }) {
   const t = useTranslations('presentation');
   const { locale } = useLocale();
   const colors = useSeriesColors(accent);
@@ -180,7 +183,8 @@ function History({ server, history, now, accent }: { server: PublicServer; histo
           <button type="button" onClick={download} disabled={!rows.length} className="inline-flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--polaris-line)] px-2.5 text-[12px] text-[var(--polaris-ink-2)] transition-colors hover:border-[var(--polaris-line-strong)] hover:text-[var(--polaris-ink)] disabled:opacity-40"><Download size={13} aria-hidden="true" />CSV</button>
         </span>
       </div>
-      {!rows.length ? <p className="rounded-[10px] bg-[var(--polaris-well)] px-4 py-10 text-center text-[12.5px] text-[var(--polaris-ink-3)]">{t('noHistory')}</p> : (
+      <HistoryNotice status={status} sampled={sampled} onRetry={onRetry} />
+      {!rows.length && status && status !== 'ready' ? null : !rows.length ? <p className="rounded-[10px] bg-[var(--polaris-well)] px-4 py-10 text-center text-[12.5px] text-[var(--polaris-ink-3)]">{t('noHistory')}</p> : (
         <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
           {charts.map(chart => (
             <div key={chart.key} className={clsx('min-w-0', chart.wide && 'lg:col-span-2')}>

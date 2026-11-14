@@ -13,6 +13,7 @@ const failedDay = new Date(Date.parse(`${latest}T00:00:00Z`) - 2 * 86_400_000).t
 const worker = await build({
   stdin: {
     contents: `
+      import { storeAgentDaily, loadAgentDaily, pruneAgentDaily } from './backends/worker/src/lib/agent/history.ts';
       import { runSync } from './backends/worker/src/lib/jobs/daily-sync.ts';
       import { resetSettingsCache } from './backends/worker/src/lib/settings/store.ts';
       Date.now = () => ${fixtureNow};
@@ -35,6 +36,16 @@ const worker = await build({
         return Response.json({ success: true, data });
       };
       export default { async fetch(request, env) {
+        const path = new URL(request.url).pathname;
+        if (path === '/archive') {
+          const { id, day, point, retention = 400 } = await request.json();
+          await storeAgentDaily(env, day, new Map([[id, point]]), retention);
+          return Response.json(await loadAgentDaily(env, id));
+        }
+        if (path === '/prune-archive') {
+          await pruneAgentDaily(env, 400);
+          return Response.json({ ok: true });
+        }
         resetSettingsCache();
         const scoped = new URL(request.url).pathname === '/disabled'
           ? { ...env, CF_API_TOKEN: '' }
@@ -162,6 +173,39 @@ try {
       { d: retainedDay, t: 60, u: 60, w: 0, avg: null },
     ]), now).run();
   await db.prepare("INSERT OR IGNORE INTO agents(id,name,token,created_at,updated_at) VALUES(?,'History fixture','fixture-token',1,1)").bind(monitorId).run();
+  const archive = (day, patch = {}, id = monitorId) => mf.dispatchFetch('http://localhost/archive', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, day, point: { d: day, sample_count: 3, duration_sec: 60, cpu_samples: 0, mem_samples: 3,
+      cpu_avg: null, cpu_max: null, mem_pct_avg: 50, mem_pct_max: 60, load_1_avg: null, load_5_avg: null,
+      net_up_bytes: null, net_down_bytes: null, network_duration_sec: 0, sampled: false, ...patch } }),
+  }).then(async response => {
+    assert.equal(response.status, 200, await response.clone().text());
+    return response.json();
+  });
+  await archive(oldDay);
+  const parallelDays = await Promise.all([archive(retainedDay), archive(latest)]);
+  assert.ok(parallelDays.every(days => days.some(day => day.d === retainedDay) || days.some(day => day.d === latest)));
+  let archived = JSON.parse((await db.prepare('SELECT days_json FROM agent_history_daily WHERE agent_id=?').bind(monitorId).first()).days_json);
+  assert.deepEqual(archived.map(day => day.d), [retainedDay, latest], 'concurrent archives merge in SQL without losing either day');
+  await db.prepare('UPDATE agent_history_daily SET updated_at=1 WHERE agent_id=?').bind(monitorId).run();
+  await archive(latest);
+  assert.equal((await db.prepare('SELECT updated_at FROM agent_history_daily WHERE agent_id=?').bind(monitorId).first()).updated_at, 1, 'identical replay does not rewrite the row');
+  await archive(latest, { mem_pct_avg: 55 });
+  archived = JSON.parse((await db.prepare('SELECT days_json FROM agent_history_daily WHERE agent_id=?').bind(monitorId).first()).days_json);
+  assert.equal(archived.find(day => day.d === latest).mem_pct_avg, 55, 'overlap refreshes the existing day');
+  archived.unshift({ ...archived[0], d: oldDay });
+  await db.prepare('UPDATE agent_history_daily SET days_json=? WHERE agent_id=?').bind(JSON.stringify(archived), monitorId).run();
+  const pruned = await mf.dispatchFetch('http://localhost/prune-archive');
+  assert.equal(pruned.status, 200, await pruned.text());
+  archived = JSON.parse((await db.prepare('SELECT days_json FROM agent_history_daily WHERE agent_id=?').bind(monitorId).first()).days_json);
+  assert.deepEqual(archived.map(day => day.d), [retainedDay, latest]);
+  await archive(latest, {}, 'deleted-agent');
+  assert.equal(await db.prepare("SELECT COUNT(*) AS n FROM agent_history_daily WHERE agent_id='deleted-agent'").first().then(row => row.n), 0);
+  await db.prepare("INSERT INTO agents(id,name,token,created_at,updated_at) VALUES('cascade-agent','Cascade','cascade-token',1,1)").run();
+  await archive(latest, {}, 'cascade-agent');
+  await db.prepare("DELETE FROM agents WHERE id='cascade-agent'").run();
+  assert.equal(await db.prepare("SELECT COUNT(*) AS n FROM agent_history_daily WHERE agent_id='cascade-agent'").first().then(row => row.n), 0);
+
   await db.prepare('INSERT INTO machine_history (agent_id,bucket_ts) VALUES (?,?)')
     .bind(monitorId, now - 91 * 86_400).run();
   await db.prepare('INSERT INTO machine_history (agent_id,bucket_ts) VALUES (?,?)')

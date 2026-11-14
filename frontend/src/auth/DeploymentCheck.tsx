@@ -6,6 +6,7 @@ import type { SetupRequirement, SetupRequirementKey } from '../../../shared/setu
 import { useAuth } from './AuthContext';
 
 const REQUIREMENT_TEXT: Record<SetupRequirementKey, { label: string; hint: string }> = {
+  config: { label: 'setup.checkConfig', hint: 'setup.checkConfigHint' },
   database: { label: 'setup.checkDatabase', hint: 'setup.checkDatabaseHint' },
   adminToken: { label: 'setup.checkAdminToken', hint: 'setup.checkAdminTokenHint' },
   themes: { label: 'setup.checkThemes', hint: 'setup.checkThemesHint' },

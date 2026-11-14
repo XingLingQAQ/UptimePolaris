@@ -35,6 +35,10 @@ export async function requestJson<T>(path: string, init: RequestInit = {}): Prom
 
   const body = payload && !Array.isArray(payload) ? payload : undefined;
   const code = typeof body?.error === 'string' ? body.error : 'request_failed';
+  if (response.status === 503 && ['setup_required', 'setup_in_progress', 'deployment_incomplete'].includes(code) &&
+    !/^\/setup\/?$/.test(window.location.pathname)) {
+    window.location.replace('/setup');
+  }
   // 登录失败和匿名请求的 401 不应触发全局会话过期事件。 / A 401 for failed sign-in or an anonymous request must not expire the global session.
   if (response.status === 401 && code !== 'invalid_credentials' && code !== 'invalid_setup_credential') {
     if (init.credentials !== 'omit') window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));

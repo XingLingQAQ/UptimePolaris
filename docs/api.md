@@ -48,6 +48,7 @@ Worker 在 `needsSetup` 为 `true` 时还会返回 `setupRequirements` 数组（
 | `key` | `required` | 含义 |
 | --- | --- | --- |
 | `database` | `false` | 已绑定 `DB`（D1）；未绑定不阻止进入初始化，数据库选择和连接在初始化表单中校验 |
+| `config` | `false` | 已绑定 `CONFIG`（KV）；页面提交 PostgreSQL URL 需此绑定 |
 | `adminToken` | `true` | 已配置 `ADMIN_TOKEN` |
 | `themes` | `false` | 已绑定 `THEMES`（R2 主题存储） |
 | `analytics` | `true` | 已绑定 `UPTIME`（Analytics Engine） |
@@ -59,9 +60,10 @@ Worker 尚未配置数据库时，仍返回选库选项并允许进入初始化�
 | `types` | `("d1" \| "sqlite" \| "postgres")[]` | 当前可选的初始化数据库类型；Worker 绑定 D1 时为 D1 / PostgreSQL，未绑定时只有 PostgreSQL；Go 为 SQLite / PostgreSQL |
 | `defaultType` | `"d1" \| "sqlite" \| "postgres"` | 初始化页面的默认类型 |
 | `postgresConfigured` | `boolean` | 当前 PostgreSQL 连接是否可供复用，不包含连接地址 |
-| `postgresUrlEditable` | `boolean` | 是否允许提交新的 PostgreSQL URL；Worker 有 D1 或配置存储时可编辑，账号写入开始后锁定；Go 为 `true` |
+| `postgresUrlEditable` | `boolean` | 是否允许提交新的 PostgreSQL URL；Worker 绑定 `CONFIG` KV 时可编辑，账号写入开始后锁定；Go 为 `true` |
+| `configurationId` | `string`，可选 | 当前可读的 KV 配置标识，用于确认配置同步；不含连接地址 |
 
-`POST /api/auth/setup/database` 仅用于 Worker 的第二步，接受 `{ credential, database: { type, url? } }`，验证连接、初始化空库并保存加密配置，返回 `{ ok: true, type }`，不创建账号。未绑定 D1 时使用 `SETUP_CONFIG` Durable Object；已绑定 D1 时使用 D1 控制记录。
+`POST /api/auth/setup/database` 仅用于 Worker 的第二步，接受 `{ credential, database: { type, url? } }`，验证连接、初始化空库并保存配置，返回 `{ ok: true, type, configurationId? }`，不创建账号。页面填写的 PostgreSQL 连接加密保存在 `CONFIG` KV；初始化租约和账号写入状态保存在目标数据库。返回 `configurationId` 时，客户端应等会话中的同名字段与其一致后，再进入账号步骤；同步期间只需重读会话，不重复写入配置。
 
 `POST /api/auth/setup` 接受 `credential`、`username`、`password` 和可选的 `database` 对象。最后一步可只提交已验证的数据库类型，服务端复用保存的连接；也可按 `postgresUrlEditable` 提交新 URL。省略 `database` 沿用当前配置。成功后在目标库创建管理员和会话，后续请求和重启继续使用已保存的选择。
 
@@ -110,6 +112,14 @@ curl --fail-with-body 'https://status.example.com/api/public/status'
 `/api/public/monitors` 的 `monitorGroups` 包含监控列表，监控的 `id` 是数字 ID。共享类型为 `http`、`tcp`、`udp`、`icmp`、`push` 和 `agent`；Go 还支持 `dns`、`tls` 和 `websocket`。实际可用类型和执行源以 `/api/capabilities` 为准，Worker 不提供 Go 的三种独立类型。`data.heartbeatList` 以数字 ID 的字符串为键，每个心跳用 `status` 表示状态：`0` 为 DOWN，`1` 为 UP，`2` 为 WARN，`4` 为 PENDING。`time` 是 UTC 时间，`ping` 没有延迟数据时为 `null`。
 
 `/api/public/maintenance` 返回 `active`、`source`、`serverNow`、统一配置的 `title` 和 `description`、当前窗口的 `startsAt` 和 `endsAt`，以及按开始时间排序的 `scheduled` 列表。`source` 为 `manual`、`scheduled` 或 `null`。手动维护优先于计划维护，一直持续到管理员关闭；手动维护或没有进行中的窗口时，当前窗口时间为 `null`。时间使用 UTC ISO 8601 字符串。响应使用 `no-store`。`/api/public/config` 也提供 `maintenance` 和 `maintenanceList`。维护期间 API 正常服务；公开页面的展示行为见[维护窗口](usage.md#维护窗口)。
+
+### Worker 历史响应
+
+`GET /api/public/monitors/:numId` 的 `ring` 是近期实际检查状态，`history` 是从 AE 读取的延迟明细。`GET /api/public/agent/detail/:numId` 的 `buckets` 和 `GET /api/public/servers/:id` 的 `history` 也来自 AE；后者仅在页面启用历史时返回历史状态。
+
+这些响应中的 `history_status` 为 `ready`、`unconfigured` 或 `unavailable`，分别表示查询成功、未配置查询凭据、暂时读取失败。`history_sampled` 表示查询结果是否包含采样；`ready` 和空数组表示查询成功但该窗口没有记录。历史读取失败不会丢弃实时数据。缺失延迟、CPU 和内存读数保持 `null`。
+
+`GET /api/admin/agents/:id/detail` 还返回 `history_daily`，用于读取已归档的资源日汇总；`history_daily_sampled` 标记其中是否含采样结果。日汇总来自业务数据库，可在 AE 查询不可用时继续读取。
 
 ## 公开展示设置
 
@@ -338,6 +348,7 @@ While `needsSetup` is `true`, the Worker also returns `setupRequirements` (an ar
 | `key` | `required` | Meaning |
 | --- | --- | --- |
 | `database` | `false` | `DB` (D1) is bound; a missing binding does not block the next step. The setup form validates database selection and connection configuration |
+| `config` | `false` | `CONFIG` (KV) is bound; required to submit a page-entered PostgreSQL URL |
 | `adminToken` | `true` | `ADMIN_TOKEN` is configured |
 | `themes` | `false` | `THEMES` (R2 theme storage) is bound |
 | `analytics` | `true` | `UPTIME` (Analytics Engine) is bound |
@@ -349,9 +360,10 @@ Without a configured database, the Worker still returns database options and all
 | `types` | `("d1" \| "sqlite" \| "postgres")[]` | Database types supported by this backend: D1 / PostgreSQL for Worker, SQLite / PostgreSQL for Go |
 | `defaultType` | `"d1" \| "sqlite" \| "postgres"` | Default selection for setup |
 | `postgresConfigured` | `boolean` | Whether the current PostgreSQL connection can be reused; no connection address is exposed |
-| `postgresUrlEditable` | `boolean` | Whether a new PostgreSQL URL may be submitted: editable on Worker with D1 or configuration storage, locked once account writing starts; always `true` on Go |
+| `postgresUrlEditable` | `boolean` | Whether a new PostgreSQL URL may be submitted: editable on Worker with `CONFIG` KV bound, locked once account writing starts; always `true` on Go |
+| `configurationId` | `string`, optional | Currently readable KV configuration identifier for confirming propagation; contains no URL |
 
-`POST /api/auth/setup/database` is the Worker-only database step. It accepts `{ credential, database: { type, url? } }`, verifies the connection, initializes an empty database, and saves the encrypted selection. It returns `{ ok: true, type }` without creating an account. Configuration is saved in the `SETUP_CONFIG` Durable Object without D1, or the D1 control record with D1.
+`POST /api/auth/setup/database` is the Worker-only database step. It accepts `{ credential, database: { type, url? } }`, verifies the connection, initializes an empty database, and saves the configuration. It returns `{ ok: true, type, configurationId? }` without creating an account. Page-entered PostgreSQL URLs are encrypted in `CONFIG` KV; setup leases and account-write state remain in the target database. When an identifier is returned, wait until the session reports the same `configurationId` before opening the account step. Poll the session during propagation rather than rewriting the configuration.
 
 `POST /api/auth/setup` accepts `credential`, `username`, `password` and an optional `database` selection. The final step can submit only the verified type to reuse the saved connection, or a new URL when `postgresUrlEditable` permits it. Omitting the selection retains the current configuration. Success creates the administrator and session in the target database; subsequent requests and restarts use the saved selection.
 
@@ -374,6 +386,8 @@ Errors omit underlying connection details and URLs. Keep database URLs and setup
 ### Public reads and presentation
 
 `GET /api/capabilities` describes the runtime, probe types, intervals and theme storage. Public reads include `/api/public/health`, `/status`, `/status/detail`, `/config`, `/maintenance`, `/monitors`, `/monitors/:numId`, `/agent/detail/:numId`, `/servers`, `/servers/:id`, `/theme`, `/icon` and `/monitor-icon?id=:numId` under `/api/public`. Visibility and the current presentation domain restrict the objects returned; disabled machine pages return 404 for server reads. Anonymous eligible Worker responses can be cached for 15 seconds. Maintenance is `no-store`; its `source` is `manual`, `scheduled` or `null`, with UTC ISO 8601 window times.
+
+Worker history responses include `history_status` (`ready`, `unconfigured` or `unavailable`) and `history_sampled`. Monitor detail separates the exact recent check `ring` from AE latency `history`. Agent `buckets` and enabled server `history` also read from AE. A successful empty result is `ready`; failed history reads retain live data. Missing metrics remain `null`. Agent management detail additionally returns database-backed `history_daily` and `history_daily_sampled` for archived resource summaries. These fields do not change Go's database-backed history contract.
 
 Public heartbeat states are `0` DOWN, `1` UP, `2` WARN and `4` PENDING; missing latency is `null`. Worker supports HTTP, TCP, UDP, ICMP, Push and Agent monitors; Go also supports DNS, TLS and WebSocket. Consult capabilities for the current runtime and probe availability.
 

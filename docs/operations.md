@@ -22,7 +22,7 @@ Worker 的默认调度在部署配置里保持一致：
 | Cron（UTC） | 用途 |
 | --- | --- |
 | `* * * * *` | 检查到期监控、处理 Push 超时和 Agent 状态、推进通知等常规任务 |
-| `10 0 * * *` | 日汇总、可选 AE 回填及保留策略清理 |
+| `10 0 * * *` | 日汇总、AE 历史归档与回填、保留策略清理 |
 
 监控自己的间隔决定什么时候到期，不是每次 Cron 都会对所有监控发请求。实际吞吐还受请求预算、并发、超时和目标响应影响。
 
@@ -30,7 +30,11 @@ Worker 生产环境由 Cloudflare 调度。
 
 Go 不依赖 Cloudflare Cron：进程每秒检查到期任务，启动时和每分钟尝试增量历史汇总与分批清理，实际执行时机由任务租约决定。服务必须一直运行，停进程也就停了后台调度。两种后端都要检查最近检查时间和任务日志，不能只看 HTTP 是否可以访问。
 
-AE SQL 回填需要配置数据集和查询凭据，只能恢复这个数据集里保留的历史。
+Worker 把监控观测和 Agent 资源历史写入 AE。实时状态、检查时间和状态变化保存在业务数据库中，状态条按真实检查时间展开，漏检不会补成正常，历史延迟也不会用最新值填充。
+
+每天 UTC 00:10（北京时间 08:10）读取 AE，向业务数据库写入监控日统计和 Agent 资源日汇总。精确可用率保留原值，AE 仅补充延迟等历史指标。Agent 管理详情可切换“最近 24 小时”和“每日汇总”。任务分批推进并回查最近两天；查询失败后保留进度，下次重试。查询凭据见[配置参考](configuration.md#worker-环境变量)。
+
+AE 单次调用最多写入 250 个点。一次 tick 超过上限时，历史写入轮换选取监控并记录 `history_write_partial`，不延长检查间隔；历史明细会有缺口。AE 查询还可能采样，界面会标明采样数据。精确状态、可用率和告警不依赖 AE 查询结果。
 
 ## 升级流程
 
@@ -121,11 +125,11 @@ Worker 后台迁移可以把当前 D1 的数据一次性复制到空 PostgreSQL 
 
 | 类型 | 默认保留 | 后台设置 |
 | --- | --- | --- |
-| 可用率统计 | 400 天 | `retention.availabilityDays` |
+| 可用率统计、Agent 资源日汇总 | 400 天 | `retention.availabilityDays` |
 | 详细指标 | 90 天 | `retention.detailDays` |
 | 状态事件 | 90 天 | `retention.eventDays` |
 
-Worker 由每日 Cron 清理；Go 在进程启动和每分钟汇总时尝试分批清理。缩短保留期不保证旧数据在保存设置的瞬间消失；调大天数也恢复不了已经清掉的数据。
+Worker 的 AE 明细查询最多覆盖最近 90 天，实际保留受 AE 服务限制；`retention.detailDays` 不会延长 AE 的保留期。每日归档按 `retention.availabilityDays` 保留。Worker 由每日 Cron 清理数据库；Go 在进程启动和每分钟汇总时尝试分批清理。缩短保留期不保证旧数据在保存设置的瞬间消失；调大天数也恢复不了已经清掉的数据。
 
 通知待发送队列有独立的尝试次数和时效上限。Agent 的旧快照不会被重复扩展成新历史。展示窗口、保留期和实际覆盖率是三回事。
 
@@ -141,7 +145,7 @@ Agent 用 `pa status`、`pa logs -f` 和安装元数据定位服务。手动模�
 
 换了 `ADMIN_TOKEN`，相应的管理脚本也要更新；它和用户密码、Agent Token、Push Token 不是一回事。换机器或 Push 凭据时，要改被监控端的配置并检查新报告，不能只更新网页上的说明。
 
-Worker 通过网页配置 PostgreSQL 时，用 `ADMIN_TOKEN` 派生的密钥加密 D1 里的连接地址。直接换这个 Token 会让记录无法解密。轮换前保留原 Token 和数据库备份，按[配置参考](configuration.md#初始化时选择数据库)处理连接配置；不要删选库记录来尝试恢复，也不要让服务回退到空 D1。
+Worker 通过网页配置 PostgreSQL 时，用 `ADMIN_TOKEN` 派生的密钥加密 `CONFIG` KV 中的连接地址。直接换这个 Token 会让记录无法解密。轮换前保留原 Token 和数据库备份，按[配置参考](configuration.md#初始化时选择数据库)处理连接配置；不要删选库记录来尝试恢复，也不要让服务回退到空 D1。
 
 换域名后，已安装的 Agent 仍用自己的 `endpoint`，需要逐台更新并重启。公开状态页的名称、目标路径和系统信息要按可公开内容维护，脱敏范围见[使用手册](usage.md#公开数据)。
 
@@ -153,7 +157,11 @@ Before migration, recovery or domain changes, identify the account, backend, dat
 
 ### Scheduling
 
-Worker runs the normal scheduled work every minute and daily aggregation, optional Analytics Engine backfill and retention cleanup at 00:10 UTC. A monitor's own interval controls when it is due.
+Worker runs scheduled checks every minute and daily aggregation, AE archiving and retention cleanup at 00:10 UTC. A monitor's own interval controls when it is due. Monitor observations and Agent resource history go to AE; live state, actual check times and status changes remain in the business database. Missing checks are not filled with healthy states or copied latency values.
+
+Daily archiving preserves exact availability counts and supplements latency and resource statistics. Agent management details offer recent and daily views. Each run processes a bounded date batch and revisits the last two days; failed queries retain their progress for retry. History reads and archiving need the credentials listed in [configuration](configuration.md#english).
+
+A Worker invocation can write at most 250 AE points. When a tick exceeds that limit, history writes rotate across monitors and emit `history_write_partial`, without changing check intervals. History will have gaps. AE queries may also return sampled data, which the UI identifies; exact status, availability and alerts do not depend on AE query results.
 
 Go runs scheduling inside its process, checks for due work each second, and attempts incremental aggregation and cleanup at startup and every minute. Stopping the process also stops scheduling. For either backend, inspect recent check times and job logs as well as HTTP health.
 
@@ -171,7 +179,7 @@ Rolling back an executable or Worker version does not automatically reverse data
 
 Back up the business database, theme files (`THEMES` R2 objects for Worker or the Go data directory), deployment configuration, required secrets and important Agent configuration. Treat exports as sensitive: they can contain tokens and notification settings. PostgreSQL also needs a database snapshot or `pg_dump`.
 
-For a Worker PostgreSQL connection configured through setup, retain and back up the D1 binding that stores the encrypted database selection. Go stores an explicit setup selection in the data directory's `database.json`; this file contains the plaintext connection URL and takes precedence on restart. Protect and back it up with the database credentials. It is created with POSIX mode `0600`; restrict Windows file and directory ACLs separately. A single executable does not replace persistent data and theme storage.
+For a Worker PostgreSQL connection configured through setup, retain and back up the `CONFIG` KV namespace that stores the encrypted database selection. Go stores an explicit setup selection in the data directory's `database.json`; this file contains the plaintext connection URL and takes precedence on restart. Protect and back it up with the database credentials. It is created with POSIX mode `0600`; restrict Windows file and directory ACLs separately. A single executable does not replace persistent data and theme storage.
 
 For a manually configured Worker D1, after confirming the account and target database, export to a protected directory:
 
@@ -189,12 +197,12 @@ Worker can copy D1 to an empty PostgreSQL database from the settings page; copyi
 
 Go SQLite-to-PostgreSQL uses its own [offline migration procedure](../backends/go/README.md#english); do not interchange the two backends' migration tools. Keep the source and backups until the new service is verified.
 
-Default retention is 400 days for availability and 90 days each for detailed metrics and events. Cleanup is scheduled, not immediate when settings change. Extending retention cannot restore data already removed.
+Default retention is 400 days for availability and resource daily summaries, and 90 days each for detailed metrics and events. Cleanup is scheduled, not immediate when settings change. Extending retention cannot restore data already removed.
 
 ### Credentials and logs
 
 `ADMIN_TOKEN`, account passwords, Agent tokens and Push tokens have different purposes. Update dependent clients when rotating credentials. Agent endpoints remain in each machine's configuration after a domain change. Public names, paths and machine fields should be reviewed for disclosure.
 
-Worker derives the encryption key for a setup-saved PostgreSQL URL from `ADMIN_TOKEN`. Replacing that token directly makes the D1 record unreadable. Preserve the original token and backups, and follow the [database configuration guidance](configuration.md#english) before rotation. Do not delete the selection record or fall back to an empty D1 database as a recovery shortcut.
+Worker derives the encryption key for a setup-saved PostgreSQL URL from `ADMIN_TOKEN`. Replacing that token directly makes the encrypted KV record unreadable. Preserve the original token and backups, and follow the [database configuration guidance](configuration.md#english) before rotation. Do not delete the selection record or fall back to an empty D1 database as a recovery shortcut.
 
 Inspect Worker observability logs or `pa status` and `pa logs -f` for Agent issues without logging complete secrets. `USAGE_PLAN` is a manually configured comparison baseline, not automatic plan detection.

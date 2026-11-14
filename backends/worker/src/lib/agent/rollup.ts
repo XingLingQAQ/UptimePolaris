@@ -1,7 +1,6 @@
 import { DOWN, PENDING, UP, WARN, parseOptions, type AgentOptions, type Env, type LiveEntry, type LiveState, type MachineLive, type Monitor } from '../../types';
 import { getDB } from '../db/factory';
 import { agentLiveSQL } from '../db/sql/agent';
-import { upsertDay } from '../monitor/store';
 import { agentIsOnline, agentStaleAfterSec } from './liveness';
 
 export { AGENT_STALE_SEC, agentIsOnline, agentStaleAfterSec } from './liveness';
@@ -22,7 +21,6 @@ export async function rollupAgentMetrics(env: Env, now: number, previousLiveStat
   }>(agentLiveSQL[db.type].allLive);
   const byId = new Map(rows.map((row) => [row.agent_id, row]));
   const entries = new Map<string, LiveEntry>();
-  const minuteTs = Math.floor(now / 60) * 60;
   const alerts: AgentRollupResult['alerts'] = [];
 
   for (const monitor of monitors) {
@@ -76,22 +74,6 @@ export async function rollupAgentMetrics(env: Env, now: number, previousLiveStat
       if (alert.phase === 'recovery') alert.status = resourceWarn ? WARN : UP;
       else alert.prevStatus = previous?.st === WARN ? WARN : UP;
     }
-
-    const status = online ? entries.get(monitor.id)?.st ?? UP : DOWN;
-    const availabilityParams = db.type === 'd1'
-      ? [monitor.id, minuteTs, status, status, minuteTs, monitor.id]
-      : [monitor.id, minuteTs, status, monitor.id];
-    // 同一分钟只在记录成功时更新日统计，避免重复 tick 增加计数。
-    // Update daily statistics only after a successful minute write, so duplicate ticks do not inflate counts.
-    const recorded = await db.execute(agentLiveSQL[db.type].recordAvailability, availabilityParams);
-    if (recorded.rowsAffected > 0) {
-      const daily = await db.queryOne<{ d: string; t: number; u: number; w: number; avg: number | null }>(
-        agentLiveSQL[db.type].dailyAvailability,
-        [monitor.id, minuteTs],
-      );
-      if (daily) await upsertDay(env, monitor.id, daily);
-    }
-
   }
 
   return { entries, alerts };

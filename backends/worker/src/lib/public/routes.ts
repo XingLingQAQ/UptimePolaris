@@ -1,3 +1,5 @@
+import { queryAgentHistory } from '../agent/history';
+import { queryMonitorHistory } from '../analytics-engine';
 import { isActiveProbeType } from '../../../../../shared/probe-capabilities';
 /**
  * Public status surface: anonymous, edge-cached, always redacted.
@@ -39,7 +41,7 @@ publicRoutes.get('/api/public/status', async (c) => {
   const monitors = await pageMonitors(c.env, c.req.raw);
   const live = await loadLive(c.env);
   const history = await loadUptime(c.env, monitors.map((m) => m.id));
-  const heartbeats = await loadHeartbeats(c.env, monitors.map((m) => m.id));
+  const heartbeats = await loadHeartbeats(c.env, monitors.map((m) => m.id), live);
 
   /** Load labels for the full page rather than per monitor. / 一次加载整个页面的标签，而非逐监控加载。 */
   const groups = new Map((await loadGroups(c.env)).map((g) => [g.id, g]));
@@ -175,10 +177,7 @@ publicRoutes.get('/api/public/agent/detail/:numId', async (c) => {
     staleAfterSec,
   );
   const sinceTs = now - minutes * 60;
-  const buckets = await db.query<Record<string, unknown>>(
-    agentSQL.history[db.type].getRange,
-    [monitor.agent_id, sinceTs],
-  );
+  const resourceHistory = await queryAgentHistory(c.env, monitor.agent_id!, sinceTs, now);
 
   /** Use monitor_uptime for the same daily availability shown in the admin overview. / 使用 monitor_uptime，确保每日可用率与管理总览一致。 */
   const uptimeByMonitor = await loadUptime(c.env, [monitor.id]);
@@ -199,7 +198,9 @@ publicRoutes.get('/api/public/agent/detail/:numId', async (c) => {
     live: live ? Object.fromEntries(Object.entries(publicAgentLive(live)).filter(([key]) => key !== 'interfaces_json' && key !== 'mounts_json')) : null,
     online,
     staleAfterSec,
-    buckets: buckets.map(({ agent_id: _agentId, ...bucket }) => bucket),
+    buckets: resourceHistory.points,
+    history_status: resourceHistory.status,
+    history_sampled: resourceHistory.sampled,
     availability,
     ring: ringRows.get(monitor.id) ?? [],
   });
@@ -346,8 +347,9 @@ publicRoutes.get('/api/public/monitors/:numId', async (c) => {
   const live = await loadLive(c.env);
   const history = await loadUptime(c.env, [row.id]);
   const days = history.get(row.id) ?? [];
-  const ring = await loadHeartbeats(c.env, [row.id]);
+  const ring = await loadHeartbeats(c.env, [row.id], live);
   const now = Math.floor(Date.now() / 1000);
+  const detailHistory = await queryMonitorHistory(c.env, row.id, live[row.id]?.recent_checks?.[0] ?? now - 86400, now);
   const sourceAvailable = isActiveProbeType(row.type)
     ? !staleProbeReading(row, live[row.id], now)
     : live[row.id]?.source_available !== false;
@@ -367,5 +369,8 @@ publicRoutes.get('/api/public/monitors/:numId', async (c) => {
     uptime: !sourceAvailable || !days.length ? null : Math.round(overallAvailability(days) * 10000) / 100,
     days: days.slice(-90),
     ring: ring.get(row.id) ?? [],
+    history: detailHistory.points,
+    history_status: detailHistory.status,
+    history_sampled: detailHistory.sampled,
   });
 });

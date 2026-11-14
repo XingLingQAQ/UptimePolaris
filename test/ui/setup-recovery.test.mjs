@@ -42,6 +42,7 @@ function harness(file, start, name, env, end) {
 
 const requirementList = analytics => [
   { key: 'database', required: false, ok: false },
+  { key: 'config', required: false, ok: false },
   { key: 'adminToken', required: true, ok: true },
   { key: 'themes', required: false, ok: false },
   { key: 'analytics', required: true, ok: analytics },
@@ -142,7 +143,7 @@ const session = requirements => ({ authenticated: false, user: null, needsSetup:
   let attempts = 0, checks = 0, failCheck = true;
   const env = {
     useAuth: () => ({ session: current, sessionError: false, refresh: async () => current, setup: async () => { attempts++; } }),
-    authApi: { configureDatabase: async () => { checks++; if (failCheck) throw new Error('database_connection_failed'); current = { ...current, setupDatabase: { ...current.setupDatabase, postgresConfigured: true } }; } },
+    authApi: { configureDatabase: async () => { checks++; if (failCheck) throw new Error('database_connection_failed'); return { ok: true, type: 'postgres', configurationId: 'configuration-1' }; } },
     useNavigate: () => () => {}, buildIconProxyUrl: () => '/icon', PROJECT_NAME: 'Uptime Polaris',
     document: { title: 'fixture' }, CONTENT_TRANSITION: {}, motion: { div: 'div' },
     settingsApi: { updateSettings: async () => {} }, ApiError: class extends Error {},
@@ -172,6 +173,13 @@ const session = requirements => ({ authenticated: false, user: null, needsSetup:
   assert.equal(field(tree, 'setup.databaseUrl').props.value, 'postgresql://fixture:secret@db.example.com/polaris');
   failCheck = false;
   await submit(tree);
+  tree = render();
+  assert.equal(field(tree, 'login.username'), undefined, 'KV propagation must complete before account setup');
+  assert.ok(find(tree, node => node.props?.role === 'status'), 'propagation is shown as a waiting state, not an error');
+  assert.equal(field(tree, 'setup.databaseUrl').props.value, 'postgresql://fixture:secret@db.example.com/polaris');
+  current = { ...current, setupDatabase: { ...current.setupDatabase, postgresConfigured: true, configurationId: 'configuration-1' } };
+  await submit(tree);
+  assert.equal(checks, 2, 'waiting for KV only refreshes state instead of rewriting the key');
   render(); tree = render();
   assert.ok(field(tree, 'login.username'));
   assert.equal(field(tree, 'setup.databaseUrl'), undefined, 'database configuration is separate from the account step');

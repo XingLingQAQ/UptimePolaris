@@ -1,3 +1,4 @@
+import { queryAgentHistory } from '../agent/history';
 import { Hono } from 'hono';
 import type { PublicServer } from '../../../../../shared/public-servers';
 import { DEFAULT_PAGE_VIEW, type PageView } from '../../../../../shared/presentation';
@@ -53,12 +54,13 @@ serverRoutes.get('/api/public/servers', async c => c.json({ servers:await public
 serverRoutes.get('/api/public/servers/:id', async c => {
   const server = (await publicServers(c.env,c.req.raw)).find(row => row.id === c.req.param('id'));
   if (!server) return c.json({error:'not_found'},404);
-  const {page} = await requestPage(c.env,c.req.raw), db = getDB(c.env), now = Math.floor(Date.now()/1000);
-  const rows = page.showHistory ? await db.query<Record<string, unknown>>(`SELECT bucket_ts,cpu_avg,mem_pct_avg,net_up_bytes,net_down_bytes,network_duration_sec FROM machine_history WHERE agent_id=${db.type==='postgres'?'$1':'?'} AND bucket_ts>=${db.type==='postgres'?'$2':'?'} AND quality='aggregate' ORDER BY bucket_ts LIMIT 1440`,[server.id,now-page.historyHours*3600]) : [];
+  const {page} = await requestPage(c.env,c.req.raw), now = Math.floor(Date.now()/1000);
+  const resourceHistory = page.showHistory ? await queryAgentHistory(c.env, server.id, now - page.historyHours * 3600, now) : null;
+  const rows = resourceHistory?.points ?? [];
   const history = rows.map(row => ({ ts:Number(row.bucket_ts),
     ...(page.metrics.includes('cpu') ? {cpu:number(row.cpu_avg)} : {}),
     ...(page.metrics.includes('memory') ? {memory:number(row.mem_pct_avg)} : {}),
     ...(page.metrics.includes('network') ? {upload:Number(row.network_duration_sec)>0&&row.net_up_bytes!=null?Number(row.net_up_bytes)/Number(row.network_duration_sec):null,download:Number(row.network_duration_sec)>0&&row.net_down_bytes!=null?Number(row.net_down_bytes)/Number(row.network_duration_sec):null} : {}),
   }));
-  return c.json({server,history,now},200,{'cache-control':'public, max-age=0, s-maxage=15'});
+  return c.json({server,history,now, ...(resourceHistory ? {history_status:resourceHistory.status,history_sampled:resourceHistory.sampled} : {})},200,{'cache-control':'public, max-age=0, s-maxage=15'});
 });

@@ -14,10 +14,11 @@ import { configOption, wrangler } from '../scripts/wrangler-cli.mjs';
 const root = resolve(import.meta.dirname, '..');
 const config = JSON.parse(readFileSync(join(root, 'wrangler.jsonc'), 'utf8'));
 const toml = readFileSync(join(root, 'backends/worker/wrangler.toml'), 'utf8');
-const tomlArray = key => JSON.parse(toml.match(new RegExp(`^${key}\\s*=\\s*(\\[[^\\n]+\\])`, 'm'))[1]);
-assert.equal(config.assets.run_worker_first, true);
-assert.match(toml, /^run_worker_first\s*=\s*true\s*$/m);
-assert.match(readFileSync(join(root, 'backends/worker/cloudflare.config.ts'), 'utf8'), /runWorkerFirst:\s*true/);
+const tomlArray = key => JSON.parse(toml.match(new RegExp(`^${key}\\s*=\\s*(\\[[\\s\\S]*?\\])`, 'm'))[1]);
+assert.ok(Array.isArray(config.assets.run_worker_first));
+assert.deepEqual(config.assets.run_worker_first, tomlArray('run_worker_first'));
+const cfRoutes = readFileSync(join(root, 'backends/worker/cloudflare.config.ts'), 'utf8').match(/runWorkerFirst:\s*(\[[\s\S]*?\])/)[1];
+assert.deepEqual(config.assets.run_worker_first, JSON.parse(cfRoutes));
 assert.deepEqual(config.triggers.crons, tomlArray('crons'));
 assert.deepEqual(config.compatibility_flags, tomlArray('compatibility_flags'));
 assert.equal(config.name, 'uptime-polaris');
@@ -34,6 +35,9 @@ assert.equal(config.assets.html_handling, 'auto-trailing-slash');
 assert.equal(config.d1_databases, undefined);
 assert.equal(config.r2_buckets, undefined);
 assert.equal(config.analytics_engine_datasets, undefined);
+assert.equal(config.kv_namespaces, undefined);
+assert.equal(config.durable_objects, undefined);
+assert.equal(config.migrations, undefined);
 assert.equal(readFileSync(join(root, '.dev.vars.example'), 'utf8').trim(), 'ADMIN_TOKEN=');
 
 for (const args of [['--config', 'custom.toml'], ['--config=custom.toml'], ['-c', 'custom.toml'], ['-c=custom.toml'], ['-ccustom.toml']]) {
@@ -123,6 +127,7 @@ try {
     { type: 'd1', name: 'DB', id: '11111111-1111-4111-8111-111111111111' },
     { type: 'r2_bucket', name: 'THEMES', bucket_name: 'fixture-themes' },
     { type: 'analytics_engine', name: 'UPTIME', dataset: 'fixture_heartbeats' },
+    { type: 'kv_namespace', name: 'CONFIG', namespace_id: 'fixture-config' },
     { type: 'kv_namespace', name: 'DB_CACHE', namespace_id: 'unrelated' },
     { type: 'd1', name: 'OTHER', id: '22222222-2222-4222-8222-222222222222' },
     { type: 'secret_text', name: 'ADMIN_TOKEN' },
@@ -145,6 +150,7 @@ try {
       d1_databases: [{ binding: 'DB', database_id: '11111111-1111-4111-8111-111111111111' }],
       r2_buckets: [{ binding: 'THEMES', bucket_name: 'fixture-themes' }],
       analytics_engine_datasets: [{ binding: 'UPTIME', dataset: 'fixture_heartbeats' }],
+      kv_namespaces: [{ binding: 'CONFIG', id: 'fixture-config' }],
     }],
   ]);
   assert.equal(existsSync(generated), false);

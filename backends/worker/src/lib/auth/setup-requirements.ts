@@ -10,6 +10,7 @@ export function databaseConfigured(env: Env): boolean {
 export function setupRequirements(env: Env): SetupRequirement[] {
   return [
     { key: 'database', required: false, ok: Boolean(env.DB) },
+    { key: 'config', required: false, ok: Boolean(env.CONFIG) },
     { key: 'adminToken', required: true, ok: Boolean(env.ADMIN_TOKEN) },
     { key: 'themes', required: false, ok: Boolean(env.THEMES) },
     { key: 'analytics', required: true, ok: Boolean(env.UPTIME) },

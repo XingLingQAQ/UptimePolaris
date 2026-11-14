@@ -13,6 +13,14 @@ export function mergeDay(existing: DayStat[] | null, day: DayStat): DayStat[] {
  * behaviour you want for a certificate that has not expired *yet*.
  * 每日可用率为 0..1 的比例。WARN 算作可用，适合尚未过期的证书等情况。
  */
+export function mergeDayObservation(previous: DayStat | undefined, incoming: DayStat): DayStat {
+  const source = incoming.exact ? incoming : previous?.exact || previous?.avg === null ? previous : incoming;
+  const keepAverage = incoming.avg == null || (!incoming.exact && previous?.exact && previous.avg != null && previous.avg_source !== 'ae');
+  const average = keepAverage ? previous : incoming;
+  const { avg_source: _source, ...stat } = source;
+  return { ...stat, avg: average?.avg ?? null, ...(average?.avg_source ? { avg_source: average.avg_source } : {}) };
+}
+
 export function availability(day: DayStat): number {
   if (day.t === 0) return 1;
   return (day.u + day.w) / day.t;

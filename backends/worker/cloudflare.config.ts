@@ -1,4 +1,4 @@
-import { bindings, defineConfig, exports as workerExports, triggers } from "cf/config";
+import { bindings, defineConfig, triggers } from "cf/config";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -21,7 +21,12 @@ export default defineConfig({
 		assets: {
 			htmlHandling: "auto-trailing-slash",
 			notFoundHandling: "single-page-application",
-			runWorkerFirst: true,
+			runWorkerFirst: [
+				"/api", "/api/*", "/install.sh", "/install.ps1",
+				"/", "/admin", "/admin/*", "/login", "/login/*", "/setup", "/setup/*",
+				"/monitor/*", "/status/*", "/server/*",
+				"/theme/*", "/polaris-maintenance.js", "/agent/*", "/__scheduled"
+			],
 		},
 		triggers: [
 			triggers.scheduled({
@@ -31,14 +36,8 @@ export default defineConfig({
 				schedule: "10 0 * * *",
 			}),
 		],
-		exports: {
-			SetupConfiguration: workerExports.durableObject({ storage: "sqlite" }),
-		},
 		env: {
-			SETUP_CONFIG: bindings.durableObject({
-				worker: "uptime-polaris",
-				exportName: "SetupConfiguration",
-			}),
+			// CONFIG: bindings.kv({ id: "<KV namespace ID>" }),
 			PBKDF2_ITERATIONS: bindings.text("3000"),
 			DATABASE_TYPE: bindings.text("d1"),
 			/**

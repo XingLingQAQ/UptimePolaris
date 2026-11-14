@@ -1,3 +1,4 @@
+import type { HistoryStatus } from '../../../../shared/contracts';
 /** One mount point, as the agent reported it. / Agent 上报的单个挂载点。 */
 export interface AgentMount {
   name: string;
@@ -124,6 +125,10 @@ export interface AgentDetailResponse {
   interfaces?: AgentInterface[];
   alerts?: AgentAlertRule[];
   history?: AgentHistoryPoint[];
+  history_status?: HistoryStatus;
+  history_sampled?: boolean;
+  history_daily?: AgentHistoryPoint[];
+  history_daily_sampled?: boolean;
   probe_targets?: AgentProbeTarget[];
   probe_jobs?: AgentProbeJobRow[];
 }

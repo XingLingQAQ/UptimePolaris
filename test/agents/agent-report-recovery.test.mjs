@@ -20,7 +20,8 @@ const now = 200_040;
 Date.now = () => now * 1000;
 try {
   const writes = [];
-  const env = { db: { type: 'fixture', queryOne: async () => ({ active: 1 }), execute: async (sql, args) => { writes.push({ sql, args }); } } };
+  const points = [];
+  const env = { UPTIME: { writeDataPoint: point => points.push(point) }, db: { type: 'fixture', queryOne: async () => ({ active: 1 }), execute: async (sql, args) => { writes.push({ sql, args }); } } };
   const monitor = { id: 'fixture' };
   const summary = (bucket_ts) => ({ bucket_ts, sample_count: 1, cpu_samples: 1, cpu_avg: 5, cpu_max: 5, mem_samples: 1, mem_pct_avg: 10, mem_pct_max: 10, load_1_avg: 0, load_5_avg: 0, net_up_bytes: 0, net_down_bytes: 0, network_duration_sec: 1, duration_sec: 1 });
   const report = (observed_at, summaries) => ({ method: 'report', params: { interfaces: null, mounts: null, message: '', observed_at, summaries,
@@ -37,12 +38,18 @@ try {
   const oldBucket = Math.floor((now - 90_000) / 60) * 60;
   const fresh = report(now, [summary(oldBucket), summary(validBucket)]);
   assert.deepEqual(await dispatchRpc(env, monitor, fresh), { ack: true, ignored: false });
-  assert.equal(writes.filter(row => row.sql === 'finalized').length, 1);
-  assert.equal(writes.find(row => row.sql === 'finalized').args[1], validBucket);
+  assert.equal(writes.filter(row => row.sql === 'finalized').length, 0);
+  assert.equal(points.filter(point => point.blobs[2] === 'agent_summary').length, 1);
+  assert.equal(points.find(point => point.blobs[2] === 'agent_summary').doubles[0], validBucket);
   assert.deepEqual(await dispatchRpc(env, monitor, report(now + 365 * 86_400, [])), { ack: true, ignored: false, deferred: true });
   assert.equal(isSupportedFrame(report(now + 301, [])), true);
   assert.equal(isSupportedFrame(report(now + 300, [])), true);
   assert.equal(isSupportedFrame({ method: 'unknown' }), false);
+  const beforeBatch = points.length;
+  const fullReport = report(now, Array.from({ length: 32 }, (_, index) => summary(validBucket - index * 60)));
+  assert.deepEqual(await dispatchRpc(env, monitor, fullReport), { ack: true, ignored: false });
+  assert.equal(points.length - beforeBatch, 33);
+  assert.ok(points.slice(beforeBatch).every(point => point.doubles.length <= 20 && point.blobs.length <= 20));
   const basic = { method: 'basicReport', params: { kernel: 'fixture-kernel', mem_total: 1024, version: '0.1.0', transport: 'ws', report_interval_secs: 60, capabilities: [], name: 'fixture', os: 'Windows 11', arch: 'x86_64', cpu_model: 'fixture', cpu_cores: 2 } };
   await dispatchRpc(env, monitor, basic);
   assert.equal(writes.at(-1).args[9], null, 'missing host geography stays unknown');

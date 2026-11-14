@@ -21,11 +21,8 @@ function fakeStatement(index) {
 
 const fakeD1 = {
   prepare(sql) {
-    if (sql === "SELECT 1 AS n FROM sqlite_schema WHERE type = 'table' AND name = ?") {
-      return { bind(name) {
-        assert.equal(name, '_polaris_database');
-        return { first: async () => null };
-      } };
+    if (sql === "SELECT 1 AS n FROM sqlite_schema WHERE type = 'table' AND name = '_polaris_database'") {
+      return { bind: () => ({ all: async () => ({ results: [], meta: { rows_read: 0, rows_written: 0, duration: 0 } }) }) };
     }
     const index = ++calls;
     return fakeStatement(index);

@@ -250,12 +250,14 @@ export default { async fetch(request, env) {
     try {
       await runTick(env, start);
       const afterFirst = JSON.parse((await env.DB.prepare("SELECT json FROM live_state WHERE id='all'").first()).json)[id];
+      const ringFirst = await env.DB.prepare('SELECT json,updated_at FROM heartbeat_ring WHERE id=?').bind(id).first();
       // The next minute, where the monitor is now comfortably out of date.
       // 下一分钟，此时监控已明显超过检查间隔。
       wallNow = (start + 60) * 1000;
       await runTick(env, start + 60);
       const afterSecond = JSON.parse((await env.DB.prepare("SELECT json FROM live_state WHERE id='all'").first()).json)[id];
-      return Response.json({ last, interval, start, afterFirst, afterSecond });
+      const ringSecond = await env.DB.prepare('SELECT json,updated_at FROM heartbeat_ring WHERE id=?').bind(id).first();
+      return Response.json({ last, interval, start, afterFirst, afterSecond, ringFirst, ringSecond });
     } finally {
       await env.DB.prepare('DELETE FROM monitors WHERE id = ?').bind(id).run();
       await env.DB.prepare('DELETE FROM heartbeat_ring WHERE id = ?').bind(id).run();
@@ -263,6 +265,15 @@ export default { async fetch(request, env) {
     }
   }
 
+  if (url.pathname === '/__changed') {
+    wallNow = now * 1000;
+    const gate = probeGate();
+    const running = runTick(withDB(env, {}), now);
+    await Promise.race([gate.startedPromise, delay(5000).then(() => { throw new Error('snapshot probe barrier missing'); })]);
+    await env.DB.prepare("UPDATE monitors SET target='https://changed.test' WHERE id='tick-lease-monitor'").run();
+    gate.release();
+    return Response.json({ tick: await running, aePoints: globalThis.__aePoints.length });
+  }
   if (url.pathname === '/__expire') {
     const minute = Number(url.searchParams.get('minute'));
     await env.DB.prepare('UPDATE cron_tick_lease SET owner = ?, lease_until = ?, completed_minute = ? WHERE id = 1')
@@ -347,6 +358,8 @@ try {
 
   const retried = await request(`/__tick?now=${minute + 120}`);
   assert.equal(retried.status, 'completed');
+
+
 
   await request(`/__expire?minute=${minute + 180}`);
   assert.equal((await request(`/__tick?now=${minute + 180}`)).status, 'completed');
@@ -466,6 +479,16 @@ try {
   );
   assert.equal(due.afterFirst.st, 1, 'and it records the real reading');
   assert.equal(due.afterSecond.ts, due.start + 60, 'the following minute checks on schedule, not twice per minute');
+  assert.deepEqual(due.ringSecond, due.ringFirst, 'stable checks do not rewrite the transition row');
+  assert.deepEqual(due.afterSecond.recent_checks, [due.start, due.start + 60]);
+  assert.equal(due.afterSecond.recent_observation.t, due.start + 60);
+
+  const beforeChanged = await db.prepare("SELECT json FROM live_state WHERE id='all'").first();
+  const beforeChangedRing = await db.prepare("SELECT json FROM heartbeat_ring WHERE id='tick-lease-monitor'").first();
+  const changed = await request(`/__changed?now=${dueMinute + 180}`);
+  assert.deepEqual(changed.tick, { status: 'skipped', reason: 'monitors_changed' });
+  assert.deepEqual(await db.prepare("SELECT json FROM live_state WHERE id='all'").first(), beforeChanged);
+  assert.deepEqual(await db.prepare("SELECT json FROM heartbeat_ring WHERE id='tick-lease-monitor'").first(), beforeChangedRing);
 
   console.log('PASS cron lease: atomic race, completed-minute guard, retry after failure, expired owner, renewal, and lost-owner fencing');
   console.log('PASS cron loop: an incomplete checker settles after the retry budget; an add-on failure keeps the primary reading');
