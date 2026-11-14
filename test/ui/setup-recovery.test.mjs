@@ -138,11 +138,11 @@ const session = requirements => ({ authenticated: false, user: null, needsSetup:
 }
 
 {
-  let current = { ...session(requirementList(true)), setupDatabase: { ...options, postgresConfigured: false } };
-  let attempts = 0, refreshed, failure = 'deployment_incomplete';
-  const refresh = async () => current = refreshed ?? current;
+  let current = { ...session(requirementList(true)), setupDatabase: { ...options, postgresConfigured: false, postgresUrlEditable: true } };
+  let attempts = 0, checks = 0, failCheck = true;
   const env = {
-    useAuth: () => ({ session: current, sessionError: false, refresh, setup: async () => { attempts++; current = failure === 'deployment_incomplete' ? { ...current, setupRequirements: requirementList(false) } : { ...current, setupDatabase: options }; throw new Error(failure); } }),
+    useAuth: () => ({ session: current, sessionError: false, refresh: async () => current, setup: async () => { attempts++; } }),
+    authApi: { configureDatabase: async () => { checks++; if (failCheck) throw new Error('database_connection_failed'); current = { ...current, setupDatabase: { ...current.setupDatabase, postgresConfigured: true } }; } },
     useNavigate: () => () => {}, buildIconProxyUrl: () => '/icon', PROJECT_NAME: 'Uptime Polaris',
     document: { title: 'fixture' }, CONTENT_TRANSITION: {}, motion: { div: 'div' },
     settingsApi: { updateSettings: async () => {} }, ApiError: class extends Error {},
@@ -150,61 +150,46 @@ const session = requirements => ({ authenticated: false, user: null, needsSetup:
   for (const name of ['Navigate', 'AuthSplash', 'AuthProductPanel', 'ThemeSwitch', 'LocaleSwitch', 'DeploymentCheck', 'Button', 'Input', 'PasswordInput', 'Select', 'SelectItem', 'Sparkles', 'KeyRound', 'UserRound', 'Lock', 'AlertCircle', 'ArrowRight', 'Loader2', 'Check', 'RefreshCw']) env[name] = name;
   const render = harness('frontend/src/auth/SetupPage.tsx', 'const BRAND_ICON =', 'SetupPage', env);
   const field = (tree, label) => find(tree, node => node.props?.label === label);
+  const submit = tree => find(tree, node => node.type === 'form').props.onSubmit({ preventDefault() {} });
   let tree = render();
   find(tree, node => node.type === 'DeploymentCheck').props.onNext();
   render(); tree = render();
   assert.deepEqual(find(tree, node => node.type === 'Select').props.selectedKeys, ['postgres']);
   assert.equal(JSON.stringify(tree).includes('Cloudflare D1'), false);
-  assert.ok(JSON.stringify(tree).includes('setup.databaseUrlUnavailable'));
-  assert.equal(field(tree, 'setup.databaseUrl'), undefined);
-  field(tree, 'login.username').props.onValueChange('owner');
+  assert.equal(field(tree, 'login.username'), undefined, 'the database step must not collect account details');
+  assert.ok(field(tree, 'setup.databaseUrl'), 'PostgreSQL can be configured in the page without D1');
+  assert.equal(find(tree, node => node.type === 'Button' && node.props.type === 'submit').props.isDisabled, true);
+  field(tree, 'setup.databaseUrl').props.onValueChange('postgresql://fixture:secret@db.example.com/polaris');
   field(tree, 'login.installationCredential').props.onValueChange('setup-secret');
+  tree = render();
+  const first = submit(tree);
+  await submit(tree);
+  await first;
+  assert.equal(checks, 1, 'duplicate database verification is blocked');
+  tree = render();
+  assert.equal(attempts, 0);
+  assert.equal(field(tree, 'login.username'), undefined, 'a failed database check cannot advance');
+  assert.equal(field(tree, 'setup.databaseUrl').props.value, 'postgresql://fixture:secret@db.example.com/polaris');
+  failCheck = false;
+  await submit(tree);
+  render(); tree = render();
+  assert.ok(field(tree, 'login.username'));
+  assert.equal(field(tree, 'setup.databaseUrl'), undefined, 'database configuration is separate from the account step');
+  assert.equal(field(tree, 'login.installationCredential'), undefined);
+  field(tree, 'login.username').props.onValueChange('owner');
   field(tree, 'login.password').props.onValueChange('private-password');
   field(tree, 'setup.confirmPassword').props.onValueChange('private-password');
   tree = render();
-  assert.equal(find(tree, node => node.type === 'Button' && node.props.type === 'submit').props.isDisabled, true);
-  await find(tree, node => node.type === 'form').props.onSubmit({ preventDefault() {} });
-  assert.equal(attempts, 0, 'missing PostgreSQL configuration is constrained on the account step');
-  refreshed = { ...current, setupDatabase: options };
-  const retry = find(tree, node => node.type === 'Button' && node.props.children.includes('setup.databaseRetry'));
-  const retrying = retry.props.onPress();
-  assert.equal(find(render(), node => node.type === 'Button' && node.props.type === 'submit').props.isDisabled, true);
-  await retrying;
-  refreshed = undefined;
+  const back = find(tree, node => node.type === 'button' && node.props.children.includes('setup.databaseBack'));
+  back.props.onClick();
+  tree = render();
+  assert.equal(field(tree, 'setup.databaseUrl').props.value, '', 'the verified URL is no longer retained in the form');
+  await submit(tree);
   render(); tree = render();
-  assert.equal(find(tree, node => node.type === 'DeploymentCheck'), undefined, 'database recheck stays on the account step');
-  assert.equal(find(tree, node => node.type === 'Button' && node.props.type === 'submit').props.isDisabled, false);
   assert.equal(field(tree, 'login.username').props.value, 'owner');
   assert.equal(field(tree, 'login.password').props.value, 'private-password');
-  current = { ...current, setupDatabase: { ...options, types: ['d1', 'postgres'], defaultType: 'd1', postgresUrlEditable: true } };
-  render(); tree = render();
-  assert.deepEqual(find(tree, node => node.type === 'Select').props.selectedKeys, ['postgres'], 'binding D1 later must not replace the selected PostgreSQL database');
-  field(tree, 'setup.databaseUrl').props.onValueChange('postgres://fixture:fixture@db.example.com/polaris');
-  tree = render();
-  await find(tree, node => node.type === 'form').props.onSubmit({ preventDefault() {} });
-  assert.equal(attempts, 1);
-  tree = render();
-  assert.ok(find(tree, node => node.type === 'DeploymentCheck'), 'a removed binding returns to the check step');
-
-  current = { ...current, setupRequirements: requirementList(true) };
-  tree = render(); find(tree, node => node.type === 'DeploymentCheck').props.onNext();
-  render(); tree = render();
-  assert.equal(field(tree, 'login.username').props.value, 'owner');
-  assert.equal(field(tree, 'login.installationCredential').props.value, 'setup-secret');
-  assert.equal(field(tree, 'setup.databaseUrl').props.value, 'postgres://fixture:fixture@db.example.com/polaris');
-  find(tree, node => node.type === 'Select').props.onSelectionChange(new Set(['d1']));
-  tree = render();
-  failure = 'invalid_database_type';
-  await find(tree, node => node.type === 'form').props.onSubmit({ preventDefault() {} });
-  render(); tree = render();
-  assert.equal(find(tree, node => node.type === 'DeploymentCheck'), undefined, 'a database constraint stays on the initialization form');
-  assert.deepEqual(find(tree, node => node.type === 'Select').props.selectedKeys, ['postgres']);
-  assert.equal(field(tree, 'login.username').props.value, 'owner');
-
-  current = { ...current, setupRequirements: undefined, setupCredential: 'SETUP_KEY', setupDatabase: { ...options, types: ['sqlite', 'postgres'], defaultType: 'sqlite', postgresUrlEditable: true } };
-  const renderGo = harness('frontend/src/auth/SetupPage.tsx', 'const BRAND_ICON =', 'SetupPage', env);
-  tree = renderGo();
-  assert.equal(find(tree, node => node.type === 'DeploymentCheck'), undefined);
-  assert.deepEqual(find(tree, node => node.type === 'Select').props.selectedKeys, ['sqlite']);
+  await submit(tree);
+  assert.equal(attempts, 1, 'account creation is the final step');
 }
+
 console.log('Worker setup: late bindings, stale checks, retry, selection and form recovery passed');

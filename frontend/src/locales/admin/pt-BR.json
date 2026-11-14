@@ -1028,7 +1028,7 @@
     "databaseUrlConfigured": "Deixe em branco para usar a conexão PostgreSQL configurada ou informe uma nova URL.",
     "databaseUrlRequired": "Informe a URL de conexão do banco PostgreSQL.",
     "databaseUrlDeploymentOnly": "Usa a conexão PostgreSQL salva. Para alterar a conexão, consulte o guia de configuração do banco de dados.",
-    "databaseUrlUnavailable": "Nenhuma conexão PostgreSQL está configurada. Adicione o Secret DATABASE_URL em Settings → Variables and Secrets do Worker, salve e implante, depois recarregue as opções de banco de dados.",
+    "databaseUrlUnavailable": "O armazenamento da configuração está indisponível. Implante o Worker novamente e tente de novo.",
     "databaseOptionsUnavailable": "As opções de banco de dados estão indisponíveis. Verifique o servidor e tente novamente.",
     "databaseRetry": "Verificar opções de banco novamente",
     "invalidDatabaseType": "Este tipo de banco está indisponível. Atualize as opções e escolha novamente.",
@@ -1058,7 +1058,13 @@
     "checkOptionalMissing": "Não configurado (opcional)",
     "checkFailed": "Não foi possível obter os resultados mais recentes. Confirme que o Worker está implantado e acessível e tente novamente.",
     "checkChecking": "Verificando os vínculos e segredos atuais…",
-    "checkReady": "Todos os itens obrigatórios estão prontos. Continue a configuração; os itens opcionais podem ser configurados depois."
+    "checkReady": "Todos os itens obrigatórios estão prontos. Continue a configuração; os itens opcionais podem ser configurados depois.",
+    "databaseTitle": "Configurar banco de dados",
+    "accountTitle": "Criar conta de administrador",
+    "databaseSubtitle": "Escolha um banco e verifique a conexão antes de criar a conta de administrador.",
+    "databaseChecking": "Verificando e salvando…",
+    "databaseContinue": "Verificar e continuar",
+    "databaseBack": "Voltar à configuração do banco"
   },
   "agent": {
     "installMode": "Modo de instalação",

@@ -19,6 +19,11 @@ export const authApi = {
       { method: 'POST', body: JSON.stringify({ credential, username, password, database }) },
     ),
 
+  configureDatabase: (credential: string, database: SetupDatabaseSelection) =>
+    request<{ ok: true; type: SetupDatabaseSelection['type'] }>('/api/auth/setup/database', {
+      method: 'POST', body: JSON.stringify({ credential, database }),
+    }),
+
   login: (username: string, password: string) =>
     request<{ ok: true; user: { id: string; username: string } }>(
       '/api/auth/login',

@@ -24,7 +24,7 @@
 ## 初始化页面无法继续
 
 1. **Worker 部署检查未通过**：初始化页面第一步会列出必需的 `ADMIN_TOKEN`、`UPTIME` 和可选的 D1、R2 的配置状态：
-   - **D1 未配置**：不影响进入下一步，初始化表单只提供 PostgreSQL。若第二步提示缺少连接，请在 **Settings → Variables and Secrets** 中添加 Secret `DATABASE_URL`，保存并部署后点击“重新获取数据库选项”；已填信息会保留。
+   - **D1 未配置**：不影响进入下一步。第二步默认 PostgreSQL，直接在页面填写连接地址并验证即可。
    - **初始化密钥未配置**：在 **Settings → Variables and Secrets** 中添加 Secret `ADMIN_TOKEN`。
    - **Analytics Engine 未配置**：启用 Analytics Engine 后，在 **Settings → Bindings** 中添加数据集，变量名填写 `UPTIME`。
    - 在 Cloudflare 保存并部署配置后，回到页面点击“重新检查”，必需项全部通过后才能点击“下一步”。检查失败时不会沿用上次的通过结果，已填写的初始化信息会保留。R2 不影响初始化，可稍后添加。
@@ -33,7 +33,7 @@
 4. 核对所选数据库：Worker 在绑定 D1 时可选 D1 或 PostgreSQL，未绑定 D1 时只有 PostgreSQL；Go 支持 SQLite 或 PostgreSQL。新选 PostgreSQL 需填写连接地址；已部署的 PostgreSQL 连接可留空复用，页面不会回显原地址。
 5. 已有数据库提示表结构缺失时，请按对应后端执行迁移，不要反复重输凭据。首次初始化仅为空数据库建表，不会接管未知的表结构。
 
-Worker 未绑定 D1 时，只能复用部署密钥 `DATABASE_URL` 中的 PostgreSQL 连接，页面不提供新地址输入框；如需在网页中填写新地址，请保留 D1 绑定。Go 的 `database.json` 保存后优先于启动参数和环境变量，排查连接问题时请一并检查，并避免公开其中的地址。
+Worker 的第二步负责数据库配置，第三步才创建账号。未绑定 D1 时，连接会加密保存在随 Worker 部署的 `SETUP_CONFIG` Durable Object，无需在控制台配置 `DATABASE_URL`。若配置存储不可用，请重新部署当前版本，并保留 `SETUP_CONFIG` 绑定和迁移配置。Go 的 `database.json` 优先于启动参数和环境变量，排查时请一并检查，不要公开其中的地址。
 
 `deployment_incomplete`（503）表示 Worker 缺少 `UPTIME` 绑定；`credential_unconfigured`（503）表示当前服务未配置初始化凭据；`invalid_setup_credential`（401）表示输入的凭据不匹配。Go 重启后需使用最新启动日志中的自动生成密钥。初始化完成后请前往 `/login` 登录，初始化接口不会创建第二个账号。
 
@@ -160,13 +160,13 @@ First identify the complete site URL, backend, and database. Different deploymen
 ### Setup and accounts
 
 - **Worker deployment check not passed:** the first step lists required `ADMIN_TOKEN` and `UPTIME`, plus optional D1 and R2 bindings.
-  - **D1 missing:** this does not block the next step; the setup form offers PostgreSQL only. If the second step reports no connection, add the `DATABASE_URL` secret in **Settings → Variables and Secrets**, save and deploy, then reload the database options. Form entries are preserved.
+  - **D1 missing:** this does not block setup. The second step defaults to PostgreSQL; enter and verify its connection URL directly on the page.
   - **Setup key missing:** under **Settings → Variables and Secrets**, add the secret `ADMIN_TOKEN`.
   - **Analytics Engine missing:** enable Analytics Engine, then add a dataset in **Settings → Bindings** with the binding name `UPTIME`.
   - Save and deploy the configuration in Cloudflare, then select **Re-check**. All required items must pass before continuing. Failed checks do not reuse an earlier passing result, and form entries are preserved. R2 can be added later.
 - **Go reports no setup key:** check `POLARIS_SETUP_KEY` in the working directory's `.env` or the process environment (falling back to `POLARIS_ADMIN_TOKEN`). If neither is set and the server is uninitialized, use the `setup_key` field in the current startup log. Restart after changing the environment or `.env`. `credential_unconfigured` means no setup credential is available; `invalid_setup_credential` means the supplied value does not match. A restart invalidates the previous automatically generated key.
 - **Database choice:** Worker offers D1 and PostgreSQL when D1 is bound and PostgreSQL only otherwise; Go supports SQLite or PostgreSQL. Enter a PostgreSQL URL when selecting a new connection, for example `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`. Leave it blank only to reuse a deployment-configured PostgreSQL connection; the original URL is never shown. Setup initializes a fresh database, not an unknown existing schema.
-- **Persistent selection:** without a D1 binding, Worker uses its deployment-configured PostgreSQL `DATABASE_URL` and does not offer URL editing. Keep the D1 binding for browser-configured database selection. Go's saved `database.json` takes precedence over flags and environment variables; inspect it securely when diagnosing the active connection.
+- **Persistent selection:** configure the database in step two; step three creates the account. Without D1, Worker encrypts the connection configuration in the deployment-provided `SETUP_CONFIG` Durable Object. If configuration storage is unavailable, redeploy the current version with the `SETUP_CONFIG` binding and migration retained. No deployment `DATABASE_URL` is required. Go's saved `database.json` takes precedence over flags and environment variables; inspect it securely when diagnosing the active connection.
 - **Forgotten password:** manual Worker D1 deployments provide `npm run user:list -- --remote` and `npm run user:create -- --remote --username your-name --password 'a-new-strong-password'`. These commands use `backends/worker/wrangler.toml`: confirm the target and back it up first. Fork and button deployments keep no `database_id` in `wrangler.jsonc`; fill in the target D1 `database_id` locally before using the tool. Passwords passed on the command line can appear in process listings and shell history. This tool does not support Worker PostgreSQL or Go. Go has no password recovery command; preserve a backup and check available administrative credentials rather than resetting the database.
 
 | Setup error | Action |

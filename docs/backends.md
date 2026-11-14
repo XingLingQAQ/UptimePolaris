@@ -19,7 +19,9 @@ Uptime Polaris 提供 Cloudflare Worker 和 Go 两种后端。两者用同一套
 
 不想维护服务器时建议使用 Worker；需要直接探测内网服务、使用 UDP 或更多协议、或者需要更短的检查间隔时，请选择 Go。ICMP 需要主机开放原始套接字权限；界面只列出当前后端或在线 Agent 支持的检查类型。
 
-初始化时，Worker 在绑定 D1 时可选 D1 或 PostgreSQL，未绑定 D1 时只有 PostgreSQL；Go 可选 SQLite 或 PostgreSQL。不做选择则沿用当前配置。新选 PostgreSQL 必须填写连接地址，只有已部署的连接对应当前 PostgreSQL 时才能留空复用。Worker 如需在初始化页面填写新的 PostgreSQL 地址，必须保留 D1 绑定（D1 用于保存加密的引导配置）；未绑定 D1 的纯 PostgreSQL 部署只需配置 `DATABASE_URL`（`DATABASE_TYPE` 可省略），初始化只能复用该连接。初始化完成后，管理员账号和会话保存在目标数据库中，后续请求和重启继续使用该数据库。字段和错误码见[初始化数据库契约](api.md#初始化数据库契约)。
+Worker 初始化分为部署检查、数据库配置和管理员账号三步。第二步可在页面填写并验证 PostgreSQL 连接地址；绑定 D1 后也可选择 D1。未绑定 D1 时，连接配置加密保存在随部署提供的 Durable Object 中，无需预先设置 `DATABASE_URL`。已配置的 PostgreSQL 连接可留空复用。第三步才创建管理员账号和会话，后续请求和重启继续使用所选数据库。
+
+Go 保持单页初始化，可选 SQLite 或 PostgreSQL。字段和错误码见[初始化数据库契约](api.md#初始化数据库契约)。
 
 ## 部署
 
@@ -47,7 +49,9 @@ Uptime Polaris has two backends: Cloudflare Worker and Go. Both serve the same f
 
 Choose Worker when you do not want to run a server. Choose Go when you need direct private-network probes, UDP, or the extra native protocols. ICMP requires raw-socket permission on the host. The interface lists only the checks the active backend or an online Agent can run.
 
-Worker setup offers D1 and PostgreSQL when D1 is bound and PostgreSQL only otherwise; Go setup offers SQLite or PostgreSQL. Omitting the choice keeps the current configuration. A new PostgreSQL selection requires a URL such as `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`; a blank URL reuses the deployed connection only when it points at the current PostgreSQL database. To enter a new URL in Worker setup, keep the D1 binding: D1 stores the encrypted bootstrap configuration. A PostgreSQL-only Worker without D1 only needs `DATABASE_URL`; `DATABASE_TYPE` may be omitted, and setup can only reuse that connection. Setup creates the administrator and session in the target database, and later requests and restarts keep using it. See the [setup database contract](api.md#setup-database-contract).
+Worker setup has three steps: deployment checks, database configuration, and administrator account creation. Enter and verify a PostgreSQL connection URL in step two; D1 is also available when bound. Without D1, the encrypted connection configuration is saved in the deployment-provided Durable Object, so no deployment `DATABASE_URL` is required. Leave the URL blank to reuse an existing PostgreSQL connection. Step three creates the administrator and session in the selected database, which remains active after restarts.
+
+Go keeps its single setup form with SQLite or PostgreSQL. See the [setup database contract](api.md#setup-database-contract).
 
 ### Deployment
 

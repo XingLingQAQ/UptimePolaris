@@ -9,7 +9,7 @@ import { bootstrapSchema } from '../db/bootstrap';
 import { getDB, withSelectedDatabase } from '../db/factory';
 import { databaseType, deployedDatabaseType } from '../db/setup-control';
 import { initializePostgres } from '../db/setup-postgres';
-import { abandonDatabaseClaim, claimDatabase, completedOperation, d1HasUsers, databaseClaimActive, deployedDatabase, finishDatabaseClaim, markAccountStarted, pendingDatabase, pendingDatabaseUrl, releaseDatabaseClaim, resetAccountStarted, setupDatabaseOptions } from '../db/setup-control';
+import { abandonDatabaseClaim, claimDatabase, completedOperation, d1HasUsers, databaseClaimActive, deployedDatabase, discardPendingDatabase, finishDatabaseClaim, markAccountStarted, pendingDatabase, pendingDatabaseUrl, releaseDatabaseClaim, resetAccountStarted, setupDatabaseOptions } from '../db/setup-control';
 import { visibilityRevisionWrite } from '../public/cache';
 import { MAX_AVATAR_BYTES, readAvatarImage, readAvatarInfo, removeAvatar, validAvatarImage, writeAvatar } from './avatar';
 import { databaseConfigured, setupRequirements } from './setup-requirements';
@@ -133,6 +133,85 @@ authRoutes.get('/api/auth/session', async (c) => {
   });
 });
 
+async function setupSelection(env: Env, selection: unknown, allowChange = false) {
+  const pending = await pendingDatabase(env);
+  if (selection !== undefined && !isObjectBody(selection)) throw new Error('invalid_database_type');
+  const type = selection === undefined ? databaseType(env) : selection.type;
+  if (type !== 'd1' && type !== 'postgres' || type === 'd1' && !env.DB) throw new Error('invalid_database_type');
+  if (selection && selection.url !== undefined && typeof selection.url !== 'string') throw new Error('invalid_database_url');
+  const suppliedUrl = selection && typeof selection.url === 'string' ? selection.url.trim() : '';
+  const deployed = deployedDatabase(env);
+  let savedUrl: string | undefined;
+  if (pending && type === 'postgres') {
+    try { savedUrl = await pendingDatabaseUrl(env); } catch { throw new Error('database_configuration_failed'); }
+  }
+  if (type === 'd1' && suppliedUrl) throw new Error('invalid_database_url');
+  if (suppliedUrl && !env.DB && !env.SETUP_CONFIG) throw new Error('invalid_database_url');
+  let url: string | undefined;
+  if (type === 'postgres') {
+    if (suppliedUrl) {
+      try { url = parseTargetUrl(suppliedUrl, true); } catch { throw new Error('invalid_database_url'); }
+    } else if (pending && databaseType(env) === 'postgres' && savedUrl) {
+      url = savedUrl;
+    } else if (deployedDatabaseType(env) === 'postgres' && deployed.DATABASE_URL) {
+      url = deployed.DATABASE_URL;
+    } else throw new Error('invalid_database_url');
+  }
+  const changed = pending && (type !== databaseType(env) || type === 'postgres' && url !== savedUrl);
+  if (changed && !allowChange) throw new Error('setup_in_progress');
+
+  return { type: type as 'd1' | 'postgres', url, deployed, changed };
+}
+
+authRoutes.post('/api/auth/setup/database', async (c) => {
+  if (!c.env.UPTIME) return c.json({ error: 'deployment_incomplete' }, 503);
+  let body: unknown;
+  try { body = await c.req.json<unknown>(); } catch { return c.json({ error: 'invalid_request' }, 400); }
+  if (!isObjectBody(body)) return c.json({ error: 'invalid_request' }, 400);
+  const expected = installationCredential(c.env);
+  if (!expected) return c.json({ error: 'credential_unconfigured' }, 503);
+  if (typeof body.credential !== 'string' || !safeEqual(body.credential, expected)) return c.json({ error: 'invalid_setup_credential' }, 401);
+  const pending = await pendingDatabase(c.env);
+  if (await databaseClaimActive(c.env) || !pending && await d1HasUsers(c.env)) return c.json({ error: 'setup_complete' }, 409);
+  if (!pending && databaseConfigured(c.env)) {
+    try { if (!await isSetupRequired(c.env)) return c.json({ error: 'setup_complete' }, 409); }
+    catch { return c.json({ error: 'database_connection_failed' }, 503); }
+  }
+  let selected: Awaited<ReturnType<typeof setupSelection>>;
+  try { selected = await setupSelection(c.env, body.database, true); }
+  catch (error) {
+    const code = error instanceof Error ? error.message : 'database_configuration_failed';
+    return c.json({ error: code }, code === 'database_configuration_failed' ? 503 : 400);
+  }
+  if (selected.changed && !await discardPendingDatabase(c.env)) return c.json({ error: 'setup_in_progress' }, 409);
+  const { type, url } = selected;
+  const claim = await claimDatabase(c.env, type, url);
+  if (!claim) return c.json({ error: 'setup_in_progress' }, 409);
+  let failure = 'database_connection_failed';
+  try {
+    const available = await withSelectedDatabase(c.env, { DATABASE_TYPE: type, DATABASE_URL: url }, async (targetEnv) => {
+      await getDB(targetEnv).queryOne('SELECT 1 AS n');
+      failure = 'database_initialization_failed';
+      if (type === 'postgres') await initializePostgres(targetEnv);
+      else await bootstrapSchema(targetEnv);
+      return claim.accountStarted || await isSetupRequired(targetEnv);
+    });
+    if (!available) {
+      await abandonDatabaseClaim(c.env, claim.operation, claim.lease);
+      return c.json({ error: 'setup_complete' }, 409);
+    }
+    failure = 'database_configuration_failed';
+    await releaseDatabaseClaim(c.env, claim.operation, claim.lease);
+    return c.json({ ok: true, type });
+  } catch {
+    try {
+      if (claim.accountStarted) await releaseDatabaseClaim(c.env, claim.operation, claim.lease);
+      else await abandonDatabaseClaim(c.env, claim.operation, claim.lease);
+    } catch { failure = 'database_configuration_failed'; }
+    return c.json({ error: failure }, 503);
+  }
+});
+
 authRoutes.post('/api/auth/setup', async (c) => {
   if (!c.env.UPTIME) return c.json({ error: 'deployment_incomplete' }, 503);
   let body: unknown;
@@ -175,30 +254,13 @@ authRoutes.post('/api/auth/setup', async (c) => {
     }
   }
 
-  const selection = body.database;
-  if (selection !== undefined && !isObjectBody(selection)) return c.json({ error: 'invalid_database_type' }, 400);
-  const type = selection === undefined ? databaseType(c.env) : selection.type;
-  if (type !== 'd1' && type !== 'postgres' || type === 'd1' && !c.env.DB) return c.json({ error: 'invalid_database_type' }, 400);
-  if (selection && selection.url !== undefined && typeof selection.url !== 'string') return c.json({ error: 'invalid_database_url' }, 400);
-  const suppliedUrl = selection && typeof selection.url === 'string' ? selection.url.trim() : '';
-  const deployed = deployedDatabase(c.env);
-  let savedUrl: string | undefined;
-  if (pending && type === 'postgres') {
-    try { savedUrl = await pendingDatabaseUrl(c.env); } catch { return c.json({ error: 'database_configuration_failed' }, 503); }
+  let selected: Awaited<ReturnType<typeof setupSelection>>;
+  try { selected = await setupSelection(c.env, body.database); }
+  catch (error) {
+    const code = error instanceof Error ? error.message : 'database_configuration_failed';
+    return c.json({ error: code }, code === 'setup_in_progress' ? 409 : code === 'database_configuration_failed' ? 503 : 400);
   }
-  if (type === 'd1' && suppliedUrl) return c.json({ error: 'invalid_database_url' }, 400);
-  if (suppliedUrl && !c.env.DB) return c.json({ error: 'invalid_database_url' }, 400);
-  let url: string | undefined;
-  if (type === 'postgres') {
-    if (suppliedUrl) {
-      try { url = parseTargetUrl(suppliedUrl, true); } catch { return c.json({ error: 'invalid_database_url' }, 400); }
-    } else if (pending && databaseType(c.env) === 'postgres' && savedUrl) {
-      url = savedUrl;
-    } else if (deployedDatabaseType(c.env) === 'postgres' && deployed.DATABASE_URL) {
-      url = deployed.DATABASE_URL;
-    } else return c.json({ error: 'invalid_database_url' }, 400);
-  }
-  if (pending && (type !== databaseType(c.env) || type === 'postgres' && url !== savedUrl)) return c.json({ error: 'setup_in_progress' }, 409);
+  const { type, url, deployed } = selected;
 
   let claim: { operation: string; lease: string; accountStarted: boolean; source: 'deployment' | 'selected' } | null;
   try { claim = await claimDatabase(c.env, type, url); } catch { return c.json({ error: 'database_configuration_failed' }, 503); }

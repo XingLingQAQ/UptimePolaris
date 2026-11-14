@@ -1,3 +1,4 @@
+import { authApi } from './api';
 import { settingsApi } from '@/admin/settings/api';
 import { ApiError } from '@/api/errors';
 import { ThemeSwitch } from '@/components/ui/ThemeSwitch';
@@ -31,26 +32,13 @@ import { PasswordInput } from './PasswordInput';
 import { DeploymentCheck } from './DeploymentCheck';
 import type { SetupDatabaseType } from '../../../shared/setup';
 
-/** Brand mark, cropped to its ink - the same helper the sign-in page uses. / 裁去留白的品牌标记，与登录页使用相同辅助函数。 */
 const BRAND_ICON = buildIconProxyUrl(undefined, { tight: true });
-
-/** The minimum the Worker enforces; mirrored so the field can say so before a round trip. / 与 Worker 一致的最小密码长度，供前端提前提示。 */
 const MIN_PASSWORD = 8;
 
-/**
- * First-run initialization.
- *
- * A separate page rather than a sign-in variant: the two answer opposite
- * questions, and folding them into one made every field and error message
- * change meaning behind a flag. The site name is optional here; blank means
- * keep the default, so nobody is blocked at the door.
- * 独立于登录页；站点名称可留空，留空即保留默认值。
- */
 export function SetupPage() {
   const t = useTranslations('admin');
   const { session, sessionError, setup, refresh } = useAuth();
   const navigate = useNavigate();
-
   const [credential, setCredential] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -58,130 +46,101 @@ export function SetupPage() {
   const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
   const [siteName, setSiteName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [checkingDatabase, setCheckingDatabase] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [databaseType, setDatabaseType] = useState<SetupDatabaseType | null>(null);
   const [databaseUrl, setDatabaseUrl] = useState('');
-  const [checkingDatabase, setCheckingDatabase] = useState(false);
-  const [stage, setStage] = useState<'check' | 'account'>('check');
+  const [stage, setStage] = useState<'check' | 'database' | 'account'>('check');
+  const [phase, setPhase] = useState<'form' | 'creating' | 'finishing' | 'titleFailed'>('form');
   const submissionPending = useRef(false);
 
-  /**
-   * `finishing` covers the window between "account exists" and "console is up".
-   *
-   * `setup()` flips the shared session to authenticated, and the guard would
-   * redirect before the optional site-name write was sent, racing two
-   * navigations. Holding the phase keeps the redirect on one path.
-   * 先压住跳转，等站点名称写入完成，避免两次导航竞态。
-   */
-  const [phase, setPhase] = useState<'form' | 'creating' | 'finishing' | 'titleFailed'>('form');
-
-  /** The tab should say which page this is, like every other console route. / 与其他控制台路由一样，为标签页设置当前页面标题。 */
   useEffect(() => {
     const previous = document.title;
     document.title = `${t('setup.title')} · ${PROJECT_NAME}`;
-    return () => {
-      document.title = previous;
-    };
+    return () => { document.title = previous; };
   }, [t]);
 
   useEffect(() => {
     const options = session?.setupDatabase;
-    if (stage !== 'account' || !options) return;
-    setDatabaseType((current) => current && options.types.includes(current) ? current : options.defaultType);
-  }, [session?.setupDatabase, stage]);
+    if (options) setDatabaseType(current => current && options.types.includes(current) ? current : options.defaultType);
+  }, [session?.setupDatabase]);
 
   if (!session) return <AuthSplash />;
+  if (!session.needsSetup && phase === 'form') return <Navigate to={session.authenticated ? '/admin' : '/login'} replace />;
 
-  /*
-    Already initialized: another tab finished, or the URL was revisited. Sent to
-    the console when signed in and to /login when not - /setup is not a page that
-    does anything in that state, and rendering an empty form for it would invite
-    the operator to try a credential that no longer applies.
-
-    若其他标签页已完成初始化，或用户重新访问该 URL，则已登录时跳转控制台，
-    未登录时跳转 /login；此时表单无法继续使用，显示它会诱导用户输入已不适用的凭据。
-  */
-  if (!session.needsSetup && phase === 'form') {
-    return <Navigate to={session.authenticated ? '/admin' : '/login'} replace />;
-  }
-
-  const databaseOptions = session.setupDatabase;
-  const selectedDatabase = databaseType && databaseOptions?.types.includes(databaseType) ? databaseType : databaseOptions?.defaultType;
-  const databaseAvailable = !!databaseOptions && typeof databaseOptions.postgresUrlEditable === 'boolean' && !!selectedDatabase && databaseOptions.types.includes(selectedDatabase);
-  const postgresUrlEditable = databaseOptions?.postgresUrlEditable === true;
-  const postgresConfigured = databaseOptions?.postgresConfigured === true && databaseOptions.defaultType === 'postgres';
-  const canReusePostgres = selectedDatabase === 'postgres' && postgresConfigured;
-  const postgresUrlRequired = selectedDatabase === 'postgres' && postgresUrlEditable && !postgresConfigured;
-  const postgresConfigurationMissing = selectedDatabase === 'postgres' && !postgresUrlEditable && !postgresConfigured;
+  const options = session.setupDatabase;
+  const selectedDatabase = databaseType && options?.types.includes(databaseType) ? databaseType : options?.defaultType;
+  const databaseAvailable = !!options && typeof options.postgresUrlEditable === 'boolean' && !!selectedDatabase && options.types.includes(selectedDatabase);
+  const editable = options?.postgresUrlEditable === true;
+  const configured = options?.postgresConfigured === true;
+  const needsUrl = selectedDatabase === 'postgres' && !configured;
   const requirements = session.setupRequirements ?? null;
-  const deploymentReady = requirements?.every((item) => !item.required || item.ok) ?? true;
+  const deploymentReady = requirements?.every(item => !item.required || item.ok) ?? true;
   const showCheck = requirements !== null && (stage === 'check' || !deploymentReady || sessionError);
-
-  const canSubmit = !submitting && !checkingDatabase && !sessionError && deploymentReady && databaseAvailable && !postgresConfigurationMissing && (!postgresUrlRequired || databaseUrl.trim().length > 0) && credential.length > 0 && username.trim().length > 0 && password.length > 0 && confirmPassword.length > 0;
+  const showDatabase = requirements !== null && !showCheck && stage === 'database';
+  const credentialMissing = requirements === null && session.setupCredential === null && !session.authenticated;
+  const busy = submitting || checkingDatabase;
+  const databaseReady = databaseAvailable && (!needsUrl || editable && databaseUrl.trim().length > 0);
+  const canConfigure = !busy && !sessionError && deploymentReady && databaseReady && credential.length > 0;
+  const canSubmit = canConfigure && username.trim().length > 0 && password.length > 0 && confirmPassword.length > 0;
   const passwordMismatch = confirmPasswordTouched && password !== confirmPassword;
 
-  /** No setup key on Go means setup cannot succeed; show the fix, not the form. / Go 未配置初始化密钥时无法初始化；显示修复方法。 */
-  const credentialMissing = requirements === null && session.setupCredential === null && !session.authenticated;
+  function selection() {
+    return { type: selectedDatabase!, ...(selectedDatabase === 'postgres' && editable && databaseUrl.trim() ? { url: databaseUrl.trim() } : {}) };
+  }
+
+  async function recover(err: unknown) {
+    setError(readableError(err, t));
+    const code = err instanceof Error ? err.message : String(err);
+    if (!requirements) return;
+    if (['deployment_incomplete', 'credential_unconfigured'].includes(code)) {
+      setStage('check');
+      await refresh();
+    } else if (['invalid_setup_credential', 'invalid_database_type', 'invalid_database_url', 'database_connection_failed', 'database_initialization_failed', 'database_configuration_failed'].includes(code)) {
+      setStage('database');
+      await refresh();
+    }
+  }
+
+  async function onConfigureDatabase(e: FormEvent) {
+    e.preventDefault();
+    if (!canConfigure || submissionPending.current) return;
+    submissionPending.current = true;
+    setCheckingDatabase(true);
+    setError(null);
+    try {
+      await authApi.configureDatabase(credential, selection());
+      if (!await refresh()) { setError(t('setup.databaseOptionsUnavailable')); return; }
+      setDatabaseUrl('');
+      setStage('account');
+    } catch (err) { await recover(err); }
+    finally { setCheckingDatabase(false); submissionPending.current = false; }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!canSubmit || submissionPending.current || !selectedDatabase) return;
-
-    /*
-      Checked here rather than only at the Worker so the sentence appears while
-      the password is being typed, and so a short password never costs a round
-      trip that the browser could have answered.
-
-      在前端检查密码长度，以便提前提示并避免不必要的请求。
-    */
-    if (password.length < MIN_PASSWORD) {
-      setError(t('login.setupPasswordShort'));
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setConfirmPasswordTouched(true);
-      return;
-    }
-
+    if (!canSubmit || submissionPending.current) return;
+    if (password.length < MIN_PASSWORD) { setError(t('login.setupPasswordShort')); return; }
+    if (password !== confirmPassword) { setConfirmPasswordTouched(true); return; }
     submissionPending.current = true;
     setSubmitting(true);
     setPhase('creating');
     setError(null);
     try {
-      await setup(credential, username, password, {
-        type: selectedDatabase,
-        ...(selectedDatabase === 'postgres' && postgresUrlEditable && databaseUrl.trim() ? { url: databaseUrl.trim() } : {}),
-      });
+      await setup(credential, username, password, selection());
       setDatabaseUrl('');
       setPhase('finishing');
-
       const title = siteName.trim();
       if (title) {
-        try {
-          await settingsApi.updateSettings({ 'site.title': title });
-        } catch {
-          setPhase('titleFailed');
-          setSubmitting(false);
-          return;
-        }
+        try { await settingsApi.updateSettings({ 'site.title': title }); }
+        catch { setPhase('titleFailed'); setSubmitting(false); return; }
       }
-
       navigate('/admin', { replace: true });
     } catch (err) {
-      setError(readableError(err, t));
       setPhase('form');
       setSubmitting(false);
-      const code = err instanceof Error ? err.message : String(err);
-      if (requirements !== null && ['deployment_incomplete', 'credential_unconfigured'].includes(code)) {
-        setStage('check');
-        await refresh();
-      } else if (requirements !== null && ['invalid_database_type', 'invalid_database_url'].includes(code)) {
-        await refresh();
-      }
-    } finally {
-      submissionPending.current = false;
-    }
+      await recover(err);
+    } finally { submissionPending.current = false; }
   }
 
   if (phase === 'finishing') return <Finishing label={t('setup.creating')} />;
@@ -197,213 +156,132 @@ export function SetupPage() {
             <span className="text-[15px] font-semibold tracking-[-0.02em]">{PROJECT_NAME}</span>
           </span>
           <div className="flex items-center gap-0.5 text-[var(--polaris-ink-3)] [&_button]:h-8 [&_button]:w-8 [&_button]:min-w-8 [&_svg]:h-[17px] [&_svg]:w-[17px]">
-            <ThemeSwitch radius="md" />
-            <LocaleSwitch />
+            <ThemeSwitch radius="md" /><LocaleSwitch />
           </div>
         </header>
-
         <div className="flex flex-1 items-center justify-center px-6 pb-16">
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={CONTENT_TRANSITION} className="w-full max-w-[24rem]">
             <div className="mb-7">
-              {requirements ? (
-                <p className="mb-2 text-[12px] font-medium text-[var(--polaris-ink-4)]">{t('setup.stepLabel', { current: showCheck ? 1 : 2, total: 2 })}</p>
-              ) : null}
-              <h1 className="text-[26px] leading-tight font-semibold tracking-[-0.025em]">{t('setup.title')}</h1>
-              <p className="mt-1.5 text-[13.5px] text-[var(--polaris-ink-3)]">{t(showCheck ? 'setup.checkSubtitle' : 'setup.subtitle')}</p>
+              {requirements ? <p className="mb-2 text-[12px] font-medium text-[var(--polaris-ink-4)]">{t('setup.stepLabel', { current: showCheck ? 1 : showDatabase ? 2 : 3, total: 3 })}</p> : null}
+              <h1 className="text-[26px] leading-tight font-semibold tracking-[-0.025em]">{t(showDatabase ? 'setup.databaseTitle' : requirements && !showCheck ? 'setup.accountTitle' : 'setup.title')}</h1>
+              <p className="mt-1.5 text-[13.5px] text-[var(--polaris-ink-3)]">{t(showCheck ? 'setup.checkSubtitle' : showDatabase ? 'setup.databaseSubtitle' : 'setup.subtitle')}</p>
             </div>
-
-            {/*
-              A form that cannot succeed is not rendered at all.
-
-              The alternative - showing the fields with the button disabled and a
-              warning underneath - was rejected because it still presents the page
-              as a thing to fill in. When no secret is bound, filling it in is not
-              the missing step; setting the secret is, and that happens outside
-              this page. So the form gives way to instructions that say so.
-
-              缺少密钥时不显示无法成功提交的表单，而是提示在页面外配置密钥。
-              若仍显示字段、禁用按钮并在下方警告，页面看起来仍像需要填写；
-              真正缺少的是在此页面之外设置密钥，而不是填写表单。
-            */}
             {showCheck && requirements ? (
-              <DeploymentCheck requirements={requirements} ready={deploymentReady} onNext={() => { setError(null); setStage('account'); }} />
-            ) : credentialMissing ? (
-              <NoCredential />
-            ) : (
+              <DeploymentCheck requirements={requirements} ready={deploymentReady} onNext={() => { setError(null); setStage('database'); }} />
+            ) : credentialMissing ? <NoCredential /> : (
               <>
-                <div className="mb-5 flex gap-3 rounded-xl border border-[var(--polaris-line)] bg-[var(--polaris-well)] px-3.5 py-3 text-[13px]">
+                {!showDatabase ? <div className="mb-5 flex gap-3 rounded-xl border border-[var(--polaris-line)] bg-[var(--polaris-well)] px-3.5 py-3 text-[13px]">
                   <Sparkles size={16} className="mt-0.5 shrink-0 text-[var(--polaris-ink-2)]" />
                   <p className="text-[12.5px] text-[var(--polaris-ink-3)]">{t('login.setupHint')}</p>
-                </div>
-
-                <form onSubmit={onSubmit} className="flex flex-col gap-3.5" noValidate>
-                  {databaseOptions && databaseAvailable ? (
-                    <div className="flex flex-col gap-2">
+                </div> : null}
+                <form onSubmit={showDatabase ? onConfigureDatabase : onSubmit} className="flex flex-col gap-3.5" noValidate aria-busy={busy}>
+                  {!requirements || showDatabase ? <>
+                    {options && databaseAvailable ? <div className="flex flex-col gap-3.5">
                       <Select
                         id="setup-database"
                         label={t('setup.databaseLabel')}
                         labelPlacement="outside"
                         selectedKeys={selectedDatabase ? [selectedDatabase] : []}
                         disallowEmptySelection
-                        onSelectionChange={(keys) => {
+                        onSelectionChange={keys => {
                           const value = [...keys][0] as SetupDatabaseType;
-                          if (databaseOptions.types.includes(value)) setDatabaseType(value);
+                          if (options.types.includes(value)) { setDatabaseType(value); setError(null); }
                         }}
-                        isDisabled={submitting}
+                        isDisabled={busy}
                       >
-                        {databaseOptions.types.map((type) => <SelectItem key={type}>{type === 'd1' ? 'Cloudflare D1' : type === 'sqlite' ? 'SQLite' : 'PostgreSQL'}</SelectItem>)}
+                        {options.types.map(type => <SelectItem key={type}>{type === 'd1' ? 'Cloudflare D1' : type === 'sqlite' ? 'SQLite' : 'PostgreSQL'}</SelectItem>)}
                       </Select>
-                      {selectedDatabase === 'postgres' && postgresUrlEditable ? (
-                        <Input
-                          label={t('setup.databaseUrl')}
-                          labelPlacement="outside"
-                          type="password"
-                          autoComplete="off"
-                          spellCheck="false"
-                          isRequired={postgresUrlRequired}
-                          value={databaseUrl}
-                          onValueChange={setDatabaseUrl}
-                          isDisabled={submitting}
-                          description={t(canReusePostgres ? 'setup.databaseUrlConfigured' : 'setup.databaseUrlRequired')}
-                        />
-                      ) : selectedDatabase === 'postgres' ? (
-                        <div
-                          role={postgresConfigurationMissing ? 'alert' : undefined}
-                          className={`rounded-lg border px-3 py-2 text-[12px] leading-relaxed ${postgresConfigurationMissing ? 'border-warning/30 bg-warning/[0.05] text-warning-700' : 'border-[var(--polaris-line)] bg-[var(--polaris-well)] text-[var(--polaris-ink-3)]'}`}
-                        >
-                          <p>{t(postgresConfigurationMissing ? 'setup.databaseUrlUnavailable' : 'setup.databaseUrlDeploymentOnly')}</p>
-                          {postgresConfigurationMissing ? (
-                            <Button
-                              type="button"
-                              variant="light"
-                              size="sm"
-                              className="mt-2 h-8 text-[12px]"
-                              isLoading={checkingDatabase}
-                              startContent={checkingDatabase ? null : <RefreshCw size={13} />}
-                              onPress={async () => {
-                                setCheckingDatabase(true);
-                                try { await refresh(); } finally { setCheckingDatabase(false); }
-                              }}
-                            >
-                              {t('setup.databaseRetry')}
-                            </Button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : <DatabaseUnavailable />}
-                  <Input
-                    isRequired
-                    label={t('login.installationCredential')}
-                    labelPlacement="outside"
-                    type="password"
-                    autoComplete="off"
-                    value={credential}
-                    onValueChange={setCredential}
-                    isDisabled={submitting}
-                    description={t('setup.credentialSource')}
-                    startContent={<KeyRound size={15} className="shrink-0 text-[var(--polaris-ink-4)]" />}
-                  />
-
-                  <Input
-                    isRequired
-                    label={t('login.username')}
-                    labelPlacement="outside"
-                    autoComplete="username"
-                    value={username}
-                    onValueChange={setUsername}
-                    isDisabled={submitting}
-                    startContent={<UserRound size={15} className="shrink-0 text-[var(--polaris-ink-4)]" />}
-                  />
-
-                  <PasswordInput
-                    isRequired
-                    name="password"
-                    label={t('login.password')}
-                    labelPlacement="outside"
-                    // `new-password` lets a password manager generate and offer to
-                    // save one; `current-password` here would suppress both.
-                    // `new-password` 允许密码管理器生成并保存密码；此处使用 `current-password` 会阻止这些行为。
-                    autoComplete="new-password"
-                    value={password}
-                    onValueChange={setPassword}
-                    isDisabled={submitting}
-                    description={t('account.newPasswordHint')}
-                    startContent={<Lock size={15} className="shrink-0 text-[var(--polaris-ink-4)]" />}
-                  />
-
-                  <PasswordInput
-                    isRequired
-                    name="confirmPassword"
-                    label={t('setup.confirmPassword')}
-                    labelPlacement="outside"
-                    autoComplete="new-password"
-                    value={confirmPassword}
-                    onValueChange={setConfirmPassword}
-                    onBlur={() => setConfirmPasswordTouched(true)}
-                    isDisabled={submitting}
-                    isInvalid={passwordMismatch}
-                    errorMessage={passwordMismatch ? t('setup.passwordMismatch') : undefined}
-                    startContent={<Lock size={15} className="shrink-0 text-[var(--polaris-ink-4)]" />}
-                  />
-
-                  {/*
-                    Optional. Its own autocomplete token on purpose: "organization" is
-                    what a browser's autofill understands here, and reusing "off" (the
-                    credential's) would put two fields in the same bucket for both
-                    autofill and the tests that address these inputs by that attribute.
-
-                    站点名称可选，使用浏览器识别的 `organization` 自动填充标记；
-                    若与凭据字段共用 `off`，自动填充和通过该属性定位输入的测试
-                    都会把两个字段归入同一组。
-                  */}
-                  <Input
-                    label={t('setup.siteName')}
-                    labelPlacement="outside"
-                    autoComplete="organization"
-                    value={siteName}
-                    onValueChange={setSiteName}
-                    isDisabled={submitting}
-                    description={t('setup.siteNameHint')}
-                  />
-
-                  {error ? (
-                    <p
-                      role="alert"
-                      className="flex items-start gap-2 rounded-[10px] border border-danger/20 bg-danger/[0.04] px-3 py-2.5 text-[12.5px] text-danger-600"
-                    >
-                      <AlertCircle size={15} className="mt-px shrink-0" />
-                      {error}
-                    </p>
-                  ) : null}
-
+                      {selectedDatabase === 'postgres' && editable ? <Input
+                        label={t('setup.databaseUrl')}
+                        labelPlacement="outside"
+                        type="password"
+                        autoComplete="off"
+                        spellCheck="false"
+                        placeholder="postgresql://user:password@host:5432/database?sslmode=require"
+                        isRequired={needsUrl}
+                        value={databaseUrl}
+                        onValueChange={setDatabaseUrl}
+                        isDisabled={busy}
+                        description={t(configured ? 'setup.databaseUrlConfigured' : 'setup.databaseUrlRequired')}
+                      /> : selectedDatabase === 'postgres' ? <p role={needsUrl ? 'alert' : undefined} className="rounded-lg border border-[var(--polaris-line)] bg-[var(--polaris-well)] px-3 py-2 text-[12px] leading-relaxed text-[var(--polaris-ink-3)]">{t(needsUrl ? 'setup.databaseUrlUnavailable' : 'setup.databaseUrlDeploymentOnly')}</p> : null}
+                    </div> : <DatabaseUnavailable />}
+                    <Input
+                      isRequired
+                      label={t('login.installationCredential')}
+                      labelPlacement="outside"
+                      type="password"
+                      autoComplete="off"
+                      value={credential}
+                      onValueChange={setCredential}
+                      isDisabled={busy}
+                      description={t('setup.credentialSource')}
+                      startContent={<KeyRound size={15} className="shrink-0 text-[var(--polaris-ink-4)]" />}
+                    />
+                  </> : null}
+                  {!showDatabase ? <>
+                    <Input
+                      isRequired
+                      label={t('login.username')}
+                      labelPlacement="outside"
+                      autoComplete="username"
+                      value={username}
+                      onValueChange={setUsername}
+                      isDisabled={busy}
+                      startContent={<UserRound size={15} className="shrink-0 text-[var(--polaris-ink-4)]" />}
+                    />
+                    <PasswordInput
+                      isRequired
+                      name="password"
+                      label={t('login.password')}
+                      labelPlacement="outside"
+                      autoComplete="new-password"
+                      value={password}
+                      onValueChange={setPassword}
+                      isDisabled={busy}
+                      description={t('account.newPasswordHint')}
+                      startContent={<Lock size={15} className="shrink-0 text-[var(--polaris-ink-4)]" />}
+                    />
+                    <PasswordInput
+                      isRequired
+                      name="confirmPassword"
+                      label={t('setup.confirmPassword')}
+                      labelPlacement="outside"
+                      autoComplete="new-password"
+                      value={confirmPassword}
+                      onValueChange={setConfirmPassword}
+                      onBlur={() => setConfirmPasswordTouched(true)}
+                      isDisabled={busy}
+                      isInvalid={passwordMismatch}
+                      errorMessage={passwordMismatch ? t('setup.passwordMismatch') : undefined}
+                      startContent={<Lock size={15} className="shrink-0 text-[var(--polaris-ink-4)]" />}
+                    />
+                    <Input
+                      label={t('setup.siteName')}
+                      labelPlacement="outside"
+                      autoComplete="organization"
+                      value={siteName}
+                      onValueChange={setSiteName}
+                      isDisabled={busy}
+                      description={t('setup.siteNameHint')}
+                    />
+                  </> : null}
+                  {error ? <p role="alert" className="flex items-start gap-2 rounded-[10px] border border-danger/20 bg-danger/[0.04] px-3 py-2.5 text-[12.5px] text-danger-600"><AlertCircle size={15} className="mt-px shrink-0" />{error}</p> : null}
                   <Button
                     type="submit"
                     color="primary"
                     className="mt-2 h-10 w-full text-[13.5px] font-medium shadow-[0_1px_2px_rgb(0_0_0/0.12),inset_0_1px_0_rgb(255_255_255/0.08)]"
-                    isDisabled={!canSubmit}
-                    startContent={submitting ? <Loader2 className="animate-spin" size={16} /> : null}
-                    endContent={submitting ? null : <ArrowRight size={16} />}
+                    isDisabled={showDatabase ? !canConfigure : !canSubmit}
+                    startContent={busy ? <Loader2 className="animate-spin" size={16} /> : null}
+                    endContent={busy ? null : <ArrowRight size={16} />}
                   >
-                    {submitting ? t('setup.creating') : t('login.setupSubmit')}
+                    {showDatabase ? t(checkingDatabase ? 'setup.databaseChecking' : 'setup.databaseContinue') : submitting ? t('setup.creating') : t('login.setupSubmit')}
                   </Button>
-
-                  {requirements ? (
-                    <button
-                      type="button"
-                      disabled={submitting}
-                      onClick={() => setStage('check')}
-                      className="self-center text-[12.5px] font-medium text-[var(--polaris-ink-3)] transition-colors hover:text-[var(--polaris-ink)] disabled:opacity-50"
-                    >
-                      {t('setup.checkBack')}
-                    </button>
-                  ) : null}
+                  {requirements ? <button type="button" disabled={busy} onClick={() => { setError(null); setStage(showDatabase ? 'check' : 'database'); }} className="self-center text-[12.5px] font-medium text-[var(--polaris-ink-3)] hover:text-[var(--polaris-ink)] disabled:opacity-50">{t(showDatabase ? 'setup.checkBack' : 'setup.databaseBack')}</button> : null}
                 </form>
               </>
             )}
           </motion.div>
         </div>
-
         <p className="px-6 pb-6 text-center text-[11.5px] text-[var(--polaris-ink-4)] lg:text-left">{t('login.footer', { year: new Date().getFullYear() })}</p>
       </main>
     </div>

@@ -1028,7 +1028,7 @@
     "databaseUrlConfigured": "Laissez ce champ vide pour utiliser la connexion PostgreSQL configurée, ou saisissez une nouvelle URL.",
     "databaseUrlRequired": "Saisissez l’URL de connexion à la base PostgreSQL.",
     "databaseUrlDeploymentOnly": "Utilise la connexion PostgreSQL enregistrée. Pour la modifier, consultez le guide de configuration de la base de données.",
-    "databaseUrlUnavailable": "Aucune connexion PostgreSQL n’est configurée. Ajoutez le secret DATABASE_URL dans Settings → Variables and Secrets du Worker, enregistrez et déployez, puis rechargez les options de base de données.",
+    "databaseUrlUnavailable": "Le stockage de la configuration est indisponible. Redéployez le Worker, puis réessayez.",
     "databaseOptionsUnavailable": "Les options de base de données sont indisponibles. Vérifiez le serveur et réessayez.",
     "databaseRetry": "Actualiser les options de base de données",
     "invalidDatabaseType": "Ce type de base de données est indisponible. Actualisez les options et choisissez à nouveau.",
@@ -1058,7 +1058,13 @@
     "checkOptionalMissing": "Non configuré (facultatif)",
     "checkFailed": "Impossible d’obtenir les derniers résultats. Vérifiez que le Worker est déployé et accessible, puis réessayez.",
     "checkChecking": "Vérification des liaisons et secrets actuels…",
-    "checkReady": "Tous les éléments requis sont prêts. Vous pouvez continuer et configurer les éléments facultatifs plus tard."
+    "checkReady": "Tous les éléments requis sont prêts. Vous pouvez continuer et configurer les éléments facultatifs plus tard.",
+    "databaseTitle": "Configurer la base de données",
+    "accountTitle": "Créer le compte administrateur",
+    "databaseSubtitle": "Choisissez une base et vérifiez la connexion avant de créer le compte administrateur.",
+    "databaseChecking": "Vérification et enregistrement…",
+    "databaseContinue": "Vérifier et continuer",
+    "databaseBack": "Revenir à la configuration de la base"
   },
   "agent": {
     "installMode": "Mode d’installation",

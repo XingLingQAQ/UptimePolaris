@@ -1028,7 +1028,7 @@
     "databaseUrlConfigured": "留空使用已配置的 PostgreSQL 连接，也可以输入新地址。",
     "databaseUrlRequired": "请输入 PostgreSQL 数据库的连接地址。",
     "databaseUrlDeploymentOnly": "使用已保存的 PostgreSQL 连接。如需更改连接配置，请参阅数据库配置指南。",
-    "databaseUrlUnavailable": "尚未配置 PostgreSQL 连接。请在 Worker 的 Settings → Variables and Secrets 中添加 Secret DATABASE_URL，保存并部署后点击“重新获取数据库选项”。",
+    "databaseUrlUnavailable": "数据库配置存储不可用，请重新部署 Worker 后重试。",
     "databaseOptionsUnavailable": "无法获取数据库选项，请检查服务器后重试。",
     "databaseRetry": "重新获取数据库选项",
     "invalidDatabaseType": "此数据库类型不可用，请重新获取选项并选择。",
@@ -1058,7 +1058,13 @@
     "checkOptionalMissing": "未配置（可选）",
     "checkFailed": "无法获取最新检查结果，请确认 Worker 已部署且可访问后重试。",
     "checkChecking": "正在检查最新绑定和密钥……",
-    "checkReady": "必需项已通过，可以继续初始化。可选项可稍后配置。"
+    "checkReady": "必需项已通过，可以继续初始化。可选项可稍后配置。",
+    "databaseTitle": "配置数据库",
+    "accountTitle": "设置管理员账号",
+    "databaseSubtitle": "选择数据库并验证连接，通过后继续设置管理员账号。",
+    "databaseChecking": "正在验证并保存……",
+    "databaseContinue": "验证并继续",
+    "databaseBack": "返回数据库配置"
   },
   "agent": {
     "installMode": "安装模式",

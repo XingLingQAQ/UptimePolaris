@@ -1028,7 +1028,7 @@
     "databaseUrlConfigured": "留空可使用已設定的 PostgreSQL 連線，也可輸入新網址。",
     "databaseUrlRequired": "請輸入 PostgreSQL 資料庫的連線網址。",
     "databaseUrlDeploymentOnly": "使用已儲存的 PostgreSQL 連線。如需更改連線設定，請參閱資料庫設定指南。",
-    "databaseUrlUnavailable": "尚未設定 PostgreSQL 連線。請在 Worker 的 Settings → Variables and Secrets 中新增 Secret DATABASE_URL，儲存並部署後按「重新取得資料庫選項」。",
+    "databaseUrlUnavailable": "數據庫設定儲存空間無法使用，請重新部署 Worker 後再試。",
     "databaseOptionsUnavailable": "無法取得資料庫選項，請檢查伺服器後重試。",
     "databaseRetry": "重新取得資料庫選項",
     "invalidDatabaseType": "此資料庫類型不可用，請重新取得選項並選擇。",
@@ -1058,7 +1058,13 @@
     "checkOptionalMissing": "未設定（可選）",
     "checkFailed": "無法取得最新檢查結果，請確認 Worker 已部署且可存取後重試。",
     "checkChecking": "正在檢查最新綁定與密鑰……",
-    "checkReady": "必需項目已通過，可以繼續初始化。可選項目可稍後設定。"
+    "checkReady": "必需項目已通過，可以繼續初始化。可選項目可稍後設定。",
+    "databaseTitle": "設定數據庫",
+    "accountTitle": "設定管理員帳戶",
+    "databaseSubtitle": "選擇數據庫並驗證連線，通過後繼續設定管理員帳戶。",
+    "databaseChecking": "正在驗證並儲存……",
+    "databaseContinue": "驗證並繼續",
+    "databaseBack": "返回數據庫設定"
   },
   "agent": {
     "installMode": "安裝模式",

@@ -16,6 +16,14 @@ run_worker_first = true
 not_found_handling = "single-page-application"
 html_handling = "auto-trailing-slash"
 
+[[durable_objects.bindings]]
+name = "SETUP_CONFIG"
+class_name = "SetupConfiguration"
+
+[[migrations]]
+tag = "setup-config-v1"
+new_sqlite_classes = ["SetupConfiguration"]
+
 [[d1_databases]]
 # 部署前核对实际账号的数据库 UUID。
 # Verify the database UUID for the target account before deployment.

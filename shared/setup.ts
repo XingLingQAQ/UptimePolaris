@@ -25,7 +25,7 @@ export interface SetupRequirement {
 // Allow only setup dependencies; an admin token cannot open business APIs before setup.
 // 仅放行初始化所需入口，业务 API 不因持有管理员令牌而提前开放。
 export function isSetupEndpoint(method: string, path: string): boolean {
-  if (method === 'POST' && path === '/api/auth/setup') return true;
+  if (method === 'POST' && (path === '/api/auth/setup' || path === '/api/auth/setup/database')) return true;
   return (method === 'GET' || method === 'HEAD') &&
     ['/api/auth/session', '/api/capabilities', '/api/public/icon'].includes(path);
 }

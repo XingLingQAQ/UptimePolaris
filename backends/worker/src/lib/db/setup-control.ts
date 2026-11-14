@@ -1,8 +1,8 @@
 import type { SetupDatabaseOptions } from '../../../../../shared/setup';
 import type { Env } from '../../types';
 
-type DatabaseType = 'd1' | 'postgres';
-interface ControlRow {
+export type DatabaseType = 'd1' | 'postgres';
+export interface ControlRow {
   type: DatabaseType;
   encrypted_url: string | null;
   source: 'deployment' | 'selected';
@@ -58,8 +58,26 @@ async function controlRow(db: D1Database): Promise<ControlRow | null> {
   return db.prepare(`SELECT type, encrypted_url, source, operation, phase, lease_id, lease_until, account_started FROM ${table} WHERE id = 1`).first<ControlRow>();
 }
 
-// 选库 URL 的密钥依赖 ADMIN_TOKEN；轮换 Token 时须处理已保存的密文。
-// The saved URL's key depends on ADMIN_TOKEN; token rotation must account for existing ciphertext.
+export async function configurationCommand<T>(env: Env, command: Record<string, unknown>): Promise<T> {
+  const namespace = deploymentEnv(env).SETUP_CONFIG;
+  if (!namespace) throw new DatabaseConfigurationError();
+  const response = await namespace.get(namespace.idFromName('database')).fetch('https://configuration.internal', {
+    method: 'POST', body: JSON.stringify(command),
+  });
+  if (!response.ok) throw new DatabaseConfigurationError();
+  return response.json<T>();
+}
+
+async function databaseControlRow(env: Env): Promise<ControlRow | null> {
+  const saved = env.SETUP_CONFIG ? await configurationCommand<ControlRow | null>(env, { action: 'read' }) : null;
+  return saved ?? (env.DB ? controlRow(env.DB) : null);
+}
+
+async function usesConfigurationStore(env: Env): Promise<boolean> {
+  return Boolean(env.SETUP_CONFIG) && (!env.DB || Boolean(await configurationCommand<ControlRow | null>(env, { action: 'read' })));
+}
+
+// 加密密钥依赖 ADMIN_TOKEN。 / Encryption depends on ADMIN_TOKEN.
 async function encryptionKey(token: string): Promise<CryptoKey> {
   if (!token) throw new DatabaseConfigurationError();
   const input = await crypto.subtle.importKey('raw', encoder.encode(token), 'HKDF', false, ['deriveKey']);
@@ -77,13 +95,13 @@ function unbase64(value: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(atob(value), char => char.charCodeAt(0));
 }
 
-async function encryptUrl(url: string, token: string): Promise<string> {
+export async function encryptUrl(url: string, token: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await encryptionKey(token), encoder.encode(url));
   return `v1.${base64(iv)}.${base64(new Uint8Array(ciphertext))}`;
 }
 
-async function decryptUrl(value: string, token: string): Promise<string> {
+export async function decryptUrl(value: string, token: string): Promise<string> {
   try {
     const [version, iv, ciphertext, extra] = value.split('.');
     if (version !== 'v1' || !iv || !ciphertext || extra !== undefined) throw new Error();
@@ -96,9 +114,8 @@ async function decryptUrl(value: string, token: string): Promise<string> {
 
 /** 已保存的选择优先；pending 阶段不提供 PostgreSQL URL。 / Saved selections take priority; pending claims expose no PostgreSQL URL. */
 export async function resolveDatabase(env: Env): Promise<Pick<Env, 'DATABASE_TYPE' | 'DATABASE_URL'>> {
-  if (!env.DB) return { DATABASE_TYPE: env.DATABASE_TYPE, DATABASE_URL: env.DATABASE_URL };
   try {
-    const row = await controlRow(env.DB);
+    const row = await databaseControlRow(env);
     if (!row) return { DATABASE_TYPE: env.DATABASE_TYPE, DATABASE_URL: env.DATABASE_URL };
     if (row.phase !== 'pending' && row.phase !== 'active' || row.source !== 'deployment' && row.source !== 'selected') throw new DatabaseConfigurationError();
     if (row.type === 'd1') return { DATABASE_TYPE: 'd1', DATABASE_URL: undefined };
@@ -115,14 +132,12 @@ export async function requireReadyDatabase(env: Env): Promise<void> {
 }
 
 export async function pendingDatabase(env: Env): Promise<boolean> {
-  if (!env.DB) return false;
-  return (await controlRow(env.DB))?.phase === 'pending';
+  return (await databaseControlRow(env))?.phase === 'pending';
 }
 
 export async function pendingDatabaseUrl(env: Env): Promise<string | undefined> {
-  if (!env.DB) return undefined;
   try {
-    const row = await controlRow(env.DB);
+    const row = await databaseControlRow(env);
     if (row?.phase !== 'pending' || row.type !== 'postgres' || !row.encrypted_url) return undefined;
     return await decryptUrl(row.encrypted_url, env.ADMIN_TOKEN);
   } catch {
@@ -131,13 +146,12 @@ export async function pendingDatabaseUrl(env: Env): Promise<string | undefined> 
 }
 
 export async function databaseClaimActive(env: Env): Promise<boolean> {
-  if (!env.DB) return false;
-  return (await controlRow(env.DB))?.phase === 'active';
+  return (await databaseControlRow(env))?.phase === 'active';
 }
 
 export async function completedOperation(env: Env, operation: string): Promise<boolean> {
-  if (!env.DB || !operation) return false;
-  const row = await controlRow(env.DB);
+  if (!operation) return false;
+  const row = await databaseControlRow(env);
   return row?.phase === 'active' && row.operation === operation;
 }
 
@@ -150,20 +164,27 @@ export async function d1HasUsers(env: Env): Promise<boolean> {
 
 export async function setupDatabaseOptions(env: Env): Promise<SetupDatabaseOptions> {
   const deployed = deployedDatabase(env);
-  const pending = await pendingDatabase(env);
+  const row = await databaseControlRow(env);
+  const pending = row?.phase === 'pending';
+  const locked = pending && row.account_started === 1;
   const configured = pending ? env.DATABASE_TYPE === 'postgres' : deployedDatabaseType(env) === 'postgres' && Boolean(deployed.DATABASE_URL);
   // 没有 D1 绑定时不提供 D1 选项，默认只能是 PostgreSQL。
   // D1 is not offered without its binding, so the default can only be PostgreSQL.
   return {
-    types: pending ? [databaseType(env)] : env.DB ? ['d1', 'postgres'] : ['postgres'],
+    types: locked ? [databaseType(env)] : env.DB ? ['d1', 'postgres'] : ['postgres'],
     defaultType: env.DB ? databaseType(env) : 'postgres',
     postgresConfigured: configured,
-    postgresUrlEditable: Boolean(env.DB) && !pending,
+    postgresUrlEditable: Boolean(env.DB || env.SETUP_CONFIG) && !locked,
   };
 }
 
 /** 过期租约只允许恢复同一目标的初始化，不允许改选数据库。 / An expired lease permits resuming setup for the same target, not selecting another database. */
 export async function claimDatabase(env: Env, type: DatabaseType, url: string | undefined): Promise<{ operation: string; lease: string; accountStarted: boolean; source: 'deployment' | 'selected' } | null> {
+  if (await usesConfigurationStore(env)) {
+    const deployed = deployedDatabase(env);
+    const source = type === deployedDatabaseType(env) && deployed.DATABASE_URL === url ? 'deployment' : 'selected';
+    return configurationCommand(env, { action: 'claim', type, url, source });
+  }
   if (!env.DB) return { operation: '', lease: '', accountStarted: false, source: 'deployment' };
   const db = env.DB;
   await db.prepare(`CREATE TABLE IF NOT EXISTS ${table} (id INTEGER PRIMARY KEY CHECK (id = 1), type TEXT NOT NULL, encrypted_url TEXT, source TEXT NOT NULL, operation TEXT NOT NULL, phase TEXT NOT NULL, lease_id TEXT, lease_until INTEGER NOT NULL, account_started INTEGER NOT NULL DEFAULT 0)`).run();
@@ -190,6 +211,10 @@ export async function claimDatabase(env: Env, type: DatabaseType, url: string | 
 }
 
 export async function markAccountStarted(env: Env, operation: string, lease: string): Promise<void> {
+  if (await usesConfigurationStore(env)) {
+    await configurationCommand(env, { action: 'mark', operation, lease });
+    return;
+  }
   if (!env.DB) return;
   const result = await env.DB.prepare(`UPDATE ${table} SET account_started = 1 WHERE id = 1 AND operation = ? AND lease_id = ? AND phase = 'pending'`).bind(operation, lease).run();
   if (result.meta.changes !== 1) throw new DatabaseConfigurationError();
@@ -198,6 +223,10 @@ export async function markAccountStarted(env: Env, operation: string, lease: str
 // 默认 D1 完成后移除控制记录；PostgreSQL 和显式改选仍需保留活动记录。
 // Remove the control row for default D1; PostgreSQL and explicit selections retain an active row.
 export async function finishDatabaseClaim(env: Env, operation: string, lease: string): Promise<void> {
+  if (await usesConfigurationStore(env)) {
+    await configurationCommand(env, { action: 'finish', operation, lease });
+    return;
+  }
   if (!env.DB) return;
   const results = await env.DB.batch([
     env.DB.prepare(`DELETE FROM ${table} WHERE id = 1 AND source = 'deployment' AND type = 'd1' AND operation = ? AND lease_id = ? AND phase = 'pending'`).bind(operation, lease),
@@ -208,11 +237,19 @@ export async function finishDatabaseClaim(env: Env, operation: string, lease: st
 }
 
 export async function releaseDatabaseClaim(env: Env, operation: string, lease: string): Promise<void> {
+  if (await usesConfigurationStore(env)) {
+    await configurationCommand(env, { action: 'release', operation, lease });
+    return;
+  }
   if (!env.DB) return;
   await env.DB.prepare(`UPDATE ${table} SET lease_id = NULL, lease_until = 0 WHERE id = 1 AND operation = ? AND lease_id = ? AND phase = 'pending'`).bind(operation, lease).run();
 }
 
 export async function resetAccountStarted(env: Env, operation: string, lease: string): Promise<void> {
+  if (await usesConfigurationStore(env)) {
+    await configurationCommand(env, { action: 'reset', operation, lease });
+    return;
+  }
   if (!env.DB) return;
   const result = await env.DB.prepare(`UPDATE ${table} SET account_started = 0 WHERE id = 1 AND operation = ? AND lease_id = ? AND phase = 'pending'`).bind(operation, lease).run();
   if (result.meta.changes !== 1) throw new DatabaseConfigurationError();
@@ -221,6 +258,17 @@ export async function resetAccountStarted(env: Env, operation: string, lease: st
 // 创建账号开始后保留选库记录，供失败重试继续使用原数据库。
 // Retain the selection once account creation starts so retries use the same database.
 export async function abandonDatabaseClaim(env: Env, operation: string, lease: string): Promise<void> {
+  if (await usesConfigurationStore(env)) {
+    await configurationCommand(env, { action: 'abandon', operation, lease });
+    return;
+  }
   if (!env.DB) return;
   await env.DB.prepare(`DELETE FROM ${table} WHERE id = 1 AND operation = ? AND lease_id = ? AND phase = 'pending' AND account_started = 0`).bind(operation, lease).run();
+}
+
+export async function discardPendingDatabase(env: Env): Promise<boolean> {
+  if (await usesConfigurationStore(env)) return configurationCommand(env, { action: 'discard' });
+  if (!env.DB) return true;
+  const result = await env.DB.prepare(`DELETE FROM ${table} WHERE id = 1 AND phase = 'pending' AND account_started = 0 AND (lease_id IS NULL OR lease_until <= ?)`).bind(Math.floor(Date.now() / 1000)).run();
+  return result.meta.changes === 1;
 }

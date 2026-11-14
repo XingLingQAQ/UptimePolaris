@@ -341,6 +341,7 @@ export const RING_SIZE = 100;
 
 export interface Env {
   DB: D1Database;
+  SETUP_CONFIG?: DurableObjectNamespace;
   AUTOMATIC_NOTIFICATIONS_DISABLED?: string;
   /** Required for Worker setup; query credentials are only needed for SQL backfill. / Worker 初始化必需；查询凭据仅用于 SQL 回填。 */
   UPTIME?: AnalyticsEngineDataset;

@@ -80,11 +80,11 @@ Use o Worker quando não quiser manter um servidor. Escolha Go para sondar a red
 1. Faça fork deste repositório.
 2. No painel da Cloudflare, abra **Workers & Pages → Create application → GitHub** e selecione seu fork. Defina `npm run build` como comando de build e `npm run deploy` como comando de implantação.
 3. Abra o site após a implantação. A página de configuração inicial verifica vínculos e segredos; configure o que ela indicar em **Settings** do Worker:
-   - **D1 (opcional)**: para usar D1, adicione um banco em **Bindings** com o nome de variável `DB`. É possível avançar sem esse vínculo, mas a configuração inicial oferecerá apenas PostgreSQL; configure o Secret `DATABASE_URL` em **Variables and Secrets** antes de criar a conta e, depois de salvar e implantar, selecione "Verificar opções de banco novamente".
+   - **D1 (opcional)**: para usar D1, adicione um banco em **Bindings** com o nome de variável `DB`. Sem D1, a configuração inicial oferece apenas PostgreSQL.
    - **Chave de configuração**: adicione o segredo `ADMIN_TOKEN` em **Variables and Secrets** com um valor aleatório longo, por exemplo a saída de `openssl rand -hex 32`.
    - **Analytics Engine (obrigatório)**: ative o Analytics Engine no painel e adicione um conjunto de dados em **Bindings** com o nome de vínculo `UPTIME`.
    - **Opcional**: para instalar temas de terceiros, adicione um bucket R2 com o nome de vínculo `THEMES`. Ele pode ser adicionado após a configuração inicial.
-4. Na página de configuração inicial, selecione **Re-check**, avance e informe `ADMIN_TOKEN` para criar a conta de administrador.
+4. Na página de configuração inicial, selecione **Re-check**. Após a aprovação dos itens obrigatórios, configure e verifique o banco com `ADMIN_TOKEN` e crie a conta de administrador.
 
 As atualizações usam **Sync fork** no GitHub; o Workers Builds reimplanta automaticamente e mantém os vínculos adicionados no painel.
 

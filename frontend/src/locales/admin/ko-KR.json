@@ -1028,7 +1028,7 @@
     "databaseUrlConfigured": "비워 두면 구성된 PostgreSQL 연결을 사용합니다. 새 URL을 입력할 수도 있습니다.",
     "databaseUrlRequired": "PostgreSQL 데이터베이스의 연결 URL을 입력하세요.",
     "databaseUrlDeploymentOnly": "저장된 PostgreSQL 연결을 사용합니다. 연결 설정을 변경하려면 데이터베이스 설정 가이드를 참고하세요.",
-    "databaseUrlUnavailable": "PostgreSQL 연결이 설정되지 않았습니다. Worker의 Settings → Variables and Secrets에서 Secret DATABASE_URL을 추가하고 저장 및 배포한 후 데이터베이스 옵션을 다시 불러오세요.",
+    "databaseUrlUnavailable": "데이터베이스 설정 저장소를 사용할 수 없습니다. Worker를 다시 배포한 뒤 재시도하세요.",
     "databaseOptionsUnavailable": "데이터베이스 선택 항목을 가져올 수 없습니다. 서버를 확인하고 다시 시도하세요.",
     "databaseRetry": "데이터베이스 선택 항목 다시 확인",
     "invalidDatabaseType": "이 데이터베이스 유형을 사용할 수 없습니다. 선택 항목을 다시 확인하세요.",
@@ -1058,7 +1058,13 @@
     "checkOptionalMissing": "미설정 (선택)",
     "checkFailed": "최신 확인 결과를 가져오지 못했습니다. Worker가 배포되어 있고 접근 가능한지 확인한 후 다시 시도하세요.",
     "checkChecking": "최신 바인딩과 시크릿을 확인하는 중…",
-    "checkReady": "필수 항목을 모두 확인했습니다. 초기화를 계속할 수 있으며 선택 항목은 나중에 설정해도 됩니다."
+    "checkReady": "필수 항목을 모두 확인했습니다. 초기화를 계속할 수 있으며 선택 항목은 나중에 설정해도 됩니다.",
+    "databaseTitle": "데이터베이스 설정",
+    "accountTitle": "관리자 계정 만들기",
+    "databaseSubtitle": "데이터베이스를 선택하고 연결을 확인한 뒤 관리자 계정을 만드세요.",
+    "databaseChecking": "확인 및 저장 중…",
+    "databaseContinue": "확인 후 계속",
+    "databaseBack": "데이터베이스 설정으로 돌아가기"
   },
   "agent": {
     "installMode": "설치 모드",

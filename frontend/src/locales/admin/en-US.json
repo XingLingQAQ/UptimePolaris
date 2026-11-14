@@ -1028,7 +1028,7 @@
     "databaseUrlConfigured": "Leave blank to use the configured PostgreSQL connection, or enter a new URL.",
     "databaseUrlRequired": "Enter the connection URL for the PostgreSQL database.",
     "databaseUrlDeploymentOnly": "Uses the saved PostgreSQL connection. To change connection settings, follow the database configuration guide.",
-    "databaseUrlUnavailable": "No PostgreSQL connection is configured. Add the DATABASE_URL secret in the Worker’s Settings → Variables and Secrets, save and deploy, then reload the database options.",
+    "databaseUrlUnavailable": "Database configuration storage is unavailable. Redeploy the Worker and try again.",
     "databaseOptionsUnavailable": "Database options are unavailable. Re-check the server and try again.",
     "databaseRetry": "Re-check database options",
     "invalidDatabaseType": "This database type is unavailable. Re-check the options and choose again.",
@@ -1058,7 +1058,13 @@
     "checkOptionalMissing": "Not configured (optional)",
     "checkFailed": "Could not get the latest check results. Confirm the Worker is deployed and accessible, then try again.",
     "checkChecking": "Checking the latest bindings and secrets…",
-    "checkReady": "All required items passed. Continue with setup; optional items can be configured later."
+    "checkReady": "All required items passed. Continue with setup; optional items can be configured later.",
+    "databaseTitle": "Configure database",
+    "accountTitle": "Create administrator account",
+    "databaseSubtitle": "Choose a database and verify its connection before creating the administrator account.",
+    "databaseChecking": "Verifying and saving…",
+    "databaseContinue": "Verify and continue",
+    "databaseBack": "Back to database configuration"
   },
   "agent": {
     "installMode": "Install mode",

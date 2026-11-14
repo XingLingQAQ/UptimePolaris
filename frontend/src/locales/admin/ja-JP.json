@@ -1028,7 +1028,7 @@
     "databaseUrlConfigured": "空欄の場合は設定済みの PostgreSQL 接続を使用します。新しい URL を入力することもできます。",
     "databaseUrlRequired": "PostgreSQL データベースの接続 URL を入力してください。",
     "databaseUrlDeploymentOnly": "保存済みの PostgreSQL 接続を使用します。接続設定を変更する場合は、データベース設定ガイドを参照してください。",
-    "databaseUrlUnavailable": "PostgreSQL の接続が未設定です。Worker の Settings → Variables and Secrets で Secret DATABASE_URL を追加し、保存してデプロイした後、データベースの選択肢を再取得してください。",
+    "databaseUrlUnavailable": "データベース設定を保存できません。Worker を再デプロイしてから再試行してください。",
     "databaseOptionsUnavailable": "データベースの選択肢を取得できません。サーバーを確認して再試行してください。",
     "databaseRetry": "データベースの選択肢を再取得",
     "invalidDatabaseType": "このデータベースは使用できません。選択肢を再取得して選び直してください。",
@@ -1058,7 +1058,13 @@
     "checkOptionalMissing": "未設定（任意）",
     "checkFailed": "最新の確認結果を取得できませんでした。Worker がデプロイされ、アクセスできることを確認してから再試行してください。",
     "checkChecking": "最新のバインドとシークレットを確認しています…",
-    "checkReady": "必須項目はすべて確認できました。初期設定に進めます。任意項目は後から設定できます。"
+    "checkReady": "必須項目はすべて確認できました。初期設定に進めます。任意項目は後から設定できます。",
+    "databaseTitle": "データベースの設定",
+    "accountTitle": "管理者アカウントの作成",
+    "databaseSubtitle": "データベースを選択して接続を確認し、管理者アカウントの作成に進みます。",
+    "databaseChecking": "確認して保存中…",
+    "databaseContinue": "接続を確認して次へ",
+    "databaseBack": "データベース設定に戻る"
   },
   "agent": {
     "installMode": "インストール方式",

@@ -31,6 +31,15 @@ try {
   const outfile = join(root, 'worker-postgres-setup.mjs');
   await build({ entryPoints: ['test/auth/worker-postgres-setup.test.mjs'], outfile, bundle: true, platform: 'node', format: 'esm', packages: 'external',
     plugins: [{ name: 'unused-socket', setup(b) {
+      b.onResolve({ filter: /^postgres$/ }, args => args.namespace === 'fixture-pg' ? { path: 'postgres', external: true } : /backends[\\/]/.test(args.importer) ? { path: 'native-postgres', namespace: 'fixture-pg' } : undefined);
+      b.onLoad({ filter: /.*/, namespace: 'fixture-pg' }, () => ({ contents: `import postgres from 'postgres';
+        export default function(url, options) {
+          const parsed = new URL(url);
+          if (parsed.hostname !== 'db.fixture.test') return postgres(url, options);
+          parsed.username = 'postgres'; parsed.hostname = '127.0.0.1'; parsed.port = process.env.UPTIME_FIXTURE_PORT;
+          parsed.searchParams.set('sslmode', 'disable');
+          return postgres(parsed.toString(), {...options, ssl: false});
+        }` }));
       b.onResolve({ filter: /^cloudflare:sockets$/ }, () => ({ path: 'socket', namespace: 'fixture' }));
       b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export function connect(){throw new Error("unexpected Worker socket")}' }));
     } }] });

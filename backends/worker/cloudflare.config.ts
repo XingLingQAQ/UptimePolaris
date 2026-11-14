@@ -1,4 +1,4 @@
-import { bindings, defineConfig, triggers } from "cf/config";
+import { bindings, defineConfig, exports as workerExports, triggers } from "cf/config";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -31,7 +31,14 @@ export default defineConfig({
 				schedule: "10 0 * * *",
 			}),
 		],
+		exports: {
+			SetupConfiguration: workerExports.durableObject({ storage: "sqlite" }),
+		},
 		env: {
+			SETUP_CONFIG: bindings.durableObject({
+				worker: "uptime-polaris",
+				exportName: "SetupConfiguration",
+			}),
 			PBKDF2_ITERATIONS: bindings.text("3000"),
 			DATABASE_TYPE: bindings.text("d1"),
 			/**

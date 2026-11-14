@@ -1,3 +1,4 @@
+export { SetupConfiguration } from './lib/db/setup-configuration';
 import { api } from './api';
 import { setupRedirect } from './lib/auth/setup-redirect';
 import { databaseConfigured, setupRequirements } from './lib/auth/setup-requirements';
@@ -99,17 +100,11 @@ export default {
   /** 在请求数据库作用域内处理初始化和结构检查，再进入页面或 API 路由。 / Handle setup and schema checks in the request database scope before page or API routing. */
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
-      // 未绑定数据库时只开放初始化检查所需的入口，其他页面转到 /setup。
-      // Without a database binding, serve only what the setup check needs and send other pages to /setup.
-      if (!databaseConfigured(env)) {
-        const path = new URL(request.url).pathname;
-        if ((request.method === 'GET' || request.method === 'HEAD') && isSetupAsset(path)) {
-          return env.ASSETS?.fetch(request) ?? new Response('not found', { status: 404 });
-        }
-        const incomplete = setupRequirements(env).some((item) => item.required && !item.ok);
-        return await routeBeforeReady(request, env, ctx, incomplete ? 'deployment_incomplete' : 'setup_required');
-      }
       return await withDBScope(env, async (scopedEnv, scopedCtx) => {
+        if (!databaseConfigured(scopedEnv)) {
+          const incomplete = setupRequirements(scopedEnv).some((item) => item.required && !item.ok);
+          return routeBeforeReady(request, scopedEnv, scopedCtx ?? ctx, incomplete ? 'deployment_incomplete' : 'setup_required');
+        }
         return handleDatabaseRequest(request, scopedEnv, scopedCtx ?? ctx);
       }, ctx);
     } catch (error) {
@@ -121,13 +116,12 @@ export default {
   },
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-    if (!databaseConfigured(env)) return;
     switch (controller.cron) {
       case CRON_TICK: {
         if (ticking) return;
         ticking = true;
         ctx.waitUntil(
-          withDBScope(env, async (scopedEnv) => { await requireReadyDatabase(scopedEnv); return runTick(scopedEnv, Math.floor(Date.now() / 1000)); })
+          withDBScope(env, async (scopedEnv) => { if (!databaseConfigured(scopedEnv)) return; await requireReadyDatabase(scopedEnv); return runTick(scopedEnv, Math.floor(Date.now() / 1000)); })
             .catch(() => console.error(JSON.stringify({ event: 'tick_failed' })))
             .finally(() => {
               ticking = false;
@@ -138,7 +132,7 @@ export default {
 
       case CRON_SYNC:
         ctx.waitUntil(
-          withDBScope(env, async (scopedEnv) => { await requireReadyDatabase(scopedEnv); return runSync(scopedEnv); })
+          withDBScope(env, async (scopedEnv) => { if (!databaseConfigured(scopedEnv)) return; await requireReadyDatabase(scopedEnv); return runSync(scopedEnv); })
             .then((r) => console.log(JSON.stringify({ event: 'sync_ok', ...r })))
             .catch(() => console.error(JSON.stringify({ event: 'sync_failed' }))),
         );
