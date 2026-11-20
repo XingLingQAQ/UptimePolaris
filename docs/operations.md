@@ -25,7 +25,7 @@ Worker 的默认调度在部署配置里保持一致：
 
 监控自己的间隔决定什么时候到期，不是每次 Cron 都会对所有监控发请求。实际吞吐还受请求预算、并发、超时和目标响应影响。
 
-需要将更多主动检查拆到多次 Worker 调用时，可绑定并启用 [Worker Queue](queue.md)。producer 和 consumer 都要配置，并在后台完成往返检查；不启用时保留原调度。Queue 不改变单次调用限制，会增加队列和消费调用用量，积压不代表目标故障。
+监控多到一轮检查跑不完时，可以绑定并启用 [Worker Queue](queue.md) 拆成多次调用。producer 和 consumer 都要配，并在后台跑一次往返检查。不开就还是原来的调度。Queue 不会放宽单次调用的限制，队列和消费调用都会增加用量；积压是队列的问题，不是目标出了故障。
 
 Worker 生产环境由 Cloudflare 调度。
 
@@ -55,9 +55,9 @@ AE 单次调用最多写入 250 个点。一次 tick 超过上限时，历史写
 
 ### Go
 
-官方程序可在后台顶部的版本浮层中点击“立即更新”，或开启默认关闭的“自动更新”。原生部署覆盖 Linux、Windows、macOS 的 amd64 和 arm64；Docker 更新需要先配置独立更新服务，见 [Go 更新说明](../backends/go/README.md#在后台更新)。自动检查间隔为 6 小时；同一版本失败后需手动重试。更新期间服务会短暂重启，数据库和主题继续使用原位置。
+官方程序可以在后台顶部的版本浮层里点“立即更新”，也可以打开默认关闭的“自动更新”。原生部署覆盖 Linux、Windows、macOS 的 amd64 和 arm64；Docker 要先配好独立的更新服务，见 [Go 更新说明](../backends/go/README.md#在后台更新)。每 6 小时自动检查一次，同一个版本失败后要手动重试。更新时服务会短暂重启，数据库和主题仍在原来的位置。
 
-新版本健康检查失败时恢复上一程序或容器。更新服务只接受数据兼容声明相同的版本，数据库写入保持原样。请保留近期备份；手动升级和数据格式变化按以下步骤处理：
+新版本健康检查不通过时，会自动换回上一个程序或容器。更新服务只接受数据兼容声明相同的版本，已有的数据库写入不受影响。近期的备份照常留着；手动升级和数据格式有变化时，按下面的步骤走：
 
 1. 停止 Go 后端和自动重启器，备份整个数据目录（包括 SQLite、主题）和原配置；PostgreSQL 部署还要备份对应数据库。
 2. 在隔离环境用目标版本和备份副本验证启动、账号、历史和主题。Go 使用独立的 `polaris_*` 表，**不要运行 Worker 的 `npm run db:migrate:postgres`**。
@@ -172,11 +172,11 @@ A Worker invocation can write at most 250 AE points. When a tick exceeds that li
 
 Go runs scheduling inside its process, checks for due work each second, and attempts incremental aggregation and cleanup at startup and every minute. Stopping the process also stops scheduling. For either backend, inspect recent check times and job logs as well as HTTP health.
 
-For more active checks across separate Worker invocations, optionally configure and enable [Worker Queue](queue.md#english). Both producer and consumer must be configured and the round-trip check must pass. Without enablement the original scheduler continues. Queue usage and consumer invocations add cost; backlog is not a target failure.
+When one cycle of checks no longer fits in a single invocation, bind and enable [Worker Queue](queue.md#english) to split it. Configure both producer and consumer and run the round-trip check in the console. Without it, the original scheduler continues. Queues do not raise per-invocation limits, and both the queue and consumer invocations add cost; a growing backlog is a queue problem, not a target failure.
 
 ### Upgrade
 
-Official Go binaries support **Update now** and opt-in automatic updates from the version popover on Linux, Windows and macOS, on amd64 and arm64. Docker requires the separate updater described in the [Go guide](../backends/go/README.md#updates-from-the-console). Stable releases are checked every 6 hours; failed versions require a manual retry. Updates briefly restart the service. Failed health checks restore the previous program or container while retaining database writes. Managed updates require matching data compatibility declarations and do not replace regular backups.
+Official Go binaries support **Update now** and opt-in automatic updates from the version popover, on Linux, Windows and macOS, amd64 and arm64. Docker needs the separate updater described in the [Go guide](../backends/go/README.md#updates-from-the-console). Stable releases are checked every 6 hours, and a failed version needs a manual retry. Updates restart the service briefly; the database and themes stay where they are. A failed health check restores the previous program or container, and managed updates only accept versions with matching data compatibility declarations. They do not replace regular backups.
 
 1. Record the running service and deployment versions, backend, database, bindings and Agent versions. Back up the database, theme files, credentials and configuration.
 2. Review migrations against a backup in an isolated environment. Worker D1 and PostgreSQL migrations are different from Go's own `polaris_*` tables; never run the Worker PostgreSQL migration for Go.

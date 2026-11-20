@@ -44,11 +44,11 @@ Webhook 的 `secret` 非空时，发送 `Authorization: Bearer <secret>`。接�
 
 ## 分组范围
 
-普通监控和 AI 渠道提供“使用全局规则”“指定通知渠道”和“关闭通知”。关闭通知保留已选渠道。指定渠道至少选一项；无效或停用的渠道不会接收，也不会回退到全局。
+普通监控和 AI 渠道有三种通知方式：“使用全局规则”“指定通知渠道”和“关闭通知”。关掉通知时已选的渠道会留着。指定渠道至少要选一项，无效或停用的渠道直接跳过，不会退回全局。
 
-全局接收范围先匹配事件类别与来源，再匹配分组、AI 渠道或订阅。默认只接收本地的网站、模型和 Agent 资源事件；要接收外部订阅，需明确勾选该来源和所需事件。事件类别或来源显式为空时，全局规则不匹配任何消息。AI 和订阅同步没有普通分组，不能匹配限定了分组的渠道。
+全局接收范围先看事件类别和来源，再看分组、AI 渠道或订阅。默认只收本地的网站、模型和 Agent 资源事件，要收外部订阅得先把该来源和事件勾上。事件类别或来源是空的，全局规则就匹配不到任何消息。AI 事件和订阅同步没有普通分组，匹配不上限定了分组的渠道。
 
-已删除的 AI 渠道和订阅保留为无效引用，编辑时不会自动清空为全部。接收范围预览显示最终渠道及排除原因，不会外发。指定通知渠道绕过全局范围，但仍受通知开关、渠道状态和维护静默限制。订阅的监控告警、同步告警独立配置，详见[订阅指南](subscriptions.md)。
+删掉的 AI 渠道和订阅留作无效引用，编辑时不会被悄悄清成“全部”。接收范围预览列出最终会收到的渠道和排除原因，点预览不会往外发消息。指定渠道绕过全局范围，但通知开关、渠道状态和维护静默照样管用。订阅的监控告警和同步告警分开配，详见[订阅指南](subscriptions.md)。
 
 - 范围为空：全部监控，包含未分组条目。
 - 选定分组：只匹配这些分组里的监控。
@@ -130,11 +130,11 @@ Channel credentials grant access to external services. Keep them out of public n
 
 ### Group scope
 
-Monitors and AI channels offer **Use global rules**, **Choose channels**, and **Off**. Turning notifications off preserves the selection. Explicit selection requires at least one channel. Invalid or inactive selections never fall back to global routing.
+Monitors and AI channels share three modes: **Use global rules**, **Choose channels**, and **Off**. Turning notifications off keeps the channels you picked. Explicit selection needs at least one channel; invalid or disabled ones are skipped and never fall back to global routing.
 
-Global rules intersect event types and source types, then apply groups, AI channels or subscription scope. Defaults accept local monitor, model and Agent-resource events only. Enable external subscriptions explicitly. Empty event or source selections match nothing. AI events and subscription-sync events have no monitor group and cannot match a group-restricted channel.
+Global rules look at event type and source first, then at groups, AI channels or subscriptions. By default they take local website, model and Agent-resource events only; tick the source and the events you want to receive external subscriptions. An empty event or source selection matches nothing. AI events and subscription syncs have no monitor group, so a group-restricted channel never matches them.
 
-Deleted AI-channel and subscription IDs remain invalid references rather than becoming unrestricted scope. Recipient previews explain exclusions without sending messages. Explicit channels bypass global scope while respecting enabled states, notification switches and maintenance. Subscriptions configure item and sync alerts separately; see the [subscription guide](subscriptions.md#english).
+Deleted AI channels and subscriptions stay as invalid references instead of quietly widening to "everything". The recipient preview lists the channels that will receive the event and why the others were excluded, and previewing sends nothing. Explicit channels skip global scope while notification switches, channel state and maintenance still apply. Subscriptions configure item alerts and sync alerts separately; see the [subscription guide](subscriptions.md#english).
 
 An empty group scope matches all monitors, including ungrouped ones. A non-empty scope matches only monitors in the selected groups. A disabled channel does not receive normal automatic dispatch.
 

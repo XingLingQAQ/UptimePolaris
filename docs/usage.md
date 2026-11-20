@@ -48,9 +48,9 @@ Worker 的检查间隔为 60–86400 秒，超时为 1000–60000 毫秒。Go �
 - 在浮层里可以暂停或恢复监控、立即检查、打开详情、复制一份摘要，或把浮层固定住。
 - “通知动态”只列状态翻转事件。未读数按浏览器记录，可以只看未读、全部标为已读，或暂停新动态提示 15 分钟。
 
-启用 AI 监控后，顶部浮层会汇总模型的正常、异常、状态待确认和暂停数量。异常条目可直接打开所属渠道并定位模型。过期、跳过和未检查的模型不会计为正常。
+开了 AI 监控以后，顶部浮层会一并汇总模型的正常、异常、待确认和暂停数量，点异常条目直接跳到对应渠道并定位到那个模型。过期、跳过和没跑过的模型不计入正常。
 
-点击左上角版本号可以检查 GitHub 仓库中的正式版本标签，并查看对应版本的更新记录。有新版本时，版本号旁显示更新图标。自动检查结果在当前浏览器缓存 6 小时，也可手动重新检查。
+点左上角的版本号，会去 GitHub 仓库查最新的正式版本标签，顺便看这次更新改了什么。有新版本时，版本号旁边会亮起“新版本”标签；不想每次都被提醒，可以在弹窗里点“忽略此版本”，出下一个版本时再提醒。自动检查的结果在当前浏览器缓存 6 小时，也可以随时手动重新检查。
 
 首页的指标卡分别显示运行中监控的平均可用率、最近的证书或域名到期时间，以及当天发生的故障次数。第一次使用时会出现“开始使用”清单，列出添加监控、设置站点名称、配置通知和接入 Agent 四项。每一步只在部署里确实存在对应内容后才算完成，不是点过按钮就算；清单可以关闭，关闭状态按浏览器保存。
 
@@ -79,7 +79,7 @@ Worker 从 Cloudflare 发起检查，和你的浏览器、内网主机不在同�
 
 ## AI 模型监控
 
-从独立的“AI 监控”页面添加渠道和模型，不在普通 HTTP 监控里配置。每个模型分别设置检查间隔、通知和公开选项；真实文本生成检查可能收费。渠道连接测试与模型调用结果分开显示，详见 [AI 模型监控](ai-monitoring.md)。
+渠道和模型都在独立的“AI 监控”页面里添加，不走普通 HTTP 监控。每个模型单独设检查间隔、通知和是否公开。检查发的是真实的文本生成请求，会产生费用，添加时页面会提示这一点。渠道连接测试和模型调用结果是两回事，分开显示。详见 [AI 模型监控](ai-monitoring.md)。
 
 ## TCP 监控
 
@@ -278,7 +278,7 @@ The console opens at `/admin`. The status popover summarises the fleet, lists of
 
 When AI monitoring is enabled, the top status panel includes models that are up, down, awaiting status or paused. Select a model issue to open its channel and highlight the model. Stale, skipped and unchecked models are not counted as healthy.
 
-Select the version number at the top left to check the repository's stable version tags and view the corresponding change history. An update icon appears when a newer version is available. Automatic results are cached in this browser for six hours; manual checks are available at any time.
+Select the version number at the top left to check the repository's latest stable tag and read what changed. A **New** badge appears next to the version when one is available; select **Ignore this version** in the popover to stop the reminder until the next release. Automatic results are cached in this browser for six hours, and you can recheck at any time.
 
 ### Manage monitors day to day
 

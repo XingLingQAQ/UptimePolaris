@@ -2,7 +2,7 @@
 
 [English](#english)
 
-一个主题包可以提供监控状态页、机器状态页和 AI 模型页的主题。“主题管理”顶部按已启用的页面显示当前主题；下方已安装主题可以直接应用，会按主题声明的页面类型自动匹配。首次安装后需手动应用；更新已在使用的主题包时，相关页面会自动使用新版。管理控制台、登录、初始化和 API 始终使用内置实现。
+一个主题包可以同时提供监控状态页、机器状态页和 AI 模型页。“主题管理”顶部按已启用的页面列出当前主题；下面的已安装主题点一下就应用，程序按主题声明的页面类型自动匹配。新装的主题要手动应用一次；已经在用的主题包更新后，相关页面自动换到新版。管理控制台、登录、初始化和 API 始终是内置样式。
 
 ## 安装与选择
 
@@ -12,7 +12,7 @@
 4. 在已安装主题旁点“应用”，主题就用到它声明的页面类型，不用另选监控页或机器页。
 5. 顶部看板显示应用结果；点“主题配置”编辑选项并保存。机器页入口随机器独立展示功能显示，AI 页入口随 AI 监控功能显示。AI 内置页可另设标题和说明，通过 `/ai` 或指定的 AI 域名访问。
 
-更新后，已安装列表只显示当前版本，使用该主题包的页面会同步更新。仍受新版支持的有效配置、头部代码和自定义 HTML 会保留；不再支持的选项会移除，新选项使用主题默认值。如果新版缺少正在使用的子主题，更新会被拒绝，原配置不变。要回退，重新上传旧版主题包；也可以在对应看板恢复内置主题。删除主题包会先清掉各页面对这个包的引用，再删除资源。资源删除失败时，管理记录还在，已经清掉的页面引用不会恢复。
+更新后，已安装列表只显示当前版本，用这个包做出来的页面一起换到新版。新版还支持的配置、头部代码和自定义 HTML 保留，去掉的选项会被移除，新加的选项用主题默认值。如果新版里少了正在用的子主题，更新会被拒绝，原配置一点不动。想回退就重新上传旧版主题包，或者在对应的看板里恢复内置主题。删除主题包时，先清掉各页面对它的引用，再删资源；资源删除失败的话，管理记录还在，已经清掉的页面引用不会自己回来。
 
 主题 JavaScript 会在公开页面运行，只安装可信来源的包。
 
@@ -48,7 +48,7 @@ ZIP 上传使用 `Content-Type: application/zip`。页面配置使用 `page.them
 
 ## English
 
-Theme packages can provide monitor, machine and AI model pages. Page panels appear for enabled features. A newly installed package must be applied manually. Updating a package already in use moves its pages to the new version. The administration console, login, setup and API remain built in. See the [documentation index](README.md#english) and [deployment guide](deployment.md#english) for the surrounding site setup.
+One theme package can provide monitor, machine and AI model pages. The page panels list the current theme for each enabled page. A newly installed package needs one manual apply; packages already in use move their pages to the new version on update. The console, login, setup and API always keep the built-in styling. See the [documentation index](README.md#english) and [deployment guide](deployment.md#english) for the rest of the site setup.
 
 ### Install and apply
 
