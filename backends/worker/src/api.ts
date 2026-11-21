@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { aiRoutes } from './lib/ai/routes';
+import { versionRoutes } from './lib/updates/version';
 import { subscriptionRoutes } from './lib/subscriptions/routes';
 import { checkQueueRoutes } from './lib/queue/routes';
 import { HTTPException } from 'hono/http-exception';
@@ -201,6 +202,7 @@ api.use('/api/*', async (c, next) => {
 
 /** Hono applies middleware in registration order; management routes must follow the gate. / Hono 按注册顺序执行中间件；管理路由必须位于鉴权之后。 */
 api.route('/', notifyRoutes);
+api.route('/', versionRoutes);
 api.route('/', aiRoutes);
 api.route('/', subscriptionRoutes);
 api.route('/', checkQueueRoutes);

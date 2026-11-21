@@ -96,6 +96,7 @@ Worker 初始化要求绑定 `UPTIME`。延迟趋势、Agent 资源历史和每�
 
 | 键 | 默认值 | 合法范围或含义 |
 | --- | --- | --- |
+| `features.agentManagement` | `false` | 显示探针管理入口；不改变已有探针上报、监控检查或机器公开设置 |
 | `site.title` | `Uptime Polaris` | 非空字符串，最多 120 字符 |
 | `site.description` | `服务可用性监控` | 非空字符串，最多 300 字符 |
 | `site.icon` | `/api/public/icon` | 站内路径或 HTTP(S) URL，最多 2048 字符 |
@@ -248,6 +249,7 @@ Change settings in the console. An unset key uses its default; deleting an overr
 | `security.loginMaxAttempts` | `8` | 3–100 |
 | `security.loginWindowSec` | `300` | 60–86400 seconds |
 | `security.allowAgentCommands` | `false` | Allows eligible remote Agent commands and configuration control |
+| `features.agentManagement` | `false` | Shows Agent management without changing reporting, checks or public visibility |
 
 Default interval and timeout apply when creating monitors; existing monitors keep their own values. The runtime reads `monitor.defaultRetries` for existing monitors too. Retention controls cleanup; it cannot recreate deleted history. Site icon and account avatar uploads are separate; `site.icon` is not the image file.
 

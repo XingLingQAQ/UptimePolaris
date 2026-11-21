@@ -400,6 +400,8 @@ Agent 创建时可以带 `is_public` 布尔值，默认 `true`；显式传 `fals
 
 ## 运维触发
 
+Worker 的 `GET /api/admin/version` 需要管理认证，返回 `{ tag, checkedAt }`：`tag` 是最新正式版本标签或 `null`，`checkedAt` 是实际查询时间的 Unix 毫秒数。默认复用 6 小时内的结果；传 `?refresh=1` 时，仅复用最近 1 分钟的结果。限流返回 429 `version_rate_limited` 及 `Retry-After`；查询超时返回 502 `version_timeout`，其他上游故障返回 502 `version_unavailable` 或 `version_invalid_response`。此接口只检查版本，不部署更新。
+
 `POST /api/cron/tick` 请求常规检查，`POST /api/cron/sync` 请求汇总与清理；两者都需要管理认证。
 
 ```sh
@@ -607,6 +609,8 @@ Public lists use `GET /api/public/subscriptions/items?category=website` (or `mod
 Source icons use `/api/admin/subscriptions/:id/icon` or `/api/public/subscriptions/icons/:id`. Both require `site.syncMonitorIcons`. Public icons additionally require an unarchived public subscription with a selected public item in the current page's category. Targets come from the saved source, never a request parameter. Server caches last seven days for icons and one hour for misses; access is checked on every request.
 
 ### Notifications and operations
+
+Worker administrators can read `GET /api/admin/version` for `{ tag, checkedAt }`, where `tag` is the latest stable tag or `null` and `checkedAt` is the upstream check time in Unix milliseconds. The cache lasts six hours; `?refresh=1` reuses only results from the last minute. Rate limits return 429 `version_rate_limited` with `Retry-After`. Timeouts return 502 `version_timeout`; other upstream failures return 502 `version_unavailable` or `version_invalid_response`. This read does not deploy an update.
 
 `GET` and `POST /api/notifications`, `PUT` and `DELETE /api/notifications/:id`, `POST /api/notifications/:id/test`, and the `/stats` and `/deliveries` reads manage channels. Channel `config.language` defaults to `en-US`; its supported values and provider fields are in [the notification guide](notifications.md#notification-guide). Updating `config` replaces the object. A test sends a real message: inspect response `ok` and `error`, not HTTP 200 alone. A missing test channel returns HTTP 200 with `ok: false` on Worker and 404 on Go.
 

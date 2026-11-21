@@ -1,4 +1,7 @@
 import { useBackendCapabilities } from '@/api/backend';
+import { requestJson } from '@/api/client';
+import { ApiError } from '@/api/errors';
+import { compareVersions, STABLE_TAG as stableTag, type VersionCheck } from '../../../../shared/project-version';
 import { useManagedUpdates } from '@/api/updates';
 import { UpdateControls } from './UpdateControls';
 import { Popover } from '@/components/ui/MotionOverlays';
@@ -8,24 +11,14 @@ import { APP_VERSION } from '@/lib/version';
 import { Button, PopoverContent, PopoverTrigger } from '@heroui/react';
 import clsx from 'clsx';
 import { AlertCircle, ArrowRight, ArrowUpRight, BellOff, BookOpen, CircleCheck, RefreshCw, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import useSWR from 'swr';
 import { useLocale, useTranslations } from 'use-intl';
 
 const CACHE_KEY = 'uptime-polaris.latest-version';
 const DISMISS_KEY = 'uptime-polaris.dismissed-version';
 const REFRESH_MS = 6 * 60 * 60 * 1000;
-const repository = new URL(PROJECT_REPOSITORY_URL).pathname.replace(/^\//, '');
-const tagsUrl = `https://api.github.com/repos/${repository}/tags?per_page=100`;
-const stableTag = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[\w.-]+)?$/;
-type VersionCheck = { tag: string | null; checkedAt: number };
-
-function compareVersions(left: string, right: string): number {
-  const a = left.replace(/^v/, '').split(/[.+-]/).slice(0, 3).map(BigInt);
-  const b = right.replace(/^v/, '').split(/[.+-]/).slice(0, 3).map(BigInt);
-  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1;
-  return 0;
-}
+const versionUrl = '/api/admin/version';
 
 function cachedCheck(): VersionCheck | undefined {
   try {
@@ -34,20 +27,9 @@ function cachedCheck(): VersionCheck | undefined {
   } catch {}
 }
 
-async function checkVersion(): Promise<VersionCheck> {
-  const signal = AbortSignal.timeout(15_000);
-  let latest: string | null = null;
-  for (let page = 1; ; page++) {
-    const response = await fetch(`${tagsUrl}&page=${page}`, { credentials: 'omit', referrerPolicy: 'no-referrer', headers: { accept: 'application/vnd.github+json' }, signal });
-    if (!response.ok) throw new Error('version_check_failed');
-    const tags: unknown = await response.json();
-    if (!Array.isArray(tags)) throw new Error('version_check_failed');
-    for (const tag of tags) {
-      if (typeof tag?.name === 'string' && stableTag.test(tag.name) && (!latest || compareVersions(tag.name, latest) > 0)) latest = tag.name;
-    }
-    if (!response.headers.get('link')?.includes('rel="next"')) break;
-  }
-  const result = { tag: latest, checkedAt: Date.now() };
+async function checkVersion(refresh = false): Promise<VersionCheck> {
+  const result = await requestJson<VersionCheck>(versionUrl + (refresh ? '?refresh=1' : ''), { signal: AbortSignal.timeout(17_000) });
+  if (!Number.isFinite(result.checkedAt) || !(result.tag === null || typeof result.tag === 'string' && stableTag.test(result.tag))) throw new ApiError('version_invalid_response', 502);
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(result)); } catch {}
   return result;
 }
@@ -67,7 +49,12 @@ export function VersionStatus() {
   const current = runtime === 'go' ? updater.data?.current ?? APP_VERSION : APP_VERSION;
   const [cached] = useState(cachedCheck);
   const [dismissed, setDismissed] = useState(readDismissed);
-  const resource = useSWR(runtime === 'worker' ? tagsUrl : null, checkVersion, {
+  const refreshRequested = useRef(false);
+  const resource = useSWR(runtime === 'worker' ? versionUrl : null, () => {
+    const refresh = refreshRequested.current;
+    refreshRequested.current = false;
+    return checkVersion(refresh);
+  }, {
     fallbackData: cached, revalidateOnMount: !cached, revalidateOnFocus: false, revalidateOnReconnect: false,
     refreshInterval: REFRESH_MS, dedupingInterval: 60_000, shouldRetryOnError: false,
   });
@@ -79,6 +66,8 @@ export function VersionStatus() {
   const loud = available && !quiet;
   const checking = runtime === 'go' ? updater.data?.phase === 'checking' : resource.isValidating;
   const failed = runtime === 'go' ? Boolean(updater.error && !updater.busy || updater.data?.phase === 'failed') : Boolean(resource.error);
+  const failureCode = resource.error instanceof ApiError ? resource.error.code : '';
+  const failureKey = failureCode === 'version_rate_limited' ? 'rateLimited' : ['version_timeout', 'request_timeout'].includes(failureCode) ? 'timedOut' : failureCode === 'version_invalid_response' ? 'invalidTags' : 'failed';
   const checkedAt = runtime === 'go' ? updater.data?.checkedAt : resource.data?.checkedAt && Math.floor(resource.data.checkedAt / 1000);
 
   const tagPrefix = latest?.startsWith('v') ? 'v' : '';
@@ -145,7 +134,7 @@ export function VersionStatus() {
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold">{t('title')}</p>
             <p role={failed ? 'alert' : 'status'} className={clsx('mt-0.5 text-[12.5px] leading-snug', failed ? 'text-danger-600' : 'text-[var(--polaris-ink-3)]')}>
-              {failed ? t('failed') : checking && !latest ? t('checking') : available ? label : !latest ? t('noTags') : comparable ? t('currentLatest') : t('latest', { version: latest })}
+              {failed ? t(failureKey) : checking && !latest ? t('checking') : available ? label : !latest ? t('noTags') : comparable ? t('currentLatest') : t('latest', { version: latest })}
             </p>
           </div>
         </div>
@@ -216,7 +205,10 @@ export function VersionStatus() {
             isLoading={checking}
             isDisabled={runtime === 'go' && (!updater.data?.supported || updater.busy)}
             startContent={checking ? undefined : <RefreshCw size={12} />}
-            onPress={() => runtime === 'go' ? void updater.command('check') : void resource.mutate().catch(() => undefined)}
+            onPress={() => {
+              if (runtime === 'go') void updater.command('check');
+              else { refreshRequested.current = true; void resource.mutate().catch(() => undefined); }
+            }}
           >
             {checking ? t('checking') : t('check')}
           </Button>

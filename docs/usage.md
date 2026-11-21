@@ -48,9 +48,11 @@ Worker 的检查间隔为 60–86400 秒，超时为 1000–60000 毫秒。Go �
 - 在浮层里可以暂停或恢复监控、立即检查、打开详情、复制一份摘要，或把浮层固定住。
 - “通知动态”只列状态翻转事件。未读数按浏览器记录，可以只看未读、全部标为已读，或暂停新动态提示 15 分钟。
 
-开了 AI 监控以后，顶部浮层会一并汇总模型的正常、异常、待确认和暂停数量，点异常条目直接跳到对应渠道并定位到那个模型。过期、跳过和没跑过的模型不计入正常。
+开启 AI 监控并添加模型后，顶部浮层会汇总模型的正常、异常、待确认和暂停数量；尚未添加模型时不显示 AI 统计。点异常条目会跳到对应渠道并定位模型。过期、跳过和从未检查的模型不计入正常，Agent 离线提示独立保留。
 
-点左上角的版本号，会去 GitHub 仓库查最新的正式版本标签，顺便看这次更新改了什么。有新版本时，版本号旁边会亮起“新版本”标签；不想每次都被提醒，可以在弹窗里点“忽略此版本”，出下一个版本时再提醒。自动检查的结果在当前浏览器缓存 6 小时，也可以随时手动重新检查。
+点击左上角的版本号可检查 GitHub 仓库的正式版本标签，并打开更新内容。有新版本时，版本号旁会显示“新版本”；选择“忽略此版本”后，等下一个版本再提醒。Worker 通过本站接口查询并缓存结果 6 小时，手动重新检查仅复用最近 1 分钟的结果。查询失败会保留上次结果，限流和超时会分别提示，也可直接打开发布页面查看。
+
+Agent 管理默认隐藏。在“设置 → 可选功能”开启后，侧栏、移动端导航和命令面板才显示对应入口；关闭后保留配置，不影响已有探针上报、检查或机器公开设置。机器公开页仍在展示设置中单独控制。
 
 首页的指标卡分别显示运行中监控的平均可用率、最近的证书或域名到期时间，以及当天发生的故障次数。第一次使用时会出现“开始使用”清单，列出添加监控、设置站点名称、配置通知和接入 Agent 四项。每一步只在部署里确实存在对应内容后才算完成，不是点过按钮就算；清单可以关闭，关闭状态按浏览器保存。
 
@@ -295,6 +297,10 @@ Settings → Account changes the username, password and avatar. Usernames are 2�
 In monitor management, add an HTTP monitor with a name and URL such as `https://example.com/health`. Choose an interval, timeout, expected status, and check source, then save it. Wait for the next scheduled result, or use the immediate check for a backend-run monitor. Push, Agent host, and Agent-sourced monitors do not support a synchronous immediate check.
 
 Worker accepts intervals of 60–86,400 seconds and timeouts of 1,000–60,000 ms; Go accepts 5–86,400 seconds and 100–120,000 ms. Site defaults only fill new forms and do not rewrite existing monitors. `monitor.defaultRetries` controls failure confirmation at runtime.
+
+### Console features and version checks
+
+Agent management is hidden until enabled under **Settings → Optional features**. Disabling hides its console and command-palette entries without stopping existing Agent reporting or checks, or changing public visibility. The public machine-page switch remains separate. The status island shows AI statistics only after models are added and keeps Agent offline alerts visible. Worker version checks use the same-origin API with a six-hour cache; manual checks reuse only results from the last minute.
 
 ### AI monitoring
 
