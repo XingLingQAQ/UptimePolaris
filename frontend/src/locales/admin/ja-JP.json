@@ -629,7 +629,11 @@
     "motionSystem": "システムに従う",
     "motionReduced": "動きを減らす",
     "motionHint": "このブラウザーの管理画面と公開ページにすぐに適用されます。",
-    "motionSessionOnly": "今回の閲覧には適用されましたが、ブラウザーに設定を保存できませんでした。"
+    "motionSessionOnly": "今回の閲覧には適用されましたが、ブラウザーに設定を保存できませんでした。",
+    "groupFeatures": "オプション機能",
+    "groupFeaturesDesc": "必要な管理機能を有効にします。無効にしても設定は保持されます。",
+    "agentManagement": "Agent 管理",
+    "agentManagementHint": "管理画面に Agent 管理を表示します。既存の Agent の報告、監視チェック、マシンの公開設定には影響しません。"
   },
   "toast": {
     "saved": "保存しました",
@@ -1000,7 +1004,10 @@
     "commandsEmpty": "リモートコマンドの履歴はありません。",
     "configConflict": "この Agent の設定が変更されました。最新の設定を読み込んでから続行してください。",
     "reloadConfig": "下書きを破棄して再読み込み",
-    "deleteInUse": "このマシンを使用する監視を削除または変更してから、マシンを削除してください。"
+    "deleteInUse": "このマシンを使用する監視を削除または変更してから、マシンを削除してください。",
+    "featureDisabled": "Agent 管理は有効になっていません",
+    "enableFeature": "Agent 管理を有効にする",
+    "openFeatureSettings": "機能設定"
   },
   "quick": {
     "lastPush": "最終受信",
@@ -1430,7 +1437,9 @@
     "aiDown": "AI 異常 {n} 件",
     "aiUnknown": "AI 状態確認待ち {n} 件",
     "aiUp": "AI 正常 {n} 件",
-    "openAi": "AI 監視を開く"
+    "openAi": "AI 監視を開く",
+    "monitorIssues": "監視の問題 {n} 件",
+    "aiIssues": "AI の問題 {n} 件"
   },
   "kpi": {
     "availabilitySub": "稼働中 {n} 件の平均",
@@ -1890,7 +1899,7 @@
     "available": "新しいバージョン {version}",
     "currentLatest": "最新の安定版です",
     "noTags": "安定版のタグはまだありません",
-    "failed": "更新を確認できませんでした。後でもう一度お試しください。",
+    "failed": "プロジェクトのバージョンを取得できませんでした。再試行するか、リリースページをご覧ください。",
     "changes": "{version} の変更内容を見る",
     "latest": "最新の安定版：{version}",
     "newBadge": "新版",
@@ -1938,7 +1947,10 @@
         "versionChanged": "利用可能なバージョンが変わりました。確認して再試行してください。",
         "failed": "更新に失敗しました。更新サービスのログを確認して再試行してください。"
       }
-    }
+    },
+    "rateLimited": "バージョン確認のリクエスト上限に達しました。後で再試行するか、リリースページをご覧ください。",
+    "timedOut": "バージョン確認がタイムアウトしました。再試行するか、リリースページをご覧ください。",
+    "invalidTags": "バージョン一覧を完全に取得できませんでした。再試行するか、リリースページをご覧ください。"
   },
   "subscriptions": {
     "title": "サブスクリプション",

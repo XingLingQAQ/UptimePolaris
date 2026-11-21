@@ -40,6 +40,7 @@ import type { MaintenanceWindow, SettingSpec, UsageReport } from './types';
 
 /** The groups, in the order the page presents them. / 设置分组，按页面展示顺序排列。 */
 export const SETTING_GROUPS = [
+  'features',
   'presentation',
   'site',
   'monitor',
@@ -56,6 +57,7 @@ export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 /** Each group's marker, shared by the rail and the panel it scrolls to. / 各分组的标记，由导航栏及目标面板共用。 */
 const GROUP_ICON: Record<SettingGroup, { icon: LucideIcon; hue: Hue }> = {
+  features: { icon: Server, hue: 'cyan' },
   presentation: { icon: Globe, hue: 'primary' },
   site: { icon: Globe, hue: 'primary' },
   monitor: { icon: Activity, hue: 'cyan' },
@@ -83,6 +85,7 @@ const READ_ONLY_GROUPS: readonly SettingGroup[] = ['presentation', 'system', 'op
  * `settings.ts` 注册表负责有效性和默认值，不负责布局。
  */
 const GROUP_KEYS: Record<SettingGroup, string[]> = {
+  features: ['features.agentManagement'],
   presentation: [],
   site: ['site.title', 'site.description', 'site.icon', 'site.syncMonitorIcons'],
   monitor: ['monitor.defaultIntervalSec', 'monitor.defaultTimeoutMs', 'monitor.defaultRetries'],
@@ -739,6 +742,7 @@ function SystemFacts({ t }: { t: ReturnType<typeof useTranslations<'admin.settin
  * 相互推导会产生难读的标签，或使存储键无法准确描述其内容。
  */
 const LABELS: Record<string, { label: string; hint?: string }> = {
+  'features.agentManagement': { label: 'agentManagement', hint: 'agentManagementHint' },
   'site.title': { label: 'siteTitle', hint: 'siteTitleHint' },
   'site.description': { label: 'siteDescription', hint: 'siteDescriptionHint' },
   'site.icon': { label: 'siteIcon', hint: 'siteIconHint' },

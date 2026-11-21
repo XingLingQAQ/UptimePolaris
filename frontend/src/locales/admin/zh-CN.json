@@ -629,7 +629,11 @@
     "motionSystem": "跟随系统",
     "motionReduced": "减少动效",
     "motionHint": "立即生效，适用于当前浏览器的管理后台和公开页面。",
-    "motionSessionOnly": "本次访问已生效，但浏览器未能保存此偏好。"
+    "motionSessionOnly": "本次访问已生效，但浏览器未能保存此偏好。",
+    "groupFeatures": "可选功能",
+    "groupFeaturesDesc": "按需开启控制台功能，关闭后保留已有配置。",
+    "agentManagement": "Agent 管理",
+    "agentManagementHint": "开启后显示探针管理入口。此开关不影响已有探针上报、监控检查或机器公开设置。"
   },
   "toast": {
     "saved": "已保存",
@@ -1000,7 +1004,10 @@
     "commandsEmpty": "尚无远程指令记录。",
     "configConflict": "此 Agent 的配置已更改。请加载最新配置后继续。",
     "reloadConfig": "放弃草稿并重新加载",
-    "deleteInUse": "请先删除或更换使用此机器的监控，再删除机器。"
+    "deleteInUse": "请先删除或更换使用此机器的监控，再删除机器。",
+    "featureDisabled": "尚未开启 Agent 管理",
+    "enableFeature": "开启 Agent 管理",
+    "openFeatureSettings": "功能设置"
   },
   "quick": {
     "lastPush": "最近上报",
@@ -1430,7 +1437,9 @@
     "aiDown": "{n} 个 AI 异常",
     "aiUnknown": "{n} 个 AI 状态待确认",
     "aiUp": "{n} 个 AI 正常",
-    "openAi": "打开 AI 监控"
+    "openAi": "打开 AI 监控",
+    "monitorIssues": "{n} 个监控异常",
+    "aiIssues": "{n} 个 AI 异常"
   },
   "kpi": {
     "availabilitySub": "{n} 个运行中监控的平均值",
@@ -1890,7 +1899,7 @@
     "available": "发现新版本 {version}",
     "currentLatest": "已是最新正式版本",
     "noTags": "暂无正式版本标签",
-    "failed": "暂时无法检查更新，请稍后重试。",
+    "failed": "无法读取项目版本，请重试，或打开发布页面查看。",
     "changes": "查看 {version} 更新内容",
     "latest": "最新正式版本：{version}",
     "newBadge": "新版本",
@@ -1938,7 +1947,10 @@
         "versionChanged": "可用版本已变化，请确认版本后重试。",
         "failed": "更新失败，请查看更新服务日志后重试。"
       }
-    }
+    },
+    "rateLimited": "版本查询已达到请求上限，请稍后重试，或打开发布页面查看。",
+    "timedOut": "查询项目版本超时，请重新检查，或打开发布页面查看。",
+    "invalidTags": "未能完整读取项目版本，请重试，或打开发布页面查看。"
   },
   "subscriptions": {
     "title": "订阅",

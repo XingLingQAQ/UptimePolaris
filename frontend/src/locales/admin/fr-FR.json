@@ -629,7 +629,11 @@
     "motionSystem": "Suivre le système",
     "motionReduced": "Animations réduites",
     "motionHint": "S’applique immédiatement à la console et aux pages publiques dans ce navigateur.",
-    "motionSessionOnly": "Appliqué pour cette visite. Le navigateur n’a pas pu enregistrer cette préférence."
+    "motionSessionOnly": "Appliqué pour cette visite. Le navigateur n’a pas pu enregistrer cette préférence.",
+    "groupFeatures": "Fonctions facultatives",
+    "groupFeaturesDesc": "Activez les fonctions nécessaires. Leur désactivation conserve les réglages.",
+    "agentManagement": "Gestion des Agents",
+    "agentManagementHint": "Afficher la gestion des Agents dans la console. Les rapports existants, les vérifications et la visibilité publique restent inchangés."
   },
   "toast": {
     "saved": "Enregistré",
@@ -1000,7 +1004,10 @@
     "commandsEmpty": "Aucune commande à distance pour le moment.",
     "configConflict": "La configuration de cet agent a changé. Rechargez la dernière configuration pour continuer.",
     "reloadConfig": "Abandonner le brouillon et recharger",
-    "deleteInUse": "Supprimez ou modifiez les moniteurs utilisant cette machine avant de la supprimer."
+    "deleteInUse": "Supprimez ou modifiez les moniteurs utilisant cette machine avant de la supprimer.",
+    "featureDisabled": "La gestion des Agents est désactivée",
+    "enableFeature": "Activer la gestion des Agents",
+    "openFeatureSettings": "Réglages des fonctions"
   },
   "quick": {
     "lastPush": "Dernier signal",
@@ -1430,7 +1437,9 @@
     "aiDown": "{n} IA en panne",
     "aiUnknown": "{n} IA en attente de statut",
     "aiUp": "{n} IA disponibles",
-    "openAi": "Ouvrir la supervision IA"
+    "openAi": "Ouvrir la supervision IA",
+    "monitorIssues": "{n} alertes de surveillance",
+    "aiIssues": "{n} alertes IA"
   },
   "kpi": {
     "availabilitySub": "Moyenne de {n, plural, =0 {# moniteurs actifs} one {# moniteur actif} other {# moniteurs actifs}}",
@@ -1890,7 +1899,7 @@
     "available": "Nouvelle version {version}",
     "currentLatest": "La dernière version stable est installée",
     "noTags": "Aucun tag de version stable",
-    "failed": "Impossible de rechercher les mises à jour. Réessayez plus tard.",
+    "failed": "Impossible de lire les versions du projet. Réessayez ou consultez les versions publiées.",
     "changes": "Voir les nouveautés de {version}",
     "latest": "Dernière version stable : {version}",
     "newBadge": "Nouveau",
@@ -1938,7 +1947,10 @@
         "versionChanged": "La version disponible a changé. Vérifiez-la, puis réessayez.",
         "failed": "Échec de la mise à jour. Consultez les journaux du service avant de réessayer."
       }
-    }
+    },
+    "rateLimited": "La limite de requêtes de vérification est atteinte. Réessayez plus tard ou consultez les versions publiées.",
+    "timedOut": "La vérification de version a expiré. Réessayez ou consultez les versions publiées.",
+    "invalidTags": "La liste complète des versions n’a pas pu être lue. Réessayez ou consultez les versions publiées."
   },
   "subscriptions": {
     "title": "Abonnements",

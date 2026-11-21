@@ -69,8 +69,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const overview = useOverview(open);
   const navigation = useNavigation();
+  const agentsEnabled = navigation.some((entry) => entry.href === '/admin/agents');
   const ai = useAiData(open && navigation.some((entry) => entry.href === '/admin/ai'));
-  const fleet = useFleet(open);
+  const fleet = useFleet(open && agentsEnabled);
   const subscriptions = useSWR(open && navigation.some((entry) => entry.href === '/admin/subscriptions') ? 'console:palette-subscriptions' : null, () => subscriptionsApi.all(), { revalidateOnFocus: false, shouldRetryOnError: false });
 
   useEffect(() => {
@@ -95,7 +96,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     });
     const actions: Item[] = [
       { id: 'action:monitor', group: 'actions', label: t('action.add'), icon: <Plus />, hue: 'primary', to: '/admin?new=1' },
-      { id: 'action:enroll', group: 'actions', label: t('agents.enroll'), icon: <KeyRound />, hue: 'cyan', to: '/admin/agents?enroll=1' },
+      ...(agentsEnabled ? [{ id: 'action:enroll', group: 'actions' as const, label: t('agents.enroll'), icon: <KeyRound />, hue: 'cyan' as const, to: '/admin/agents?enroll=1' }] : []),
       ...(navigation.some((entry) => entry.href === '/admin/subscriptions')
         ? [{ id: 'action:subscription', group: 'actions' as const, label: t('subscriptions.add'), icon: <Rss />, hue: 'cyan' as const, to: '/admin/subscriptions/new' }]
         : []),
@@ -128,7 +129,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         ),
       };
     });
-    const agents: Item[] = (fleet.data?.agents ?? []).map((a) => ({
+    const agents: Item[] = (agentsEnabled ? fleet.data?.agents ?? [] : []).map((a) => ({
       id: `agent:${a.id}`,
       group: 'agents',
       label: a.name,
@@ -187,7 +188,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       ...subscribed.filter(match).slice(0, needle ? 6 : 2),
       ...agents.filter(match).slice(0, needle ? 6 : 3),
     ];
-  }, [ai.data, fleet.data, navigation, overview.data, query, subscriptions.data, t]);
+  }, [agentsEnabled, ai.data, fleet.data, navigation, overview.data, query, subscriptions.data, t]);
 
   useEffect(() => {
     setActive((index) => Math.min(index, Math.max(0, items.length - 1)));

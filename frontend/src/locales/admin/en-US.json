@@ -629,7 +629,11 @@
     "motionSystem": "Follow system",
     "motionReduced": "Reduced motion",
     "motionHint": "Applies to this browser across the console and public pages. Changes take effect immediately.",
-    "motionSessionOnly": "Applied for this visit. Your browser could not save the preference."
+    "motionSessionOnly": "Applied for this visit. Your browser could not save the preference.",
+    "groupFeatures": "Optional features",
+    "groupFeaturesDesc": "Enable the console features you need. Disabling keeps their configuration.",
+    "agentManagement": "Agent management",
+    "agentManagementHint": "Show Agent management in the console. Existing Agent reporting, monitor checks and public visibility settings are unchanged."
   },
   "toast": {
     "saved": "Saved",
@@ -1000,7 +1004,10 @@
     "commandsEmpty": "No remote commands yet.",
     "configConflict": "This agent’s configuration changed. Reload the latest configuration to continue.",
     "reloadConfig": "Discard draft and reload",
-    "deleteInUse": "Remove or change monitors using this machine before deleting it."
+    "deleteInUse": "Remove or change monitors using this machine before deleting it.",
+    "featureDisabled": "Agent management is not enabled",
+    "enableFeature": "Enable Agent management",
+    "openFeatureSettings": "Feature settings"
   },
   "quick": {
     "lastPush": "Last heartbeat",
@@ -1430,7 +1437,9 @@
     "aiDown": "{n} AI down",
     "aiUnknown": "{n} AI awaiting status",
     "aiUp": "{n} AI up",
-    "openAi": "Open AI monitoring"
+    "openAi": "Open AI monitoring",
+    "monitorIssues": "{n} monitor issues",
+    "aiIssues": "{n} AI issues"
   },
   "kpi": {
     "availabilitySub": "Mean across {n, plural, one {# active monitor} other {# active monitors}}",
@@ -1890,7 +1899,7 @@
     "available": "New version {version}",
     "currentLatest": "You have the latest stable version",
     "noTags": "No stable version tags yet",
-    "failed": "Could not check for updates. Try again later.",
+    "failed": "Project versions could not be read. Retry or open the releases page.",
     "changes": "View changes in {version}",
     "latest": "Latest stable version: {version}",
     "newBadge": "New",
@@ -1938,7 +1947,10 @@
         "versionChanged": "A different version is now available. Check the version and retry.",
         "failed": "Update failed. Check the updater logs before retrying."
       }
-    }
+    },
+    "rateLimited": "Version checks have reached the request limit. Retry later or open the releases page.",
+    "timedOut": "The version check timed out. Retry or open the releases page.",
+    "invalidTags": "The complete version list could not be read. Retry or open the releases page."
   },
   "subscriptions": {
     "title": "Subscriptions",

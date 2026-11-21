@@ -52,6 +52,7 @@ import { AdminPage } from '../layout/AdminPage';
 import { useFleet } from '../useConsoleData';
 import { StatusPill } from '../monitors/MonitorIndicators';
 import { AddAgentPanel } from './AddAgentPanel';
+import { AgentManagementGate } from './AgentManagementGate';
 import { AgentCommandsDialog } from './AgentCommandsDialog';
 import { AgentDetailDialog } from './AgentDetailDialog';
 import { AgentEditDrawer } from './AgentEditDrawer';
@@ -92,6 +93,10 @@ type BatchResultState = { action: BatchCommandAction; rows: BatchResultRow[] };
 
 /** 展示 Agent 清单与状态，协调筛选、批量命令和详情操作。 / Display the Agent fleet and status, coordinating filters, batch commands, and details. */
 export function AgentsPage() {
+  return <AgentManagementGate><AgentFleetPage /></AgentManagementGate>;
+}
+
+function AgentFleetPage() {
   const t = useTranslations('admin.agents');
   const apiErrorMessage = useApiErrorMessage();
   const adminT = useTranslations('admin');

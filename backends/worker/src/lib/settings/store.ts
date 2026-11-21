@@ -56,6 +56,7 @@ function windowList(maxItems: number): (value: unknown) => MaintenanceWindow[] |
 
 /** Setting keys derive from this registry; validators and defaults travel together. / 设置键从此注册表派生，使验证器和默认值保持一致。 */
 export const SPECS = {
+  'features.agentManagement': { default: false, parse: (v: unknown) => (isBool(v) ? v : null) },
   'site.title': { default: PROJECT_NAME, parse: text(120) },
   'site.description': { default: '服务可用性监控', parse: text(300) },
   'site.icon': { default: '/api/public/icon', parse: urlOrPath(2048) },

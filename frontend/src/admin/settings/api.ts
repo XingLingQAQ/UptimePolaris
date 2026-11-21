@@ -1,18 +1,31 @@
 import { requestJson as request } from '../../api/client';
 import type { SettingsResponse, SiteIconInfo, UsageReport } from './types';
+import { mutate } from 'swr';
+
+export const SETTINGS_KEY = '/api/admin/settings';
+
+function refreshSettings() {
+  void mutate(SETTINGS_KEY).catch(() => undefined);
+}
 
 export const settingsApi = {
   /** Observed usage counters and configured plan limits, rather than account quota remaining. / 观测到的使用计数和配置的计划上限，不是账户剩余额度。 */
   usage: () => request<UsageReport>('/api/admin/usage'),
   /** Runtime settings, plus the spec metadata a form needs to render them. / 运行时设置及表单渲染所需的声明元数据。 */
   listSettings: () => request<SettingsResponse>('/api/admin/settings'),
-  updateSettings: (values: Record<string, unknown>) =>
-    request<{ ok: true; values: Record<string, unknown> }>('/api/admin/settings', {
+  updateSettings: async (values: Record<string, unknown>) => {
+    const result = await request<{ ok: true; values: Record<string, unknown> }>(SETTINGS_KEY, {
       method: 'PUT',
       body: JSON.stringify(values),
-    }),
-  resetSetting: (key: string) =>
-    request<{ ok: true; value: unknown }>(`/api/admin/settings/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+    });
+    refreshSettings();
+    return result;
+  },
+  resetSetting: async (key: string) => {
+    const result = await request<{ ok: true; value: unknown }>(`${SETTINGS_KEY}/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    refreshSettings();
+    return result;
+  },
 };
 
 /** Icon uploads send a raw image body and filename header. / 图标上传发送原始图片请求体和文件名请求头。 */

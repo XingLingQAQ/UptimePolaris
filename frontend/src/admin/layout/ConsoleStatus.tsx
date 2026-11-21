@@ -62,6 +62,7 @@ export function ConsoleStatus() {
   const aiRevoked = ai.error instanceof ApiError && [401, 403, 404].includes(ai.error.status);
   const aiModels = aiEnabled && !aiRevoked ? ai.data?.models ?? [] : [];
   const aiCounts = bucketCounts(aiModels, Boolean(ai.error));
+  const hasAiModels = aiCounts.total > 0;
   const aiIssues = aiModels.filter(model => ['down', 'unknown'].includes(aiBucket(model, Boolean(ai.error))))
     .sort((a, b) => Number(aiBucket(b, Boolean(ai.error)) === 'down') - Number(aiBucket(a, Boolean(ai.error)) === 'down') || a.name.localeCompare(b.name));
   const aiLoading = aiEnabled && !ai.data && !ai.error;
@@ -114,8 +115,8 @@ export function ConsoleStatus() {
   const up = counts?.up ?? 0;
   const paused = counts?.paused ?? 0;
   const active = counts ? counts.total - counts.paused : 0;
-  const empty = aiReady && counts !== undefined && counts.total === 0 && aiCounts.total === 0;
-  const inactive = aiReady && counts !== undefined && counts.total + aiCounts.total > 0 && active + aiCounts.total - aiCounts.paused === 0;
+  const empty = aiReady && counts !== undefined && counts.total === 0 && aiCounts.total === 0 && offline.length === 0;
+  const inactive = aiReady && counts !== undefined && counts.total + aiCounts.total > 0 && active + aiCounts.total - aiCounts.paused === 0 && offline.length === 0;
   const loadError = overview.error ?? fleet.error ?? presentation.error ?? (aiEnabled ? ai.error : undefined);
   const activity = useMemo(() => joinEvents(events.data?.events ?? [], monitors), [events.data, monitors]);
   const newestEvent = activity.reduce((max, row) => Math.max(max, row.id), 0);
@@ -140,13 +141,17 @@ export function ConsoleStatus() {
     if (down) segments.push({ key: 'down', dot: DOT.down, text: t('island.down', { n: down }) });
     if (pending) segments.push({ key: 'pending', dot: DOT.pending, text: t('island.pending', { n: pending }) });
     if (warn) segments.push({ key: 'warn', dot: DOT.warn, text: t('island.warn', { n: warn }) });
-    if (offline.length) segments.push({ key: 'offline', dot: DOT.down, text: t('island.offline', { n: offline.length }) });
   }
+  if (offline.length) segments.push({ key: 'offline', dot: DOT.down, text: t('island.offline', { n: offline.length }) });
 
   if (aiCounts.down) segments.push({ key: 'ai-down', dot: DOT.down, text: t('island.aiDown', { n: aiCounts.down }) });
   if (aiCounts.unknown) segments.push({ key: 'ai-unknown', dot: DOT.pending, text: t('island.aiUnknown', { n: aiCounts.unknown }) });
   const capsuleSegments = segments.length > 3
-    ? [{ key: 'issues', dot: DOT[worst], text: `${t('island.issues')} ${down + pending + warn + offline.length}` }, ...segments.filter(segment => segment.key.startsWith('ai-'))]
+    ? [
+        ...(down + pending + warn ? [{ key: 'issues', dot: DOT[down ? 'down' : pending ? 'pending' : 'warn'], text: t('island.monitorIssues', { n: down + pending + warn }) }] : []),
+        ...segments.filter(segment => segment.key === 'offline'),
+        ...(aiIssues.length ? [{ key: 'ai-issues', dot: DOT[aiCounts.down ? 'down' : 'pending'], text: t('island.aiIssues', { n: aiIssues.length }) }] : []),
+      ]
     : segments;
 
   /** The whole state as one sentence, for the capsule's label and the clipboard. / 将整体状态整理成一句话，用于胶囊标签和剪贴板。 */
@@ -157,8 +162,8 @@ export function ConsoleStatus() {
     : inactive ? t('island.inactiveTitle')
     : loadError && segments.length === 0 ? t('island.loadFailed')
     : segments.length === 0
-      ? `${t('island.allClear')} · ${t('island.monitors', { n: active })}${aiEnabled ? ` · ${t('island.aiUp', { n: aiCounts.up })}` : ''}`
-      : `${segments.map((segment) => segment.text).join(' · ')} · ${t('island.up', { n: up })}${aiEnabled ? ` · ${t('island.aiUp', { n: aiCounts.up })}` : ''}`;
+      ? `${t('island.allClear')} · ${t('island.monitors', { n: active })}${hasAiModels && aiCounts.up > 0 ? ` · ${t('island.aiUp', { n: aiCounts.up })}` : ''}`
+      : `${segments.map((segment) => segment.text).join(' · ')} · ${t('island.up', { n: up })}${hasAiModels && aiCounts.up > 0 ? ` · ${t('island.aiUp', { n: aiCounts.up })}` : ''}`;
 
   /**
    * Bounce only when the fleet gets worse.
@@ -330,7 +335,7 @@ export function ConsoleStatus() {
       }
       if (offline.length > 4) lines.push(`… +${offline.length - 4}`);
     }
-    if (aiEnabled) {
+    if (aiIssues.length) {
       lines.push('', t('nav.ai'));
       for (const model of aiIssues.slice(0, 6)) lines.push(`- ${model.channelName} / ${model.name}: ${aiText(aiLiveLabelKey(model.live, Boolean(ai.error)))}`);
     }
@@ -392,8 +397,8 @@ export function ConsoleStatus() {
         {allClear ? <CircleCheck size={13} className="shrink-0 text-emerald-400" /> : <span className={clsx('h-2 w-2 shrink-0 rounded-full', DOT[worst])} />}
         <span className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap">
           {segments.length ? <>
-            {capsuleSegments.map((segment, index) => <span key={segment.key} className="flex items-center gap-1.5">{index > 0 ? <span className={clsx('h-1 w-1 shrink-0 rounded-full', segment.dot)} /> : null}<span className="polaris-num">{segment.text}</span></span>)}
-            {capsuleSegments.length < 3 ? <><span className="h-3 w-px shrink-0 bg-white/15" /><span className="polaris-num text-zinc-400">{t('island.up', { n: up })}{aiEnabled ? ` · ${t('island.aiUp', { n: aiCounts.up })}` : ''}</span></> : null}
+            {capsuleSegments.map((segment, index) => <span key={segment.key} className="flex shrink-0 items-center gap-1.5">{index > 0 ? <span className={clsx('h-1 w-1 shrink-0 rounded-full', segment.dot)} /> : null}<span className="polaris-num">{segment.text}</span></span>)}
+            {capsuleSegments.length < 3 && up + aiCounts.up > 0 ? <><span className="h-3 w-px shrink-0 bg-white/15" /><span className="polaris-num truncate text-zinc-400">{t('island.up', { n: up })}{hasAiModels && aiCounts.up > 0 ? ` · ${t('island.aiUp', { n: aiCounts.up })}` : ''}</span></> : null}
           </> : <span className="truncate">{summaryText}</span>}
         </span>
         {notifications.muted ? <BellOff size={12} className="shrink-0 text-zinc-400" /> : unread ? <span className="polaris-num flex h-5 min-w-5 shrink-0 items-center justify-center gap-1 rounded-full bg-white/12 px-1.5 text-[10.5px]"><Bell size={10} />{unread > 9 ? '9+' : unread}</span> : null}
@@ -452,7 +457,7 @@ export function ConsoleStatus() {
               </div>)}
             </motion.div> : null}
 
-            {aiEnabled ? <motion.div layout="position" variants={contentMotion} className="mx-4 mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-white/[0.07] pt-3 text-[12px]">
+            {hasAiModels ? <motion.div layout="position" variants={contentMotion} className="mx-4 mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-white/[0.07] pt-3 text-[12px]">
               <button type="button" onClick={() => go('/admin/ai')} className="flex items-center gap-1.5 font-medium text-zinc-100 hover:underline"><Bot size={14} />{t('nav.ai')}<ArrowRight size={12} /></button>
               {aiLoading ? <span role="status" className="text-zinc-400">{t('console.statusLoading')}</span> : (['up', 'down', 'unknown', 'paused'] as const).map(bucket => <span key={bucket} className="polaris-num flex items-center gap-1.5 text-zinc-300"><span className={clsx('h-1.5 w-1.5 rounded-full', DOT[bucket === 'unknown' ? 'pending' : bucket === 'paused' ? 'idle' : bucket])} />{t(`ai.bucket.${bucket}`)} {aiCounts[bucket]}</span>)}
             </motion.div> : null}

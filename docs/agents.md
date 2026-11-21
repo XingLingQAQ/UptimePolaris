@@ -20,7 +20,7 @@
 
 ## 安装
 
-1. 登录控制台的 Agent 页面，创建机器条目。
+1. 在“设置 → 可选功能”开启 Agent 管理，再进入 Agent 页面创建机器条目。
 2. 选择平台、安装模式、采样与上报间隔。
 3. 保持“注册全局命令”启用，复制生成的短安装命令。
 4. 在目标机器上，用对应权限的终端执行。
@@ -254,7 +254,7 @@ Agent 启动时通过真实网卡出口发现公网 IP，再按这个 IP 查询�
 
 ### Install and manage
 
-1. Create a machine in the Agent console, select the platform, mode and intervals, and copy the generated command from the production origin.
+1. Enable **Agent management** under **Settings → Optional features**, then create a machine in the Agent console, select the platform, mode and intervals, and copy the generated command from the production origin.
 2. Run it with the permissions required by that mode. Each machine has its own token; keep installation commands and configuration private.
 3. Run `pa status` and confirm the first report in the console. Create a separate Agent-type monitor if online status and resource alerts are needed.
 

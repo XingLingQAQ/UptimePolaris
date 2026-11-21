@@ -629,7 +629,11 @@
     "motionSystem": "Seguir o sistema",
     "motionReduced": "Reduzir animações",
     "motionHint": "Aplicado imediatamente ao painel e às páginas públicas neste navegador.",
-    "motionSessionOnly": "Aplicado nesta visita. O navegador não conseguiu salvar a preferência."
+    "motionSessionOnly": "Aplicado nesta visita. O navegador não conseguiu salvar a preferência.",
+    "groupFeatures": "Recursos opcionais",
+    "groupFeaturesDesc": "Ative os recursos necessários. Desativá-los mantém as configurações.",
+    "agentManagement": "Gerenciamento de Agents",
+    "agentManagementHint": "Mostrar o gerenciamento de Agents no painel. Os relatórios existentes, as verificações e a visibilidade pública não mudam."
   },
   "toast": {
     "saved": "Salvo",
@@ -1000,7 +1004,10 @@
     "commandsEmpty": "Nenhum comando remoto ainda.",
     "configConflict": "A configuração deste agente foi alterada. Carregue a configuração mais recente para continuar.",
     "reloadConfig": "Descartar rascunho e recarregar",
-    "deleteInUse": "Remova ou altere os monitores que usam esta máquina antes de excluí-la."
+    "deleteInUse": "Remova ou altere os monitores que usam esta máquina antes de excluí-la.",
+    "featureDisabled": "O gerenciamento de Agents está desativado",
+    "enableFeature": "Ativar gerenciamento de Agents",
+    "openFeatureSettings": "Configurações de recursos"
   },
   "quick": {
     "lastPush": "Último sinal",
@@ -1430,7 +1437,9 @@
     "aiDown": "{n} IAs indisponíveis",
     "aiUnknown": "{n} IAs aguardando status",
     "aiUp": "{n} IAs disponíveis",
-    "openAi": "Abrir monitoramento de IA"
+    "openAi": "Abrir monitoramento de IA",
+    "monitorIssues": "{n} alertas de monitor",
+    "aiIssues": "{n} alertas de IA"
   },
   "kpi": {
     "availabilitySub": "Média de {n, plural, =0 {# monitores ativos} one {# monitor ativo} other {# monitores ativos}}",
@@ -1890,7 +1899,7 @@
     "available": "Nova versão {version}",
     "currentLatest": "Você tem a versão estável mais recente",
     "noTags": "Ainda não há tags de versões estáveis",
-    "failed": "Não foi possível verificar atualizações. Tente novamente mais tarde.",
+    "failed": "Não foi possível ler as versões do projeto. Tente novamente ou abra a página de versões.",
     "changes": "Ver novidades da versão {version}",
     "latest": "Versão estável mais recente: {version}",
     "newBadge": "Nova",
@@ -1938,7 +1947,10 @@
         "versionChanged": "A versão disponível mudou. Confira a versão e tente novamente.",
         "failed": "A atualização falhou. Consulte os logs do atualizador antes de tentar novamente."
       }
-    }
+    },
+    "rateLimited": "O limite de consultas de versão foi atingido. Tente mais tarde ou abra a página de versões.",
+    "timedOut": "A consulta de versão excedeu o tempo limite. Tente novamente ou abra a página de versões.",
+    "invalidTags": "Não foi possível ler a lista completa de versões. Tente novamente ou abra a página de versões."
   },
   "subscriptions": {
     "title": "Assinaturas",
