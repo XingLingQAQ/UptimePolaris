@@ -12,6 +12,12 @@ import { initializePostgres } from '../db/setup-postgres';
 import { abandonDatabaseClaim, claimDatabase, completedOperation, d1HasUsers, databaseClaimActive, deployedDatabase, discardPendingDatabase, finishDatabaseClaim, markAccountStarted, pendingDatabase, pendingDatabaseUrl, releaseDatabaseClaim, resetAccountStarted, saveDatabaseConfiguration, setupDatabaseOptions } from '../db/setup-control';
 import { visibilityRevisionWrite } from '../public/cache';
 import { MAX_AVATAR_BYTES, readAvatarImage, readAvatarInfo, removeAvatar, validAvatarImage, writeAvatar } from './avatar';
+import {
+  EXTERNAL_LOGOUT_COOKIE,
+  externalLogoutCookie,
+  resolveExternalAuth,
+  verifyCloudflareAccessRequest,
+} from './external';
 import { databaseConfigured, missingSetupRequirements, setupRequirements } from './setup-requirements';
 import { trustedWriteOrigin } from './origin';
 import {
@@ -84,12 +90,48 @@ function dummyHash(env: Env): Promise<string> {
   return dummyHashCache;
 }
 
-/** Read the session cookie and resolve it. / 读取并解析会话 Cookie。 */
-async function currentUser(c: { req: { header: (n: string) => string | undefined }; env: Env }) {
+export interface AuthenticatedPrincipal {
+  id: string;
+  username: string;
+  authProvider: 'local' | 'cloudflare-access';
+}
+
+const externalRequestCache = new WeakMap<Request, Promise<AuthenticatedPrincipal | null>>();
+
+function resolveExternalUserOnce(request: Request, env: Env): Promise<AuthenticatedPrincipal | null> {
+  let pending = externalRequestCache.get(request);
+  if (!pending) {
+    pending = verifyCloudflareAccessRequest(request, env);
+    externalRequestCache.set(request, pending);
+  }
+  return pending;
+}
+
+/** Read the session cookie or verified Cloudflare Access JWT. / 读取会话 Cookie 或通过验签的 Cloudflare Access JWT。 */
+async function currentUser(c: {
+  req: { header: (n: string) => string | undefined; raw?: Request };
+  env: Env;
+}): Promise<{ user: AuthenticatedPrincipal | null; token: string | null }> {
   const cookies = parseCookies(c.req.header('cookie'));
   const token = cookies[SESSION_COOKIE];
-  if (!token) return { user: null, token: null as string | null };
-  return { user: await resolveSession(c.env, token), token };
+  if (token) {
+    const localUser = await resolveSession(c.env, token);
+    if (localUser) {
+      return { user: { ...localUser, authProvider: 'local' }, token };
+    }
+  }
+  if (cookies[EXTERNAL_LOGOUT_COOKIE] === '1') {
+    return { user: null, token: null };
+  }
+  if (!resolveExternalAuth(c.env)) {
+    return { user: null, token: null };
+  }
+  const request = c.req.raw;
+  if (!request) {
+    return { user: null, token: null };
+  }
+  const externalUser = await resolveExternalUserOnce(request, c.env);
+  return { user: externalUser, token: null };
 }
 
 export { currentUser };
@@ -113,6 +155,8 @@ authRoutes.get('/api/auth/session', async (c) => {
   if (!databaseConfigured(c.env)) {
     return c.json({
       authenticated: machine,
+      authentication: machine ? 'bearer' : null,
+      externalAuth: null,
       user: null,
       needsSetup: true,
       setupCredential: installationCredentialSource(c.env),
@@ -123,9 +167,13 @@ authRoutes.get('/api/auth/session', async (c) => {
 
   const needsSetup = await pendingDatabase(c.env) || await isSetupRequired(c.env);
   const { user } = needsSetup ? { user: null } : await currentUser(c);
+  const external = !needsSetup && resolveExternalAuth(c.env) ? { mode: 'cloudflare-access' as const } : null;
+  const authentication = user ? user.authProvider : machine ? 'bearer' : null;
 
   return c.json({
     authenticated: Boolean(user) || machine,
+    authentication,
+    externalAuth: external,
     user: user ? { id: user.id, username: user.username } : null,
     needsSetup,
     /** Name of the setup secret, never its value; suppressed after setup. / 初始化密钥的名称，不返回值；初始化后不再返回。 */
@@ -133,6 +181,16 @@ authRoutes.get('/api/auth/session', async (c) => {
     setupDatabase: needsSetup ? await setupDatabaseOptions(c.env) : null,
     setupRequirements: needsSetup ? setupRequirements(c.env) : null,
   });
+});
+
+authRoutes.post('/api/auth/external', async (c) => {
+  if (!databaseConfigured(c.env)) return c.json({ error: 'not_found' }, 404);
+  if (await pendingDatabase(c.env) || await isSetupRequired(c.env)) return c.json({ error: 'not_found' }, 404);
+  if (!resolveExternalAuth(c.env)) return c.json({ error: 'not_found' }, 404);
+  const externalUser = await verifyCloudflareAccessRequest(c.req.raw, c.env);
+  if (!externalUser) return c.json({ error: 'invalid_credentials' }, 401);
+  c.header('set-cookie', externalLogoutCookie(false, isSecureRequest(c.req.url)));
+  return c.json({ ok: true });
 });
 
 async function setupSelection(env: Env, selection: unknown, allowChange = false) {
@@ -432,7 +490,11 @@ authRoutes.post('/api/auth/logout', async (c) => {
   const token = cookies[SESSION_COOKIE];
   if (token) await deleteSession(c.env, token);
 
-  c.header('set-cookie', clearSessionCookie(isSecureRequest(c.req.url)));
+  const secure = isSecureRequest(c.req.url);
+  c.header('set-cookie', clearSessionCookie(secure));
+  if (resolveExternalAuth(c.env)) {
+    c.header('set-cookie', externalLogoutCookie(true, secure), { append: true });
+  }
   return c.json({ ok: true });
 });
 
@@ -479,6 +541,7 @@ authRoutes.delete('/api/auth/avatar', async (c) => {
 const changeAccount = async (c: Context<{ Bindings: Env }>) => {
   const { user } = await currentUser(c);
   if (!user) return c.json({ error: 'unauthorized' }, 401);
+  if (user.authProvider !== 'local') return c.json({ error: 'external_account_managed' }, 403);
 
   let body: unknown;
   try {

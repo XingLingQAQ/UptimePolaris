@@ -39,6 +39,10 @@ Go 默认读取当前工作目录的 `.env`（示例见 [`backends/go/.env.examp
 | `USAGE_PLAN` | `free`（可选 `paid`） | 用量对比基准，不会自动开通付费计划 |
 | `AUTOMATIC_NOTIFICATIONS_DISABLED` | 未设置 | 设为 `true` 时暂停自动通知（不停止探测） |
 | `UPTIME_DATASET` | `uptime_heartbeats` | 自定义数据集时须与 `UPTIME` 绑定保持一致 |
+| `AUTH_MODE` | `disabled` | 外部认证模式：仅支持 `disabled` 或 `cloudflare-access`（不支持 `trusted-header`） |
+| `AUTH_CF_TEAM_DOMAIN` | 无 | `https://<team>.cloudflareaccess.com`，`cloudflare-access` 必填 |
+| `AUTH_CF_AUDIENCE` | 无 | Cloudflare Access 应用 AUD 标签，`cloudflare-access` 必填 |
+| `AUTH_ALLOWED_IDENTITIES` | 无 | 允许登录的 Access 邮箱白名单（逗号分隔，不区分大小写；留空允许全部通过验签的用户邮箱） |
 
 **密钥提醒**：如果在 `/setup` 页面填写了 PostgreSQL 连接串，系统会用 `ADMIN_TOKEN` 派生密钥加密保存。不要直接轮换 `ADMIN_TOKEN`，否则会导致原加密连接无法读取（目前没有重加密工具）。
 
@@ -131,6 +135,10 @@ Direct Wrangler deploys require Wrangler `>= 4.145.0`.
 | `USAGE_PLAN` | `free` (or `paid`) | Baseline for console usage comparison only |
 | `AUTOMATIC_NOTIFICATIONS_DISABLED` | Unset | Set to `true` to pause automatic alerts without stopping probes |
 | `UPTIME_DATASET` | `uptime_heartbeats` | Must match your bound `UPTIME` dataset name |
+| `AUTH_MODE` | `disabled` | External auth mode: `disabled` or `cloudflare-access` (`trusted-header` is rejected on Worker) |
+| `AUTH_CF_TEAM_DOMAIN` | None | `https://<team>.cloudflareaccess.com` (required for `cloudflare-access`) |
+| `AUTH_CF_AUDIENCE` | None | Cloudflare Access application AUD tag (required for `cloudflare-access`) |
+| `AUTH_ALLOWED_IDENTITIES` | None | Allowed Access emails (comma-separated, case-insensitive; empty allows any verified user email) |
 
 **Key warning**: PostgreSQL URLs entered during `/setup` are encrypted with `ADMIN_TOKEN`. Rotating `ADMIN_TOKEN` directly makes stored connection records unreadable.
 

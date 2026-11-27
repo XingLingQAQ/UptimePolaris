@@ -2,11 +2,13 @@
 
 [English](#english)
 
-Go 后端支持接收反向代理注入的身份请求头，或 Cloudflare Access 签发的 JWT。通过验证的身份直接获得管理员权限。该功能默认关闭，Worker 后端不支持。
+Go 后端支持接收反向代理注入的身份请求头，或 Cloudflare Access 签发的 JWT；Worker 后端仅支持 `cloudflare-access`（不支持 `trusted-header`）。通过验证的身份直接获得管理员权限，该功能默认关闭。
 
-启用前需先通过 `/setup` 创建本地管理员，并保留本地账号或 `POLARIS_ADMIN_TOKEN` 用于应急恢复。外部身份不会与同名本地账号合并，也不能修改本地账号密码。
+启用前需先通过 `/setup` 创建本地管理员，并保留本地账号或 `POLARIS_ADMIN_TOKEN` / `ADMIN_TOKEN` 用于应急恢复。外部身份不会与同名本地账号合并，也不能修改本地账号密码。
 
 ## 环境变量
+
+### Go 后端
 
 在进程环境或 `.env` 中配置后重启 Go 服务（每次仅启用一种模式）：
 
@@ -21,6 +23,17 @@ Go 后端支持接收反向代理注入的身份请求头，或 Cloudflare Acces
 
 - `trusted-header` 区分大小写精确匹配。
 - `cloudflare-access` 按 JWT 邮箱匹配，不区分大小写。
+
+### Worker 后端
+
+Worker 运行在公网边缘，**不支持 `trusted-header`**，仅可配置 `disabled` 或 `cloudflare-access`。在 `wrangler.toml` / `wrangler.jsonc` `[vars]` 或 Cloudflare 控制台环境变量中配置：
+
+| 变量名 | 默认值 | 说明 |
+| --- | --- | --- |
+| `AUTH_MODE` | `disabled` | 可选 `disabled`、`cloudflare-access`（配置 `trusted-header` 或其他值将被拒绝） |
+| `AUTH_CF_TEAM_DOMAIN` | 空 | `https://<team>.cloudflareaccess.com`，`cloudflare-access` 必填 |
+| `AUTH_CF_AUDIENCE` | 空 | Access 应用 AUD 标签，`cloudflare-access` 必填 |
+| `AUTH_ALLOWED_IDENTITIES` | 空 | 允许登录的邮箱白名单（逗号分隔、不区分大小写；留空允许全部通过验签的用户邮箱） |
 
 ## 可信代理模式（Authelia、Authentik 等）
 
@@ -38,11 +51,22 @@ POLARIS_AUTH_ALLOWED_IDENTITIES=alice,bob
 
 ## Cloudflare Access 模式
 
+Go 示例：
+
 ```dotenv
 POLARIS_AUTH_MODE=cloudflare-access
 POLARIS_AUTH_CF_TEAM_DOMAIN=https://your-team.cloudflareaccess.com
 POLARIS_AUTH_CF_AUDIENCE=your-application-aud
 POLARIS_AUTH_ALLOWED_IDENTITIES=owner@example.com,operator@example.com
+```
+
+Worker 示例（`wrangler.toml` `[vars]`）：
+
+```toml
+AUTH_MODE = "cloudflare-access"
+AUTH_CF_TEAM_DOMAIN = "https://your-team.cloudflareaccess.com"
+AUTH_CF_AUDIENCE = "your-application-aud"
+AUTH_ALLOWED_IDENTITIES = "owner@example.com,operator@example.com"
 ```
 
 接入要求：
@@ -52,15 +76,17 @@ POLARIS_AUTH_ALLOWED_IDENTITIES=owner@example.com,operator@example.com
 
 ## 退出与恢复
 
-在 Polaris 点击“退出”仅清除本地会话并暂停自动外部登录，不会注销上游身份提供方；点击登录页“使用外部身份登录”可重新认证。上游故障时可通过本地账号、`POLARIS_ADMIN_TOKEN` 或将 `POLARIS_AUTH_MODE` 设为 `disabled` 重启恢复。
+在 Polaris 点击“退出”仅清除本地会话并暂停自动外部登录，不会注销上游身份提供方；点击登录页“使用外部身份登录”可重新认证。上游故障时可通过本地账号、`POLARIS_ADMIN_TOKEN` / `ADMIN_TOKEN` 或将模式设为 `disabled` 恢复。
 
 ## English
 
-The Go backend supports admin sign-in via trusted reverse-proxy headers or Cloudflare Access JWTs (disabled by default; unsupported on Worker).
+The Go backend supports admin sign-in via trusted reverse-proxy headers or Cloudflare Access JWTs; the Worker backend supports `cloudflare-access` only (`trusted-header` is rejected on Worker). Disabled by default.
 
-Complete `/setup` with a local administrator first and keep that account or `POLARIS_ADMIN_TOKEN` for recovery. External identities stay separate from local accounts and cannot change local passwords.
+Complete `/setup` with a local administrator first and keep that account or `POLARIS_ADMIN_TOKEN` / `ADMIN_TOKEN` for recovery. External identities stay separate from local accounts and cannot change local passwords.
 
 ### Environment variables
+
+#### Go backend
 
 Configure in process env or `.env` and restart Go (enable one mode at a time):
 
@@ -74,6 +100,17 @@ Configure in process env or `.env` and restart Go (enable one mode at a time):
 | `POLARIS_AUTH_ALLOWED_IDENTITIES` | Empty | Allowed identities (comma-separated; empty allows all verified upstream users) |
 
 `trusted-header` matches case-sensitively; `cloudflare-access` matches the signed email claim case-insensitively.
+
+#### Worker backend
+
+Because Workers run on the public edge without a direct proxy IP boundary, **`trusted-header` is unsupported and rejected** on Worker; only `disabled` and `cloudflare-access` are accepted. Configure in `wrangler.toml` / `wrangler.jsonc` `[vars]` or Cloudflare dashboard variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `AUTH_MODE` | `disabled` | `disabled` or `cloudflare-access` (`trusted-header` and unknown values are rejected) |
+| `AUTH_CF_TEAM_DOMAIN` | Empty | `https://<team>.cloudflareaccess.com` (required for `cloudflare-access`) |
+| `AUTH_CF_AUDIENCE` | Empty | Access AUD tag (required for `cloudflare-access`) |
+| `AUTH_ALLOWED_IDENTITIES` | Empty | Allowed email allowlist (comma-separated, case-insensitive; empty allows all verified user emails) |
 
 ### Trusted-header mode (Authelia, Authentik, etc.)
 
@@ -89,6 +126,8 @@ POLARIS_AUTH_ALLOWED_IDENTITIES=alice,bob
 
 ### Cloudflare Access mode
 
+Go:
+
 ```dotenv
 POLARIS_AUTH_MODE=cloudflare-access
 POLARIS_AUTH_CF_TEAM_DOMAIN=https://your-team.cloudflareaccess.com
@@ -96,9 +135,18 @@ POLARIS_AUTH_CF_AUDIENCE=your-application-aud
 POLARIS_AUTH_ALLOWED_IDENTITIES=owner@example.com,operator@example.com
 ```
 
+Worker (`wrangler.toml` `[vars]`):
+
+```toml
+AUTH_MODE = "cloudflare-access"
+AUTH_CF_TEAM_DOMAIN = "https://your-team.cloudflareaccess.com"
+AUTH_CF_AUDIENCE = "your-application-aud"
+AUTH_ALLOWED_IDENTITIES = "owner@example.com,operator@example.com"
+```
+
 - Protect `/admin`, `/login`, and management APIs in Access while keeping Agent, Push, and public routes reachable without interactive login.
 - Polaris validates the RS256 signature and claims in `Cf-Access-Jwt-Assertion` against `/cdn-cgi/access/certs`; email headers alone or service tokens without a user email are rejected.
 
 ### Sign out and recovery
 
-Signing out clears the local session and pauses automatic external sign-in without logging out of your identity provider (click **Continue with external sign-in** on `/login` to resume). Keep local credentials, `POLARIS_ADMIN_TOKEN`, or `POLARIS_AUTH_MODE=disabled` for recovery.
+Signing out clears the local session and pauses automatic external sign-in without logging out of your identity provider (click **Continue with external sign-in** on `/login` to resume). Keep local credentials, `POLARIS_ADMIN_TOKEN` / `ADMIN_TOKEN`, or `disabled` mode for recovery.

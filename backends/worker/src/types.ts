@@ -379,4 +379,12 @@ export interface Env {
   ADMIN_TOKEN: string;
   /** PBKDF2 iteration count as a Worker variable; defaults are defined in auth.ts. / 作为 Worker 变量配置的 PBKDF2 迭代次数；默认值定义在 auth.ts 中。 */
   PBKDF2_ITERATIONS?: string;
+  /** External admin auth mode: 'disabled' (default) or 'cloudflare-access'. / 外部管理员认证模式：'disabled'（默认）或 'cloudflare-access'。 */
+  AUTH_MODE?: string;
+  /** Cloudflare Access team domain (`https://<team>.cloudflareaccess.com`). / Cloudflare Access 团队域名（`https://<team>.cloudflareaccess.com`）。 */
+  AUTH_CF_TEAM_DOMAIN?: string;
+  /** Cloudflare Access application AUD tag. / Cloudflare Access 应用 AUD 标签。 */
+  AUTH_CF_AUDIENCE?: string;
+  /** Comma-separated allowlist of Access emails; empty allows any verified user email. / 逗号分隔的 Access 邮箱白名单；留空允许任意通过验签的用户邮箱。 */
+  AUTH_ALLOWED_IDENTITIES?: string;
 }

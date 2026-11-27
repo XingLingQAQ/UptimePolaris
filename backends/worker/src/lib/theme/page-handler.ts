@@ -96,7 +96,7 @@ export async function handlePageRequest(request: Request, env: Env): Promise<Res
   if (shellPath(url.pathname) && (preview === 'monitor' || preview === 'agent' || preview === 'ai')) {
     const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
     const authorized = Boolean(env.ADMIN_TOKEN && safeEqual(token, env.ADMIN_TOKEN)) ||
-      Boolean((await currentUser({ env, req: { header: (name) => request.headers.get(name) ?? undefined } })).user);
+      Boolean((await currentUser({ env, req: { header: (name) => request.headers.get(name) ?? undefined, raw: request } })).user);
     if (authorized) {
       const response = await builtin(request, env);
       const headers = new Headers(response.headers);

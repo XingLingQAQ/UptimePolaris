@@ -141,6 +141,7 @@ api.use('/api/*', async (c, next) => {
   /** Public paths are explicit; all other API routes pass through the management gate. / 公共路径须显式列出；其他 API 路由均经过管理鉴权。 */
   const STATIC_PUBLIC = new Set([
     '/api/auth/session',
+    '/api/auth/external',
     '/api/auth/login',
     '/api/auth/logout',
     '/api/public/status',
