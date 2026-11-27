@@ -1,205 +1,92 @@
-# 常见问题
+# 常见问题排查
 
-[English](#troubleshooting-guide)
+[English](#english)
 
-先确认你访问的完整 URL（含协议和端口）、对应的后端和数据库。不同部署的数据可能不一样。
+排查前先确认访问的完整 URL、当前后端（Worker 或 Go）以及目标数据库，避免混淆环境。
 
 ## 目录
 
-- [初始化页面无法继续](#初始化页面无法继续)
+- [初始化无法继续](#初始化无法继续)
 - [忘记管理密码](#忘记管理密码)
-- [运行很久仍没有监控数据](#运行很久仍没有监控数据)
-- [Push 地址能打开，为什么没数据](#push-地址能打开为什么没数据)
-- [Agent 没有数据或反复离线](#agent-没有数据或反复离线)
-- [pa 或 polaris-agent 找不到](#pa-或-polaris-agent-找不到)
-- [远程指令被拒绝或一直排队](#远程指令被拒绝或一直排队)
-- [安装脚本返回 HTML 或下载失败](#安装脚本返回-html-或下载失败)
-- [切换域名后机器停报](#切换域名后机器停报)
-- [通知测试成功，故障时没收到](#通知测试成功故障时没收到)
-- [通知语言与选择的不一致](#通知语言与选择的不一致)
-- [页面显示语言键](#页面显示语言键)
-- [主题安装或预览失败](#主题安装或预览失败)
-- [仍无法定位](#仍无法定位)
+- [没有监控数据或 Push 异常](#没有监控数据或-push-异常)
+- [Agent 离线、缺指标或命令异常](#agent-离线缺指标或命令异常)
+- [安装脚本下载失败或换域名后停报](#安装脚本下载失败或换域名后停报)
+- [通知未发送、语言错误或主题异常](#通知未发送语言错误或主题异常)
+- [提交排查信息](#提交排查信息)
 
-## 初始化页面无法继续
+## 初始化无法继续
 
-1. **Worker 部署检查未通过**：初始化页面第一步会列出必需的 `ADMIN_TOKEN`、`UPTIME`、`CONFIG` KV 和可选的 D1、R2 的配置状态：
-   - **KV 未配置**：在 **Settings → Bindings** 中添加 KV 命名空间，变量名填写 `CONFIG`。初始化需要它保存数据库选择和加密连接地址。
-   - **D1 未配置**：不影响进入下一步。第二步默认 PostgreSQL，直接在页面填写连接地址并验证即可。
-   - **初始化密钥未配置**：在 **Settings → Variables and Secrets** 中添加 Secret `ADMIN_TOKEN`。
-   - **Analytics Engine 未配置**：启用 Analytics Engine 后，在 **Settings → Bindings** 中添加数据集，变量名填写 `UPTIME`。
-   - 在 Cloudflare 保存并部署配置后，回到页面点击“重新检查”，必需项全部通过后才能点击“下一步”。检查失败时不会沿用上次的通过结果，已填写的初始化信息会保留。R2 不影响初始化，可稍后添加。
-2. **Go 后端提示未配置密钥**：检查工作目录 `.env` 或进程环境变量中的 `POLARIS_SETUP_KEY`（未设置时回退到 `POLARIS_ADMIN_TOKEN`）。两者均未设置且尚未初始化时，请查看本次进程启动日志中的 `setup_key` 字段。修改后需重启进程。
-3. 请确认输入的是初始化密钥，而不是管理员登录密码或 Agent Token。
-4. 核对所选数据库：Worker 在绑定 D1 时可选 D1 或 PostgreSQL，未绑定 D1 时只有 PostgreSQL；Go 支持 SQLite 或 PostgreSQL。新选 PostgreSQL 需填写连接地址；初始化时保存的连接或部署时配置的 PostgreSQL 连接都可留空复用，页面不会回显原地址。
-5. 已有数据库提示表结构缺失时，请按对应后端执行迁移，不要反复重输凭据。首次初始化仅为空数据库建表，不会接管未知的表结构。
+- **Worker 依赖未通过**：在 Cloudflare 控制台补齐 `CONFIG` KV、`UPTIME` Analytics Engine 和 `ADMIN_TOKEN` Secret 后保存部署，回到 `/setup` 点击“重新检查”。`DB`（D1）和 `THEMES`（R2）不阻断初始化。
+- **Go 缺少初始化密钥**：检查 `.env` 或环境变量 `POLARIS_SETUP_KEY`（回退 `POLARIS_ADMIN_TOKEN`）；两者均未设置时查看最新一次启动日志的 `setup_key` 字段（重启会刷新自动密钥）。
+- **KV 同步延迟**：Worker 第二步点击“验证并继续”提示同步中时，保持页面打开约 1 分钟后重试即可。
+- **初始化中断**：若数据库选项已锁定，使用原管理员用户名和密码继续提交；持有租约的进程崩溃最多 10 分钟后自动释放。
 
-Worker 的第二步负责数据库配置，第三步才创建账号。页面填写的 PostgreSQL 连接加密保存在 `CONFIG` KV 命名空间。无法填写连接时，请在 Worker 的 **Settings → Bindings** 中添加 KV 命名空间，变量名填写 `CONFIG`，保存并部署后重新获取数据库选项。配置已保存但尚未同步时，请保留当前页面，稍候再次点击“验证并继续”。不需要在控制台预设 `DATABASE_URL`。Go 的 `database.json` 优先于启动参数和环境变量，排查时请一并检查，不要公开其中的地址。
-
-`deployment_incomplete`（503）表示 Worker 缺少 `UPTIME` 绑定；`credential_unconfigured`（503）表示当前服务未配置初始化凭据；`invalid_setup_credential`（401）表示输入的凭据不匹配。Go 重启后需使用最新启动日志中的自动生成密钥。初始化完成后请前往 `/login` 登录，初始化接口不会创建第二个账号。
-
-数据库初始化错误按以下方式处理（请勿在日志或截图中暴露含密码的连接地址）：
-
-| 错误码 | 处理方式 |
-| --- | --- |
-| `deployment_incomplete` | 在 Worker 中添加 Analytics Engine 数据集绑定，变量名为 `UPTIME` |
-| `invalid_database_type` | 重新加载页面，选择当前后端提供的数据库类型 |
-| `invalid_database_url` | 检查 PostgreSQL 连接地址格式（如 `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`），确认包含用户名、密码和数据库名，密码特殊字符已做 URL 编码，且查询参数仅含支持的 `sslmode` |
-| `database_connection_failed` | 检查连接地址、数据库访问权限、网络和证书后重试 |
-| `database_initialization_failed` | 检查目标数据库的建表权限和已有结构；保留已有数据，不要清空后盲目重试 |
-| `database_configuration_failed` | 检查后端持久配置的读取、写入或解密条件，见[配置参考](configuration.md) |
-| `setup_in_progress` | 等待正在进行的初始化结束，再重新加载会话；不要在多个标签页同时提交 |
-
-Worker 初始化中断后，若页面已锁定数据库类型并显示使用已保存连接，请使用原管理员用户名和密码继续提交。此时目标账号可能已写入，页面会继续完成同一次初始化，不再允许更换数据库。持有租约的进程中断时，最多等待 10 分钟后重试；请勿删除 `pending` 控制记录。
+常见错误码：`deployment_incomplete`（缺 `UPTIME` 绑定）、`invalid_database_url`（核对 PostgreSQL URL 与密码 URL 编码）、`database_connection_failed`（检查网络/防火墙/TLS）、`database_initialization_failed`（检查建表权限与冲突表，切勿清空数据盲试）、`database_configuration_failed`（检查 KV 与 `ADMIN_TOKEN`，见[配置参考](configuration.md)）。
 
 ## 忘记管理密码
 
-账号设置中修改密码需要验证当前密码。若已忘记密码，无法通过设置表单恢复。
-
-手动部署的 Worker D1 环境可使用命令行工具重置：
+- **Worker D1**：先备份数据库，再通过命令行重置（Fork/按钮部署需先在本地配置临时填入 `database_id`；勿在共享终端暴露明文密码）：
 
 ```sh
 npm run user:list -- --remote
 npm run user:create -- --remote --username your-name --password 'a-new-strong-password'
 ```
 
-该工具会为同名用户更新密码并清除登录锁定记录；若用户不存在则创建新账号。工具默认读取 `backends/worker/wrangler.toml`，执行前请确认目标账号与数据库并做好备份。Fork 部署和按钮部署的 `wrangler.jsonc` 不包含 `database_id`，如需使用该工具，请先在本地配置中填入目标 D1 的 `database_id`。命令行中的密码会留在终端历史中，请勿在共享终端或开启命令审计的环境中直接粘贴明文密码。
+- **Worker PostgreSQL / Go**：当前无密码重置命令（`POLARIS_ADMIN_TOKEN` 仅用于 API，不能代替登录密码）。请先保留数据库备份并确认其他可用管理员账号。
 
-这个工具不适用于 Worker PostgreSQL，也不适用于 Go 的 SQLite 或 PostgreSQL。Go 目前没有忘记密码恢复命令；`POLARIS_ADMIN_TOKEN` 是独立的管理凭据，代替不了账号表单要求的旧密码。不要靠清空业务数据库或重复初始化来恢复账号；先保留数据库备份，确认还有哪些管理凭据可用。
+## 没有监控数据或 Push 异常
 
-## 运行很久仍没有监控数据
+- **主动监控无数据**：确认站点 URL、监控已启用、目标与检查来源正确，检查 Worker Cron 或 Go 进程运行日志。图表仅展示监控创建后的数据。
+- **Push 地址能打开但无数据**：浏览器访问发出的是 `GET`（固定返回 `405`）。请改用 `POST` 携带 `Authorization: Bearer <PUSH_TOKEN>` 与 `Content-Type: application/json`，确认返回 `200 {"ok":true}`；频繁超时请核对任务周期与主机时钟。
 
-1. 确认访问的是预期站点和端口。
-2. 看监控是否启用，目标和检查来源有没有保存正确。
-3. 检查 Cron 配置、最近的运行日志、数据库和外部请求错误。
-4. 来源是 Agent 的监控，先确认机器在线、能领取任务并访问目标。
-5. Push 需要被监控端主动发 POST；只等不会有新心跳。
+## Agent 离线、缺指标或命令异常
 
-图表只显示监控创建后采集到的数据。
+在目标主机依次执行 `pa status`、`pa logs -n 200` 和 `pa command status`：
 
-## Push 地址能打开，为什么没数据
+- **离线或反复波动**：确认 `config.json` 中 `endpoint` 可达、`token` 与控制台匹配（无多实例共用或环境变量覆盖）、代理/防火墙放行 WebSocket，且间隔满足 `1 <= sample_interval <= report_interval <= 1800`（默认 60 秒上报约 180 秒超时）。
+- **缺少历史图表（Worker）**：确认绑定了 `UPTIME` 并用包含 `analytics` 的最新配置重部署以提供 `ANALYTICS_SQL`（自定义数据集须同步配置 `UPTIME_DATASET`，切勿新建空数据集）。
+- **指标显示 `—` 或负载偏差**：先确认网卡/挂载点过滤规则与系统权限（不可采集显示 `—`，不会补 `0`；Windows 负载为处理器队列长度，并非 CPU %）。
+- **找不到 `pa`**：重开终端刷新 `PATH`，或使用安装路径下的二进制执行 `polaris-agent command register --scope user --config /path/to/config.json`。
+- **远程指令被拒或排队**：确认后台开启了 **允许远程 Agent 指令**、机器在线并支持对应能力；`restart` 与 `upgrade` 仅限托管安装（Docker 需重建容器；Windows 更新失败日志在程序旁 `polaris-agent.update.log`）。
 
-浏览器打开通常发的是 GET，这个端点返回 405。改用编辑页提供的 POST 示例，在 `Authorization` 请求头中携带上报密钥，状态和说明写在 JSON 请求体中。检查返回 JSON 是否为 `{"ok":true}`，并确认地址与密钥属于同一个监控、同一个部署环境。
+## 安装脚本下载失败或换域名后停报
 
-Push 不做延迟测试。上报后很快超时，就对比实际任务周期和上报期限，再检查时钟、网络和调度状态。
+- **下载返回 HTML 或校验失败**：确认目标主机能直连 `raw.githubusercontent.com` 与 GitHub Releases（未被代理拦截到登录页），并重新从控制台复制完整命令。
+- **换域名后停报**：修改每台主机 `config.json` 中的 `endpoint` 并重启 Agent，确认新域名反代保留 `Host` 且放行 WebSocket。
 
-## Agent 没有数据或反复离线
+## 通知未发送、语言错误或主题异常
 
-在目标机器上依次检查：
+- **测试成功但实际故障不发**：核对渠道启用状态、分组范围（注意删分组导致空范围的规则变化）、维护窗口、`AUTOMATIC_NOTIFICATIONS_DISABLED`（Worker）以及是否满足重试阈值/Agent 持续时间。
+- **通知语言不对**：在对应渠道编辑页单独保存语言（API 更新 `config` 须带完整字段，省略 `language` 默认 `en-US`）。
+- **页面显示原始语言键**：确认前端静态资源与后端版本一致并刷新浏览器缓存。
+- **主题安装或预览失败**：检查 R2 `THEMES` 或 Go `themes/` 写权限，核对根目录 `polaris-theme.json`（≤500 个文件、解压 ≤32 MiB）。预览受隔离窗口限制，应用后在无痕窗口验证。
 
-```sh
-pa status
-pa logs -n 200
-pa command status
-```
+## 提交排查信息
 
-- 服务有没有启动，用的是不是预期的 `config.json`。
-- `endpoint` 是不是机器能访问的长期站点地址，Token 是不是来自这台机器的条目。
-- 域名解析、TLS、代理、防火墙和 WebSocket 是否允许连接。
-- 采样和上报间隔是否满足 `1 <= sample <= report <= 1800`。
-- 是不是有两个实例共用同一个 Token，或者终端环境变量覆盖了文件。
-- 是不是因为网卡、挂载点过滤，期望的指标根本没采。
+整理完整 URL、UTC 时间、监控类型与来源、最后成功时间、HTTP 状态与业务错误码。**共享日志前务必删除 `ADMIN_TOKEN`、Agent Token、Push Token、通知凭据和数据库连接串。**
 
-默认 60 秒上报时，超过约 180 秒没有报告会判失联；阈值会随配置间隔变化。历史曲线缺口和最后快照不是同一个问题，先看最新报告时间。
+## English
 
-Worker 提示历史查询缺少绑定时，确认 `UPTIME` 已绑定，并使用仓库中包含 `analytics` 项的部署配置重新部署，以提供 `ANALYTICS_SQL`。无需配置额外的 API Token。Workers Builds 会自动沿用 `UPTIME` 绑定的数据集名称；手动部署并使用自定义数据集时，将 `UPTIME_DATASET` 设为该名称。不要新建空数据集来替代仍有历史记录的数据集。
+Confirm your exact URL, active backend (Worker or Go), and target database before troubleshooting.
 
-实时数据正常但连接数或负载始终为零时，先更新目标机器上的 Agent，再检查最新上报。采集权限不足或平台无法提供的指标会显示 `—`，不会用零值代替。Windows 负载是平滑后的处理器等待队列，不是 CPU 使用率。
+### Setup and passwords
 
-## `pa` 或 `polaris-agent` 找不到
+- **Worker checks fail**: bind `CONFIG` KV, `UPTIME` Analytics Engine (enable AE first), and `ADMIN_TOKEN`, redeploy, and click **Re-check**. Wait ~1 minute and click **Verify and continue** again if KV propagation is still syncing. Crashed setup leases expire in at most 10 minutes.
+- **Go missing setup key**: check `POLARIS_SETUP_KEY` (`POLARIS_ADMIN_TOKEN` fallback) or read `setup_key` from the latest startup log.
+- **Forgot password**: Worker D1 can reset via `npm run user:list -- --remote` and `npm run user:create -- --remote --username ... --password '...'` (back up first; fork/button repos must temporarily set local `database_id`). Worker PostgreSQL and Go have no password-reset CLI (`POLARIS_ADMIN_TOKEN` is an API token only).
 
-重新打开终端，让 PATH 刷新。用实际二进制路径执行 `command status`；必要时执行 `command register`。命令名被其他程序占用时，注册器会拒绝覆盖，可以换一个目录并明确管理 PATH。
+### Monitors, Push, and Agents
 
-系统安装的服务操作需要相应权限。手动模式或只有开机任务的安装没有完整的服务管理能力，`start` 被拒绝不代表 Agent 二进制坏了。
+- **No monitor data**: confirm monitor enabled state, target, check source, and Cron/Go scheduler logs.
+- **Push URL loads with no data**: browsers send `GET` (`405`). Send `POST` with `Authorization: Bearer <PUSH_TOKEN>` and `Content-Type: application/json`, checking for `200 {"ok":true}`.
+- **Agent offline or missing data**: inspect `pa status`, `pa logs -n 200`, and `pa command status`. Verify `endpoint`, unique `token`, WebSocket/proxy rules, and `1 <= sample_interval <= report_interval <= 1800`. Unavailable metrics show `—` (never `0`). If Worker reports missing history bindings, keep `UPTIME` and redeploy with `analytics` (`ANALYTICS_SQL`).
+- **`pa` missing or remote command rejected**: reopen shell or run `polaris-agent command register --scope user --config ...`; verify `Allow remote Agent commands` and supervised `service_tier: A` (`restart`/`upgrade` fail on manual/Docker installs; check `polaris-agent.update.log` on Windows).
+- **Installer HTML / domain change**: confirm direct host access to `raw.githubusercontent.com` and GitHub Releases; after changing site domains, update `endpoint` in each Agent's `config.json` and restart.
 
-## 远程指令被拒绝或一直排队
+### Notifications, UI, and themes
 
-检查 `security.allowAgentCommands`、Agent 在线状态和声明的能力。`restart`、`upgrade` 还要求 Agent 处于能安全退出并重启的托管等级 A。Docker 不支持就地更新。
+- **Missing alerts**: verify channel state, group scope, maintenance windows, `AUTOMATIC_NOTIFICATIONS_DISABLED` (Worker), and retry/duration thresholds. Edit channel languages per channel (API updates replace the whole `config` object).
+- **Raw translation keys**: ensure frontend and backend come from the same build and hard-refresh.
+- **Theme errors**: check `THEMES` R2 / Go `themes/` permissions and root `polaris-theme.json` (≤500 files, ≤32 MiB unpacked); verify applied themes while signed out.
 
-自动更新开关不可用时，先看开关下面的说明。Windows 需要支持托管更新的 Agent，并使用系统或用户计划任务安装。可以通过控制台的重新安装命令更新程序；手动运行模式没法自动重启。Windows 更新失败时，检查程序旁的 `polaris-agent.update.log`。
-
-入队不代表执行完成，继续看回执和机器日志。托管能力不够时，按控制台提示重新安装 Agent。
-
-## 安装脚本返回 HTML 或下载失败
-
-安装命令直接从 Agent 的 GitHub 仓库下载脚本。下载到 HTML 时，检查目标机器能否访问 `raw.githubusercontent.com`，以及网络代理是否返回了拦截或登录页面。重新复制控制台生成的命令，不要将站点域名当作脚本下载地址。
-
-脚本启动后会从目标机器直接访问 GitHub。提示无法读取发布清单或下载失败时，检查这台机器能否访问 GitHub Release，以及最新稳定版是否包含 `manifest.json` 和对应平台的文件。文件大小或 SHA-256 不匹配时，脚本会停止安装。站点的版本查询失败不会阻止生成安装命令。下载条件见[部署指南](deployment.md#agent-下载)。
-
-## 切换域名后机器停报
-
-网页生成的新命令用新 origin，但已经装好的机器保留旧 `endpoint`。更新目标机器的配置并重启服务，再看新入口的报告时间。代理要保留正确的 Host，并放行 API 和 WebSocket。
-
-## 通知测试成功，故障时没收到
-
-核对渠道是否启用、分组是否匹配、维护窗口是否命中、自动通知是否被禁用，以及监控有没有真的产生新的状态变化。Agent 资源告警还要达到持续时间。
-
-已有失败记录就按提供商错误排查。空分组范围表示全部监控，删除或移动分组后要重新核对。分组与范围见[通知指南](notifications.md)。
-
-## 通知语言与选择的不一致
-
-打开对应渠道的编辑页面，检查并保存渠道自己的消息语言，再发测试消息。切换后台界面语言不会改已保存渠道的语言。通过 API 修改时，确认 `config.language` 和其他渠道配置一起提交；省略语言默认英语。消息里的监控名称、目标和原始检查详情保留原文，不会自动翻译。语言设置见[消息语言](notifications.md#消息语言)。
-
-## 页面显示语言键
-
-确认网页和后端属于同一版本、同一环境，用完整的同版本程序和网页资源，再重新加载页面。
-
-## 主题安装或预览失败
-
-Worker 检查 R2 绑定，Go 检查主题目录是否可写。再检查 ZIP 根目录的 `polaris-theme.json`、入口路径、包大小、文件数量和资源引用。未知清单字段和非法默认值会被拒绝。
-
-预览在隔离窗口里运行，部分外部资源和需要本站权限的行为可能受限。检查主题包是否完整，以及对应版本有没有应用。
-
-## 仍无法定位
-
-记录完整访问地址、发生时间、监控类型、检查来源、最后成功时间、HTTP 状态和业务错误码。提供脱敏日志时，移除管理密钥、机器 Token、Push 上报密钥、通知凭据和数据库 URL，不要直接共享整个密钥文件或数据库导出。
-
-## Troubleshooting guide
-
-This English section summarizes the Chinese guide and links to more detailed procedures where needed.
-
-First identify the complete site URL, backend, and database. Different deployments can contain different data. Before sharing logs, remove credentials, Push reporting keys, notification secrets, and database URLs.
-
-### Setup and accounts
-
-- **Worker deployment check not passed:** the first step lists required `ADMIN_TOKEN`, `UPTIME` and the `CONFIG` KV binding, plus optional D1 and R2.
-  - **KV missing:** under **Settings → Bindings**, add a KV namespace named `CONFIG`; setup stores the database selection and encrypted connection URL there.
-  - **D1 missing:** this does not block setup. The second step defaults to PostgreSQL; enter and verify its connection URL directly on the page.
-  - **Setup key missing:** under **Settings → Variables and Secrets**, add the secret `ADMIN_TOKEN`.
-  - **Analytics Engine missing:** enable Analytics Engine, then add a dataset in **Settings → Bindings** with the binding name `UPTIME`.
-  - Save and deploy the configuration in Cloudflare, then select **Re-check**. All required items must pass before continuing. Failed checks do not reuse an earlier passing result, and form entries are preserved. R2 can be added later.
-- **Go reports no setup key:** check `POLARIS_SETUP_KEY` in the working directory's `.env` or the process environment (falling back to `POLARIS_ADMIN_TOKEN`). If neither is set and the server is uninitialized, use the `setup_key` field in the current startup log. Restart after changing the environment or `.env`. `credential_unconfigured` means no setup credential is available; `invalid_setup_credential` means the supplied value does not match. A restart invalidates the previous automatically generated key.
-- **Database choice:** Worker offers D1 and PostgreSQL when D1 is bound and PostgreSQL only otherwise; Go supports SQLite or PostgreSQL. Enter a PostgreSQL URL when selecting a new connection, for example `postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`. Leave it blank to reuse a saved PostgreSQL connection, whether it came from setup or the deployment configuration; the original URL is never shown. Setup initializes a fresh database, not an unknown existing schema.
-- **Persistent selection:** configure the database in step two; step three creates the account. Worker encrypts page-entered PostgreSQL connections in the `CONFIG` KV namespace. If the URL field is unavailable, bind a KV namespace as `CONFIG` in **Settings → Bindings**, save and deploy, then reload database options. If the saved configuration is still syncing, keep the page open and click “Verify and continue” again later. No deployment `DATABASE_URL` is required. Go's `database.json` takes precedence over flags and environment variables; inspect it securely when diagnosing the active connection.
-
-| Setup error | Action |
-| --- | --- |
-| `deployment_incomplete` | Bind an Analytics Engine dataset as `UPTIME` in the Worker |
-| `invalid_database_type` | Reload and select a database supported by the active backend |
-| `invalid_database_url` | Check the PostgreSQL URL format (`postgresql://user:password@db.example.com:5432/polaris?sslmode=verify-full`), that it includes a username, password and database name, that special characters in the password are percent-encoded, and that the query string contains only a supported `sslmode` |
-| `database_connection_failed` | Check connectivity, access permissions and certificates, then retry |
-| `database_initialization_failed` | Check schema permissions and existing objects; preserve data instead of clearing the target |
-| `database_configuration_failed` | Check persistent configuration access or decryption; see [configuration](configuration.md#english) |
-| `setup_in_progress` | Wait for the active setup to finish, then reload the session; avoid concurrent submissions |
-
-Never include a credential-bearing connection URL in shared logs or screenshots.
-
-If Worker setup was interrupted and the database choice is locked, resubmit the original administrator username and password to resume the same setup. The account may already exist in the selected database. If the lease holder crashed, wait up to 10 minutes before retrying. Do not delete a pending control record.
-
-### Missing checks or Agent data
-
-If Worker reports missing history bindings, keep the `UPTIME` dataset and redeploy with the repository’s `analytics` configuration to provide `ANALYTICS_SQL`; no additional API token is required. Workers Builds selects the bound dataset automatically. For a custom dataset in a manual deployment, set `UPTIME_DATASET` to its name. Preserve the existing dataset rather than replacing it with an empty one. Update the Agent if load or socket counts remain zero; unavailable metrics display `—`, not a fabricated zero. Windows load is a smoothed processor queue length, not CPU usage.
-
-- Confirm the monitor is enabled, the target and check source are correct, and the expected environment is open. Inspect scheduler configuration and recent job errors.
-- Push requires a POST to the monitor's reporting URL with its key in the `Authorization: Bearer` header. Use JSON for status and message; the edit form provides an example. GET returns 405 without recording a heartbeat. Check `ok: true`, the monitor ID, the key, and the reporting deadline.
-- For an Agent, inspect `pa status`, `pa logs -n 200`, and `pa command status`. Check its endpoint, token, connection, reporting interval, permissions, and whether multiple instances share the same token. A domain change does not update installed Agents; update their endpoint and restart them.
-- If `pa` is missing, reopen the terminal or use the installed binary path. `command register` can register the command without overwriting an existing program. Service controls depend on installation mode and permissions.
-- For queued or rejected remote commands, check `security.allowAgentCommands`, connectivity, capabilities, and the service tier. Restart and upgrade need a managed tier A installation; Docker does not support in-place upgrade. Read the receipt and Agent logs.
-- If an installer returns HTML, check the target machine’s access to `raw.githubusercontent.com` and whether a network proxy is returning an interception or login page. Copy the current console command; the script is downloaded from the Agent GitHub repository, not the site. Once started, the script accesses GitHub directly from the target machine. For manifest or download failures, check that machine’s connection to GitHub Release downloads and confirm the latest stable release has `manifest.json` and the platform asset. Size or SHA-256 mismatches stop installation. Backend release lookup failures do not block command generation. See [deployment](deployment.md#agent-downloads).
-
-### Notifications, presentation, and themes
-
-- A successful notification test confirms only that particular delivery. For a missing automatic alert, check channel enablement, group scope, maintenance, automatic notification settings, and whether a new state change occurred. Agent resource rules also require the configured duration.
-- If a message uses the wrong language, edit and save the channel's own language, then send a test. Changing the console language does not update a saved channel. API updates replace `config`, so include the other channel settings as well. Names, targets, and original check details are not translated. See [notification languages](notifications.md#choose-the-message-language).
-- If a page displays translation keys, confirm the frontend and backend versions and environment, and reload the page.
-- For a theme installation or preview failure, check the theme storage, root `polaris-theme.json`, entry paths, archive limits, and declared capabilities. Preview runs in an isolated window, so some external resources and actions requiring site permissions can be restricted.
+Always redact `ADMIN_TOKEN`, Agent tokens, Push tokens, notification credentials, and database URLs before sharing logs.

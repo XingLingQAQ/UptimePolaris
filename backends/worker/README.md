@@ -27,5 +27,5 @@ D1 is available when bound as `DB`; otherwise setup offers PostgreSQL only. The 
 History charts and daily archives use the `ANALYTICS_SQL` binding included in the deployment configuration. No account ID or API Token is needed. Direct Wrangler deployments require version 4.145.0 or later.
 
 - [Configuration](../../docs/configuration.md#english)
-- [Operations](../../docs/operations.md#operations-guide)
-- [Troubleshooting](../../docs/troubleshooting.md#troubleshooting-guide)
+- [Operations](../../docs/operations.md#english)
+- [Troubleshooting](../../docs/troubleshooting.md#english)

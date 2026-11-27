@@ -2,81 +2,60 @@
 
 [English](#english)
 
-本手册覆盖 Uptime Polaris 的部署、使用和运维。命令里的 `https://status.example.com`、`TOKEN`、数据库名和资源 ID 都要替换成自己的值。除非特别说明，npm 命令在仓库根目录执行。
+本手册涵盖 Uptime Polaris 的部署、配置、使用与运维。命令示例中的 `https://status.example.com`、`TOKEN`、数据库名和资源 ID 需替换为实际值；npm 命令默认在仓库根目录执行。
 
-## 阅读路径
+## 文档导航
 
-| 场景 | 建议顺序 |
+| 主题 | 说明 |
 | --- | --- |
-| 第一次运行 | [项目说明](../README.md) → [后端选择](backends.md) → [使用手册](usage.md) |
-| 部署自己的站点 | [后端选择](backends.md) → [Worker 部署](deployment.md)或 [Go 部署](../backends/go/README.md) → [运维指南](operations.md) |
-| 监控服务器 | [Agent 手册](agents.md) → [通知指南](notifications.md) |
-| 监控 AI 渠道和模型 | [AI 模型监控](ai-monitoring.md) |
-| 订阅其他站点的状态 | [公开监控订阅](subscriptions.md) |
-| 接入脚本和定时任务 | [使用手册](usage.md#push-监控) → [API 参考](api.md) |
-| 安装或配置主题 | [主题指南](themes.md) |
-| 页面没有数据或安装失败 | [常见问题](troubleshooting.md) |
+| [选择后端](backends.md) | Worker 与 Go 后端能力对比 |
+| [部署指南](deployment.md) | Cloudflare Worker 部署、域名、PostgreSQL 与迁移 |
+| [Go 后端说明](../backends/go/README.md) | Go 二进制、Docker、后台更新与离线迁移 |
+| [配置参考](configuration.md) | 绑定资源、环境变量与站点设置 |
+| [外部认证](external-auth.md) | Go 后端的反向代理头与 Cloudflare Access 登录 |
+| [使用手册](usage.md) | 监控配置、Push 心跳、分组、公开页与维护模式 |
+| [Agent 手册](agents.md) | `polaris-agent`（`pa`）安装、管理、配置与卸载 |
+| [AI 模型监控](ai-monitoring.md) | 模型渠道、自定义参数、展示页与密钥管理 |
+| [订阅公开监控](subscriptions.md) | 订阅仓库、自定义接口描述与通知 |
+| [通知指南](notifications.md) | 通知渠道、分组范围、维护静默与重试 |
+| [主题指南](themes.md) | 主题包安装、配置、SDK 与预览 |
+| [Worker Queue](queue.md) | Worker 队列分批检查 |
+| [API 参考](api.md) | HTTP 接口、认证、请求字段与错误码 |
+| [运维指南](operations.md) | 调度、升级、备份恢复与凭据轮换 |
+| [常见问题](troubleshooting.md) | 常见故障定位与处理 |
 
-## 文档约定
+## 基础约定
 
-- 以下五种凭据用途不同，不能互换：站点管理与初始化凭据（Worker 的 `ADMIN_TOKEN`、Go 的 `POLARIS_SETUP_KEY` / `POLARIS_ADMIN_TOKEN`）、管理员登录密码、每台机器的 Agent Token、每个 Push 监控的 Push Token、AI 渠道的 API Key。
-- 浏览器登录使用会话 Cookie；管理脚本使用 Bearer Token。
-- 维护窗口和调度表达式按 UTC 解释。
-- Agent 可执行文件是 `polaris-agent`，短命令是 `pa`。
-- 公开状态页允许匿名访问。添加监控前，请确认名称、目标路径和机器信息不含敏感内容。
-
-## 按主题查阅
-
-- [后端选择](backends.md)：Worker 与 Go 的存储、探测能力和启动方式。
-- [部署指南](deployment.md)：Fork 部署、按钮部署、命令行部署、初始化检查与 PostgreSQL。
-- [使用手册](usage.md)：监控配置、检查来源、状态、覆盖率和公开数据。
-- [AI 模型监控](ai-monitoring.md)：渠道、模型、调用费用、通知、公开展示和密钥恢复。
-- [公开监控订阅](subscriptions.md)：官方仓库、自定义接口、更新、历史与通知。
-- [Worker Queue](queue.md)：可选分批检查、连接检测、用量和积压处理。
-- [Agent 手册](agents.md)：安装、服务管理、配置、指令、更新和卸载。
-- [配置参考](configuration.md)：绑定、环境变量和后台设置。
-- [通知指南](notifications.md)：渠道字段、分组范围、维护窗口和投递记录。
-- [主题指南](themes.md)：安装、应用、配置和预览。
-- [API 参考](api.md)：接口、初始化契约、认证和调用示例。
-- [运维指南](operations.md)：备份、恢复、调度、升级、存储和日志。
-- [常见问题](troubleshooting.md)：按故障现象定位与排查。
+- **凭据互不通用**：初始化/管理凭据（Worker 为 `ADMIN_TOKEN`，Go 为 `POLARIS_SETUP_KEY` / `POLARIS_ADMIN_TOKEN`）、管理员密码、Agent Token、Push Token 和 AI 渠道 API Key 各有独立用途。
+- **时区**：维护窗口与调度规则均使用 UTC。
+- **匿名可见性**：公开状态页可匿名访问，勿在监控名、目标路径和机器名中填入敏感信息。
 
 ## English
 
-This manual covers deploying, using, and operating Uptime Polaris. Replace `https://status.example.com`, tokens, database names, and resource IDs in examples with your own values. Unless stated otherwise, run npm commands from the repository root.
+This documentation covers deploying, configuring, using, and operating Uptime Polaris. Replace `https://status.example.com`, tokens, database names, and resource IDs in examples with your own values. Run npm commands from the repository root unless noted otherwise.
 
-### Reading paths
+### Guides
 
-| Task | Start here |
+| Topic | Contents |
 | --- | --- |
-| Run a new installation | [Project overview](../README.md) → [Backend options](backends.md#english) → [Usage](usage.md#usage-guide) |
-| Deploy a site | [Backend options](backends.md#english) → [Worker deployment](deployment.md#english) or [Go deployment](../backends/go/README.md#english) → [Operations](operations.md#operations-guide) |
-| Configure and operate a site | [Configuration](configuration.md#english) → [Operations](operations.md#operations-guide) → [Troubleshooting](troubleshooting.md#troubleshooting-guide) |
-| Monitor servers | [Agent guide](agents.md#agent-guide) → [Notifications](notifications.md#notification-guide) |
-| Monitor AI channels and models | [AI monitoring](ai-monitoring.md#english) |
-| Integrate a script or scheduled task | [Usage: Push monitoring](usage.md#usage-guide) → [API reference](api.md#api-reference) |
-| Install or configure a theme | [Themes](themes.md#english) |
+| [Backend options](backends.md#english) | Worker vs. Go capability comparison |
+| [Deployment](deployment.md#english) | Cloudflare Worker setup, domains, PostgreSQL, and migration |
+| [Go backend](../backends/go/README.md#english) | Binary, Docker, managed updates, and offline migration |
+| [Configuration](configuration.md#english) | Bindings, environment variables, and site settings |
+| [External authentication](external-auth.md#english) | Trusted proxy headers and Cloudflare Access for Go |
+| [Usage](usage.md#english) | Monitors, Push heartbeats, groups, public pages, and maintenance |
+| [Agent](agents.md#english) | Installing, managing, configuring, and removing `polaris-agent` (`pa`) |
+| [AI monitoring](ai-monitoring.md#english) | AI channels, custom payloads, public pages, and key backup |
+| [Subscriptions](subscriptions.md#english) | Official/third-party libraries, custom descriptors, and alerts |
+| [Notifications](notifications.md#english) | Providers, routing scope, maintenance suppression, and retries |
+| [Themes](themes.md#english) | Theme packages, options, SDK, and preview |
+| [Worker Queue](queue.md#english) | Batched checks on Cloudflare Workers |
+| [API reference](api.md#english) | Endpoints, authentication, payloads, and error codes |
+| [Operations](operations.md#english) | Scheduling, upgrades, backups, restores, and key rotation |
+| [Troubleshooting](troubleshooting.md#english) | Diagnosing common issues |
 
 ### Conventions
 
-- These five credential types are not interchangeable: setup/admin credentials, the login password, each machine's Agent Token, Push Tokens, and AI channel API keys.
-- Browser login uses a session cookie; management scripts use a Bearer token.
-- Maintenance windows and schedules use UTC.
-- The Agent executable is `polaris-agent`; its short command is `pa`.
-- Public status pages are anonymous. Before adding a monitor, confirm that its name, target path, and machine details contain nothing sensitive.
-
-### Reference index
-
-- [Backend options](backends.md#english): storage, probes, and deployment for Worker and Go.
-- [Deployment](deployment.md#english): Cloudflare resources, secrets, setup, and PostgreSQL.
-- [Configuration](configuration.md#english): bindings, environment variables, and console settings.
-- [Usage](usage.md#usage-guide): monitors, check sources, status, coverage, and public data.
-- [AI monitoring](ai-monitoring.md#english): channels, models, API charges, alerts, public visibility and key recovery.
-- [Subscriptions](subscriptions.md#english): official library, custom sources, updates, history and alerts.
-- [Worker Queue](queue.md#english): optional batched checks, connection verification, usage and backlog handling.
-- [Agent](agents.md#agent-guide): installation, configuration, and service management.
-- [Notifications](notifications.md#notification-guide): channels, scope, maintenance, and delivery records.
-- [Themes](themes.md#english): installation, application, configuration, and preview.
-- [API](api.md#api-reference): endpoints, authentication, and examples.
-- [Operations](operations.md#operations-guide): backups, recovery, scheduling, and upgrades.
-- [Troubleshooting](troubleshooting.md#troubleshooting-guide): symptoms and diagnosis.
+- **Separate credentials**: setup/admin tokens (`ADMIN_TOKEN` on Worker; `POLARIS_SETUP_KEY` / `POLARIS_ADMIN_TOKEN` on Go), the admin password, Agent tokens, Push tokens, and AI API keys are not interchangeable.
+- **Time zone**: maintenance windows and schedules use UTC.
+- **Public visibility**: public status pages are anonymous; keep secrets out of monitor names, target paths, and host metadata.

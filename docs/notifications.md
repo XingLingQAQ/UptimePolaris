@@ -1,171 +1,81 @@
 # 通知指南
 
-[English](#notification-guide)
+[English](#english)
 
-监控状态变化和 Agent 资源规则会触发通知。先让监控产生正常数据，再添加渠道、发测试消息，确认分组范围对得上。
+监控状态变化、Agent 资源阈值规则和外部订阅异常会触发通知。建议先确认监控已有正常上报，再配置通知渠道并发送测试消息验证。
 
-## 配置流程
+## 配置渠道
 
-1. 登录控制台，打开通知管理，新增渠道。
-2. 选择类型，填写名称和该类型要求的凭据。
-3. 选择消息语言和分组范围。空范围表示全部监控，包括未分组监控。
-4. 保存后发送测试消息，确认目标应用收到消息，语言也正确。
-5. 启用渠道，再用一次真实的监控状态变化验证范围和维护规则。
-
-测试消息会真的发出去。测试成功只说明这一次投递有效，不代表所有分组都能触发，也不代表每台 Agent 都配了资源告警。
-
-## 消息语言
-
-每个渠道单独选择消息语言，支持简体中文、繁体中文（台湾、香港）、英语、日语、韩语、法语、葡萄牙语和俄语。新建渠道默认用当前界面语言；保存后各渠道独立，之后切界面语言不会改已保存的通知语言。
-
-所选语言用于消息标题、状态、字段名称和测试内容，也用于故障、恢复、警告和后续重试。监控名称不翻译。发送前，目标地址会去掉用户信息、查询参数和片段，通常保留主机和路径。检查详情保留能拿到的故障原因，不翻译，并对目标凭据和能识别的凭据内容脱敏。Webhook 的 `text` 用所选语言，`event`、`status`、`transition` 等结构化字段保持固定格式；结构化目标和检查详情也用脱敏后的值。
-
-通过 API 设置时，在渠道的 `config` 里填 `language`，例如 `"language": "zh-CN"`。支持 `en-US`、`zh-CN`、`zh-TW`、`zh-HK`、`ja-JP`、`ko-KR`、`fr-FR`、`pt-BR` 和 `ru-RU`，省略时默认英语。不支持的语言返回 `notification_language_invalid`。更新 `config` 会替换整个配置对象，改语言时要把该渠道的其他配置一起带上。
-
-Telegram 消息包含监控名称、目标、类型、状态变化、建议操作和 UTC 事件时间。事件提供检查详情、响应码或延迟时，也会显示对应内容。首次读数会单独标出。
-
-## 渠道字段
+在 `/admin` 的通知管理中新增渠道，填写名称、类型、凭据、消息语言与分组范围，保存后发送“测试”确认收件，再启用渠道。
 
 | 类型 | 必填配置 | 说明 |
 | --- | --- | --- |
-| Telegram | `bot_token`、`chat_id` | Bot 要有目标会话的发送权限 |
-| 飞书 | `webhook_url` | 使用机器人 HTTPS Webhook |
-| Slack | `webhook_url` | Incoming Webhook URL，不是普通频道名称 |
-| Discord | `webhook_url` | 使用频道 HTTPS Webhook |
-| Webhook | `url` | 发送 JSON；可选 `secret` 作为 Bearer 认证 |
-| Apprise | `url`，以及 `key` 或 `urls` | 有状态模式用已配置的 key；无状态模式提供目标 URL 列表 |
-| Server酱 | `sendkey` | 当前支持 `sctp<数字>t<令牌>` 形式的 key |
+| Telegram | `bot_token`、`chat_id` | Bot 须具备向目标会话发消息权限 |
+| 飞书 | `webhook_url` | 机器人 HTTPS Webhook |
+| Slack | `webhook_url` | Incoming Webhook URL（非频道名） |
+| Discord | `webhook_url` | 频道 HTTPS Webhook |
+| Webhook | `url` | 发送 JSON；可选 `secret` 发送 `Authorization: Bearer <secret>` |
+| Apprise | `url`，加 `key` 或 `urls` | `url` 为 Apprise 服务地址；有状态填 `key`，无状态填目标列表 `urls` |
+| Server酱 | `sendkey` | 格式为 `sctp<数字>t<令牌>` |
 
-HTTP 投递地址必须是合法的 HTTPS URL。Apprise 的 `urls` 是 Apprise 自己的目标协议列表，不是 Worker 去请求的 HTTP 地址；那个地址是 `url`。不要把两个字段混用。
+HTTP 投递目标必须为合法 HTTPS URL；勿把渠道凭据写进公开监控名或维护文案。
 
-Webhook 的 `secret` 非空时，发送 `Authorization: Bearer <secret>`。接收方按自己的需要校验和处理 JSON。发送端会结合提供商的响应判断成功，HTTP 200 但提供商返回业务错误时仍算失败。
+## 消息语言
 
-渠道凭据用于外部服务，不要写在公开名称、维护说明或监控消息里。管理 API 读渠道时可能带出配置，只对可信的管理脚本开放。
+每个渠道单独保存消息语言（新建默认当前界面语言，后续切换后台语言不影响已保存渠道），支持 `en-US`、`zh-CN`、`zh-TW`、`zh-HK`、`ja-JP`、`ko-KR`、`fr-FR`、`pt-BR`、`ru-RU`。
 
-## 分组范围
+标题、状态与字段标签按所选语言生成；监控名与原始错误详情保持原文（URL 中的账号凭据与查询参数会自动脱敏）。Webhook 的 `text` 字段使用所选语言，结构化字段保持固定格式。
 
-普通监控和 AI 渠道有三种通知方式：“使用全局规则”“指定通知渠道”和“关闭通知”。关掉通知时已选的渠道会留着。指定渠道至少要选一项；无效或停用的渠道会被跳过。
+## 分组范围与路由
 
-通知管理只配置发送渠道和全局规则：事件类别、来源及监控分组。具体 AI 渠道的通知策略在 AI 管理配置，具体订阅的通知策略在订阅管理配置。默认只收本地的网站、模型和 Agent 资源事件，要收外部订阅得先把该来源和事件勾上。事件类别或来源为空时，全局规则匹配不到消息。AI 事件和订阅同步没有普通分组，因此不会匹配限定了分组的渠道。
+监控与 AI 渠道支持三种策略：**使用全局规则**、**指定通知渠道**和**关闭通知**。
 
-接收范围预览列出最终会收到的渠道和排除原因，预览本身不发送消息。指定渠道绕过全局范围，但通知开关、渠道状态和维护静默仍然生效。订阅的监控告警和同步告警分开配置，详见[订阅指南](subscriptions.md)。
+- **全局规则**：在通知管理配置允许的事件类别、来源与监控分组（默认仅收本地网站、模型与 Agent 资源事件；接收外部订阅需手动勾选来源）。AI 事件与订阅无普通分组，限定了分组的渠道不会匹配它们。
+- **空分组陷阱**：渠道分组范围为**空**表示匹配全部监控（含未分组）。删除监控分组后，若某渠道关联的分组被删空，它会转为接收全部监控告警，变更分组后务必复核渠道范围。
+- **指定渠道**：绕过全局分组范围，仍受监控开关、渠道启用状态和维护窗口限制。可使用后台“接收范围预览”提前核对（不会发送消息）。
 
-- 范围为空：全部监控，包含未分组条目。
-- 选定分组：只匹配这些分组里的监控。
-- 渠道关闭：不接收正常的自动分发。
+## 维护静默与重试
 
-监控换组后匹配结果会变。删除分组还会删掉渠道上的关联；最后一个关联没了，渠道就变成空范围，反而覆盖全部监控。改完分组要检查渠道配置。
-
-## 维护窗口
-
-维护窗口在站点设置里配置，可以选单次或每周重复。时间都是 UTC，每周窗口的 `day=0` 是星期日，可以跨午夜；单次维护结束后不重复。格式见[配置参考](configuration.md#维护窗口格式)。
-
-在“设置 → 维护”里启用计划维护后，窗口对所有公开展示域名生效。开始前的公告和维护期间的页面内容分开编辑，自动保存，留空用默认文案。窗口开始后，公开展示页跳到当前域名根路径 `/` 的独立维护页面，结束后恢复该域名的展示页面。
-
-手动维护也会压住自动通知。关闭手动维护后，如果还在计划维护窗口内，计划维护继续生效。
-
-维护期间照常检查、上报和记录事件，只暂停自动通知。后台、登录、初始化、API 和 Agent 通信仍可使用。窗口结束时仍异常的监控按当前状态处理，已经恢复的异常不会作为历史告警集中补发。
-
-Worker 还支持部署绑定 `AUTOMATIC_NOTIFICATIONS_DISABLED=true`，它只关闭自动分发，不停止监控。Go 不读这个绑定；Go 要临时停发，就在后台关掉相应渠道，或用站点维护设置压住自动通知。手动测试会真的外发，不受这些自动分发开关影响。
-
-## 投递记录与重试
-
-控制台提供渠道统计和投递记录，能区分发送成功、提供商拒绝、网络超时和重试失败。状态变化先进入持久待发送队列，再尝试投递；同一监控和渠道的事件保持顺序。
-
-失败会按退避规则重试，但有次数和时效上限：失败 8 次或创建超过 7 天的记录不再处理。重试也会写投递记录。通知系统不保证永久保存，也不保证只送达一次；网络故障后的重试可能重复，接收方要能接受重复事件。
-
-看记录时分清监控事件时间和重试发生时间。监控异常但没有投递记录，先查渠道是否启用、分组范围、维护窗口和自动通知开关；已有失败记录，就按提供商的错误排查。
+- **维护静默**：开启手动或计划维护窗口期间自动通知暂停；窗口结束时仍异常的监控按当前状态触发，已恢复的历史事件不集中补发。Worker 另支持 `AUTOMATIC_NOTIFICATIONS_DISABLED=true` 暂停自动通知（Go 不读此变量；测试发送不受影响）。
+- **重试机制**：事件按监控与渠道顺序入队投递，失败按退避策略最多重试 **8 次**或保留 **7 天**。网络重试可能产生重复消息，接收端需容忍重复。
 
 ## 常见排查
 
-| 现象 | 检查方向 |
-| --- | --- |
-| Telegram HTTP 请求完成但没有消息 | Bot Token、chat ID、Bot 会话权限及提供商业务错误 |
-| Webhook 收到请求但响应错误 | 认证头、接收端 JSON 处理、返回状态与超时 |
-| 测试成功，实际告警不发送 | 分组范围、渠道是否启用、维护时间、监控是否确有状态变化 |
-| 修改后仍偶尔收到旧事件 | 查看待发送事件与投递时间，区分重试和新的状态变化 |
-| Agent 资源高但没有通知 | 是否配置并启用规则、是否达到持续时间、是否有连续的新报告 |
+- **测试成功但故障不发**：检查渠道启用状态、分组范围、维护窗口、自动通知开关及是否满足失败确认次数/Agent 持续时间。Worker 日志中 `notify_unmatched` 表示未匹配到渠道，`notify_failed` 表示投递失败。
+- **Telegram / Webhook 无响应**：核对凭据、群组权限、HTTPS 状态与提供商返回错误（HTTP 200 但业务报错仍算失败）。
 
-Worker 日志里 `notify_unmatched` 表示事件没匹配到渠道，`notify_failed` 表示发送失败。排查时不要打印完整渠道配置，里面含外部凭据。
+## English
 
-## Notification guide
+Notifications fire on monitor transitions, Agent resource rules, and subscription issues. Verify healthy checks first, then add a channel, send a test, and check group scope.
 
-Notifications are triggered by monitor state changes and Agent resource rules. Establish monitor reporting first, then configure a channel, send a test and confirm its group scope.
+### Providers and setup
 
-### Set up a channel
+Add channels under `/admin` Notifications, configure language and group scope, run **Test** to verify delivery, then enable the channel.
 
-1. Sign in to the console and add a channel under notification management.
-2. Select the provider and enter its name and required credentials.
-3. Choose the message language and group scope. An empty scope includes all monitors, including ungrouped monitors.
-4. Save the channel and send a test. Confirm that the destination receives it in the selected language.
-5. Enable the channel and check the scope and maintenance rules against an actual monitor state change.
-
-A test sends a real external request. A successful test confirms that delivery attempt, not that every group matches or that every Agent has a resource alert configured. The test API returns delivery success or failure in its `ok` and `error` response fields; HTTP 200 alone does not establish delivery.
-
-### Choose the message language
-
-Each channel has its own message language. A new channel starts with the current interface language. Once saved, the channel's language remains independent of later interface language changes.
-
-The supported values are `en-US`, `zh-CN`, `zh-TW`, `zh-HK`, `ja-JP`, `ko-KR`, `fr-FR`, `pt-BR` and `ru-RU`. The chosen language applies to titles, states, field labels, test messages and subsequent delivery attempts. Monitor names are not translated. Before sending, target addresses have user information, query parameters and fragments removed, while hosts and paths are generally retained. Check details retain available failure reasons without translation, with target credentials and recognizable credential content redacted. Webhook `text` uses the selected language; structured fields such as `event`, `status` and `transition` retain their fixed formats. Structured targets and check details use the redacted values too.
-
-For API requests, set `language` inside the channel's `config`, for example `"language": "zh-CN"`. If omitted, the message language defaults to `en-US`. An unsupported value returns `notification_language_invalid`. Updating `config` replaces the entire object, so include the provider's other configuration fields when changing the language.
-
-### Providers and message content
-
-| Provider | Required configuration | Notes |
+| Provider | Required fields | Notes |
 | --- | --- | --- |
-| Telegram | `bot_token`, `chat_id` | The bot needs permission to send to the destination chat. |
-| Feishu | `webhook_url` | Use the bot's HTTPS webhook. |
-| Slack | `webhook_url` | Use an Incoming Webhook URL, not a channel name. |
-| Discord | `webhook_url` | Use the channel's HTTPS webhook. |
-| Webhook | `url` | Sends JSON; optional `secret` supplies bearer authentication. |
-| Apprise | `url` and either `key` or `urls` | Use a saved key for stateful mode or destination URLs for stateless mode. |
-| ServerChan | `sendkey` | Supports keys in the form `sctp<number>t<token>`. |
+| Telegram | `bot_token`, `chat_id` | Bot must have permission to post in the chat |
+| Feishu | `webhook_url` | Bot HTTPS webhook |
+| Slack | `webhook_url` | Incoming Webhook URL (not channel name) |
+| Discord | `webhook_url` | Channel HTTPS webhook |
+| Webhook | `url` | JSON POST; optional `secret` sends `Authorization: Bearer <secret>` |
+| Apprise | `url` + (`key` or `urls`) | `url` is the Apprise service; use `key` (stateful) or `urls` (stateless) |
+| ServerChan | `sendkey` | `sctp<number>t<token>` format |
 
-HTTP delivery address fields require a valid HTTPS URL. Apprise `urls` is a list of Apprise destination protocols, not the HTTP address used to contact the Apprise service; that address is `url`. A non-empty Webhook `secret` is sent as `Authorization: Bearer <secret>`. Provider responses are checked where applicable, so an HTTP 200 with a provider-reported error can still be a failed delivery.
+HTTP targets require valid HTTPS URLs. Keep channel credentials out of public monitor names and maintenance text.
 
-Telegram messages include the monitor name, target, type and state transition. They also include available check details, response code and latency, followed by a suggested action and UTC event time. A first reading is identified as such.
+### Message language
 
-Channel credentials grant access to external services. Keep them out of public names, maintenance text and monitor messages. Management API responses can contain channel configuration, so restrict access to trusted administrators and automation. Do not print complete channel configurations when troubleshooting.
+Each channel saves its own language (`en-US`, `zh-CN`, `zh-TW`, `zh-HK`, `ja-JP`, `ko-KR`, `fr-FR`, `pt-BR`, `ru-RU`), independent of later UI locale changes. Titles, states, and labels localize; monitor names and raw redacted details stay untranslated. Webhook `text` localizes while structured keys stay fixed.
 
-### Group scope
+### Scope and routing
 
-Monitors and AI channels share three modes: **Use global rules**, **Choose channels**, and **Off**. Turning notifications off keeps the channels you picked. Explicit selection needs at least one channel; invalid or disabled ones are skipped.
+Monitors and AI channels support **Use global rules**, **Choose channels**, and **Off**:
+- Global rules match event type, source (tick **external subscriptions** to receive subscription alerts), and monitor group (AI and subscription events have no group and do not match group-restricted channels).
+- **Empty group list matches all monitors** (including ungrouped). Review channel scopes after deleting monitor groups so channels do not silently expand to all monitors.
+- Explicit channels bypass global scope while still honoring enabled states and maintenance windows. Use recipient preview to verify matching safely.
 
-Notification management configures delivery channels and global rules: event types, sources and monitor groups. Configure a specific AI channel's notification policy in AI management, and a subscription's policy in subscription management. By default global rules take local website, model and Agent-resource events only; tick the source and the events you want to receive external subscriptions. An empty event or source selection matches nothing. AI events and subscription syncs have no monitor group, so a group-restricted channel does not match them.
+### Maintenance and retries
 
-The recipient preview lists the channels that will receive the event and why the others were excluded; previewing sends nothing. Explicit channels skip global scope while notification switches, channel state and maintenance still apply. Subscriptions configure item alerts and sync alerts separately; see the [subscription guide](subscriptions.md#english).
-
-An empty group scope matches all monitors, including ungrouped ones. A non-empty scope matches only monitors in the selected groups. A disabled channel does not receive normal automatic dispatch.
-
-Moving a monitor changes its matching scope. Deleting a group also removes its channel associations. If the last association is deleted, the scope can become empty and the channel can receive alerts for all monitors. Review channel scope after changing groups.
-
-### Maintenance and automatic dispatch
-
-Configure one-time or weekly maintenance windows in site settings. Times are UTC; weekly `day=0` is Sunday and a window can cross midnight. One-time windows do not repeat. See the [configuration reference](configuration.md#maintenance-windows) for the format.
-
-Once scheduled maintenance is enabled, it applies to all public presentation domains. The pre-maintenance announcement and maintenance page content are edited separately and saved automatically; blank content uses defaults. During a window, public presentation pages redirect to the standalone maintenance page at `/` on the current domain. Presentation resumes after the window.
-
-Manual maintenance also suppresses automatic notifications. If a scheduled window is still active when manual maintenance ends, the scheduled window remains effective. Checks, reports and event recording continue during maintenance; the console, sign-in, setup, API and Agent communication remain available. After the window, monitors still in an abnormal state are handled according to their current state. Incidents that have already recovered are not sent as a historical batch.
-
-Worker also accepts the deployment binding `AUTOMATIC_NOTIFICATIONS_DISABLED=true` to stop automatic dispatch without stopping monitors. Go does not read that binding; disable the relevant channels or use site maintenance to suppress automatic notifications. Manual test sends are real external deliveries and are not suppressed by these automatic-dispatch controls.
-
-### Delivery records and retries
-
-The console provides channel statistics and delivery records for successful sends, provider rejection, timeouts and retry failures. State changes enter a persistent outbox before delivery. Events for the same monitor and channel retain their order.
-
-Failed attempts are retried with backoff. Records are no longer processed after 8 failed attempts or 7 days from creation. Retries produce delivery records and can result in duplicate messages after network failures; receivers should tolerate duplicates. The outbox is not permanent storage and does not guarantee exactly-once delivery.
-
-Distinguish the monitor event time from the retry time when reviewing records. If a monitor is abnormal but there is no delivery record, check the channel's enabled state, group scope, maintenance window and automatic-dispatch setting. If a failed record exists, investigate the provider's error.
-
-### Troubleshooting
-
-| Symptom | Check |
-| --- | --- |
-| Telegram request completes but no message arrives | Bot token, chat ID, bot permissions and provider error. |
-| Webhook receives a request but responds with an error | Authorization header, JSON handling, response status and timeout. |
-| Test succeeds but an actual alert is not sent | Group scope, channel state, maintenance and whether the monitor changed state. |
-| An older event arrives after a change | Compare pending events and delivery times to distinguish a retry from a new transition. |
-| Agent resource use is high but no alert arrives | Rule enabled state, duration threshold and consecutive new reports. |
-
-In Worker logs, `notify_unmatched` means an event matched no channel; `notify_failed` means delivery failed. Avoid exposing credentials in diagnostic output.
+- Active maintenance suppresses automatic alerts without replaying recovered events afterward. Worker also supports `AUTOMATIC_NOTIFICATIONS_DISABLED=true` (Go ignores it; manual tests still send).
+- Failed deliveries retry with backoff up to **8 attempts** or **7 days** (at-least-once delivery). Inspect `notify_unmatched` and `notify_failed` in Worker logs when troubleshooting.

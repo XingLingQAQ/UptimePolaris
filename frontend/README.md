@@ -13,7 +13,7 @@
 
 Public pages show availability and machine information selected for publication. The management console is at `/admin`. Create the administrator at `/setup` on first use, then sign in at `/login`.
 
-- [Usage](../docs/usage.md#usage-guide): monitors, groups, machines and public information.
+- [Usage](../docs/usage.md#english): monitors, groups, machines and public information.
 - [Themes](../docs/themes.md#english): installation, preview and settings.
 - [Configuration](../docs/configuration.md#english): site and maintenance settings.
-- [Troubleshooting](../docs/troubleshooting.md#troubleshooting-guide): account, display and connection issues.
+- [Troubleshooting](../docs/troubleshooting.md#english): account, display and connection issues.

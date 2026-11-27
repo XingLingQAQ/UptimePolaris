@@ -259,7 +259,7 @@ The CLI reads `.env` from the current working directory; see [`.env.example`](.e
 
 The executable includes the web interface and requires persistent, writable storage for data and themes. Agent installation uses GitHub downloads. Native ICMP requires raw-socket permission on the host.
 
-For HTTPS, preserve `Host` at the reverse proxy. Enable `--trust-proxy` only if the backend cannot be reached directly by untrusted clients and the proxy reliably sets `X-Forwarded-Proto`. Stop the service before backing up its data directory; also back up PostgreSQL when used. The full configuration is in the table above, and common backup and deployment guidance is in [operations](../../docs/operations.md#operations-guide).
+For HTTPS, preserve `Host` at the reverse proxy. Enable `--trust-proxy` only if the backend cannot be reached directly by untrusted clients and the proxy reliably sets `X-Forwarded-Proto`. Stop the service before backing up its data directory; also back up PostgreSQL when used. The full configuration is in the table above, and common backup and deployment guidance is in [operations](../../docs/operations.md#english).
 
 For login rate limits behind a proxy, set `POLARIS_TRUSTED_PROXIES` to comma-separated proxy CIDRs, such as `127.0.0.1/32,::1/128` for a local proxy. The proxy must replace or correctly append `X-Forwarded-For`. The service walks the chain from right to left, stopping at the first untrusted address. Direct requests from unlisted peers cannot override their client IP. For containers, specify the actual proxy address range; avoid trusting the entire public network.
 
