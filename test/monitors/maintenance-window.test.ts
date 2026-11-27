@@ -177,6 +177,14 @@ check('remote agent commands default to off', () => {
   assert.equal(SPECS['security.allowAgentCommands'].default, false);
 });
 
+check('public agent hardware details default to off and reject string coercion', () => {
+  assert.equal(SPECS['site.showPublicAgentHardware'].default, false);
+  assert.equal(SPECS['site.showPublicAgentHardware'].parse('false'), null);
+  assert.equal(SPECS['site.showPublicAgentHardware'].parse('true'), null);
+  assert.equal(SPECS['site.showPublicAgentHardware'].parse(false), false);
+  assert.equal(SPECS['site.showPublicAgentHardware'].parse(true), true);
+});
+
 check('an empty site title is rejected', () => {
   assert.equal(SPECS['site.title'].parse(''), null);
   assert.equal(SPECS['site.title'].parse('   '), null);

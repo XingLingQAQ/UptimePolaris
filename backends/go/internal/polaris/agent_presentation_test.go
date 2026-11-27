@@ -96,3 +96,45 @@ func TestAgentPublicHistoryDisabledAndPaused(t *testing.T) {
 		t.Fatal("disabled Agent appeared online", result)
 	}
 }
+
+func TestPublicAgentHardwareSettingRedaction(t *testing.T) {
+	s := newTestServer(t)
+	ctx := context.Background()
+	now := time.Now().Unix()
+	fixtures := map[string]Object{
+		"agent":   {"id": "hw", "name": "hw", "active": true, "is_public": true},
+		"machine": {"reported_at": now, "report_interval_secs": 60, "cpu_usage": 15, "interfaces_json": `[{"name":"tailscale0"}]`, "mounts_json": `[{"name":"/srv"}]`},
+		"monitor": {"id": "hw", "num_id": 77, "type": "agent", "agent_id": "hw", "name": "hw", "is_public": true, "active": 1},
+	}
+	for kind, row := range fixtures {
+		if err := s.app.store.put(ctx, kind, "hw", row); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Default off: omitted for both anonymous and authenticated requests.
+	for _, authed := range []bool{false, true} {
+		code, result := s.request(t, "GET", "/api/public/agent/detail/77", nil, authed)
+		expectStatus(t, code, 200, result)
+		live := object(result["live"])
+		if _, ok := live["interfaces_json"]; ok {
+			t.Fatalf("interfaces_json leaked when setting disabled (authed=%v): %v", authed, live)
+		}
+		if _, ok := live["mounts_json"]; ok {
+			t.Fatalf("mounts_json leaked when setting disabled (authed=%v): %v", authed, live)
+		}
+	}
+
+	code, updated := s.request(t, "PUT", "/api/admin/settings", Object{"site.showPublicAgentHardware": true}, true)
+	expectStatus(t, code, 200, updated)
+	if object(updated["values"])["site.showPublicAgentHardware"] != true {
+		t.Fatal("setting did not persist", updated)
+	}
+
+	code, result := s.request(t, "GET", "/api/public/agent/detail/77", nil, false)
+	expectStatus(t, code, 200, result)
+	live := object(result["live"])
+	if str(live, "interfaces_json") != `[{"name":"tailscale0"}]` || str(live, "mounts_json") != `[{"name":"/srv"}]` {
+		t.Fatalf("expected hardware fields when setting enabled, got: %v", live)
+	}
+}

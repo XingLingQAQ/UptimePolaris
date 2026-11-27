@@ -594,6 +594,8 @@
     "usageNoTicks": "{day} · 今日尚无调度记录",
     "syncMonitorIcons": "自动同步网站图标",
     "syncMonitorIconsHint": "默认关闭。开启后 Worker 会去各监控站点抓取图标并经缓存代理提供；抓不到的站点仍显示默认图标。",
+    "showPublicAgentHardware": "公开展示 Agent 网卡与挂载点详情",
+    "showPublicAgentHardwareHint": "默认关闭。开启后公开 Agent 详情页会展示网卡名（如 tailscale0、docker0）和磁盘挂载路径，仅建议私有或受访问控制保护的实例启用。",
     "loadFailed": "无法加载设置，请重试。",
     "resetFailed": "无法恢复此项的默认值，请重试。",
     "eventsLoadFailed": "无法加载状态变化记录，请重试。",

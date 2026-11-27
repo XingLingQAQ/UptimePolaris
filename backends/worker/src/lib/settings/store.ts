@@ -90,6 +90,9 @@ export const SPECS = {
 
   /** Fetch monitored sites' favicons; default off because it makes outbound calls to arbitrary hosts. / 抓取被监控站点图标，默认关闭，因为它会访问任意主机。 */
   'site.syncMonitorIcons': { default: false, parse: (v) => (isBool(v) ? v : null) },
+
+  /** Expose Agent NIC names and mount paths on the public detail endpoint; default off to avoid leaking host topology. / 在公开 Agent 详情接口返回网卡名和挂载点路径；默认关闭，避免暴露主机拓扑。 */
+  'site.showPublicAgentHardware': { default: false, parse: (v) => (isBool(v) ? v : null) },
 } as const satisfies Record<string, SettingSpec<unknown>>;
 
 export type SettingKey = keyof typeof SPECS;

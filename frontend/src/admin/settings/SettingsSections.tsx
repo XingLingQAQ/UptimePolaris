@@ -85,7 +85,7 @@ const READ_ONLY_GROUPS: readonly SettingGroup[] = ['presentation', 'system', 'op
  */
 const GROUP_KEYS: Record<SettingGroup, string[]> = {
   presentation: [],
-  site: ['site.title', 'site.description', 'site.icon', 'site.syncMonitorIcons'],
+  site: ['site.title', 'site.description', 'site.icon', 'site.syncMonitorIcons', 'site.showPublicAgentHardware'],
   monitor: ['monitor.defaultIntervalSec', 'monitor.defaultTimeoutMs', 'monitor.defaultRetries'],
   retention: ['retention.availabilityDays', 'retention.detailDays', 'retention.eventDays'],
   maintenance: ['maintenance.enabled','maintenance.scheduleEnabled','alerts.maintenanceWindows','maintenance.announcementTitle','maintenance.announcementDescription','maintenance.title','maintenance.description'],
@@ -744,6 +744,7 @@ const LABELS: Record<string, { label: string; hint?: string }> = {
   'site.description': { label: 'siteDescription', hint: 'siteDescriptionHint' },
   'site.icon': { label: 'siteIcon', hint: 'siteIconHint' },
   'site.syncMonitorIcons': { label: 'syncMonitorIcons', hint: 'syncMonitorIconsHint' },
+  'site.showPublicAgentHardware': { label: 'showPublicAgentHardware', hint: 'showPublicAgentHardwareHint' },
   'monitor.defaultIntervalSec': { label: 'defaultInterval', hint: 'defaultIntervalHint' },
   'monitor.defaultTimeoutMs': { label: 'defaultTimeout', hint: 'defaultTimeoutHint' },
   'monitor.defaultRetries': { label: 'defaultRetries', hint: 'defaultRetriesHint' },

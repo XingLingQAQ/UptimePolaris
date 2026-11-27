@@ -594,6 +594,8 @@
     "usageNoTicks": "{day} · no ticks recorded yet",
     "syncMonitorIcons": "Fetch each site’s own favicon",
     "syncMonitorIconsHint": "Off by default. When on, the Worker fetches the icon from every monitored site and serves it through a cached proxy. Sites without one keep the generic mark.",
+    "showPublicAgentHardware": "Show Agent network interfaces and disk mounts publicly",
+    "showPublicAgentHardwareHint": "Off by default. When on, public Agent detail pages display interface names (such as tailscale0 or docker0) and mount paths. Enable only on private or access-controlled instances.",
     "loadFailed": "Could not load settings. Try again.",
     "resetFailed": "Could not reset this setting. Try again.",
     "eventsLoadFailed": "Could not load status changes. Try again.",

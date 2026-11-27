@@ -39,25 +39,42 @@ const data = {
   online: true, staleAfterSec: 180, now: Math.floor(Date.now() / 1000),
   live: { reported_at: Math.floor(Date.now() / 1000), cpu_usage: null }, buckets: [],
 };
-let state = { data, isLoading: false };
+let state = { data, isLoading: false, isValidating: false };
 let pageId = 'default';
 let requestKey;
+let swrOptions;
+let capturedCharts = [];
+const stateSlots = [];
+let stateIndex = 0;
 const location = new URL('https://status.example/monitor/1');
 const empty = () => null;
 const AgentDetailContent = compile('AgentDetailContent.tsx', 'AgentDetailContent', {
   ApiError, PercentGauge, clsx,
-  useSWR: key => { requestKey = key; return state; },
+  useSWR: (key, _fetcher, opts) => { requestKey = key; swrOptions = opts; return state; },
   usePageConfig: () => ({ pageId }),
   publicApiUrl: (path, pageId) => publicApiUrl(path, pageId, location),
   useTranslations: () => key => key,
-  useEffect: () => {}, useMemo: fn => fn(), useState: fn => [fn(), () => {}],
+  useEffect: () => {},
+  useMemo: fn => fn(),
+  useCallback: fn => fn,
+  useState: init => {
+    const idx = stateIndex++;
+    if (!(idx in stateSlots)) stateSlots[idx] = typeof init === 'function' ? init() : init;
+    return [stateSlots[idx], next => { stateSlots[idx] = typeof next === 'function' ? next(stateSlots[idx]) : next; }];
+  },
   requestJson: empty, isRetryableApiError: empty,
-  HistoryNotice: empty, TimeSeriesChart: empty, AvailabilityRail: empty,
+  HistoryNotice: empty,
+  TimeSeriesChart: props => { capturedCharts.push(props); return null; },
+  AvailabilityRail: empty,
   Card: 'section', CardBody: 'div', CardHeader: 'header',
   Chip: ({ children, className }) => React.createElement('span', { className }, children),
   ...Object.fromEntries(['Activity', 'AlertTriangle', 'Check', 'Clock', 'Cpu', 'HardDrive', 'Layers', 'MemoryStick', 'RefreshCw'].map(key => [key, empty])),
 });
-const render = () => renderToStaticMarkup(React.createElement(AgentDetailContent, { numId: 1 }));
+const render = () => {
+  stateIndex = 0;
+  capturedCharts = [];
+  return renderToStaticMarkup(React.createElement(AgentDetailContent, { numId: 1 }));
+};
 render();
 const defaultKey = requestKey;
 assert.equal(new URL(requestKey, location).searchParams.get('pageId'), 'default');
@@ -101,3 +118,103 @@ for (const status of [401, 403, 404]) {
   assert.doesNotMatch(render(), /Private fixture name/);
 }
 console.log('PASS public Agent gauges, disabled/fresh/stale states and revoked visibility');
+
+state = { data, isLoading: false, isValidating: false };
+const alignedNow = Math.floor(Date.now() / 60_000) * 60;
+data.now = alignedNow;
+data.buckets = [
+  {
+    bucket_ts: alignedNow - 120,
+    cpu_avg: 42.5,
+    mem_pct_avg: 61,
+    load_1_avg: 1.25,
+    net_up_bytes: 1200,
+    net_down_bytes: 2400,
+    network_duration_sec: 60,
+    quality: 'aggregate',
+  },
+  {
+    bucket_ts: alignedNow - 60,
+    cpu_avg: 88,
+    mem_pct_avg: 70,
+    load_1_avg: 2.5,
+    net_up_bytes: 600,
+    net_down_bytes: 600,
+    network_duration_sec: 60,
+    quality: 'other',
+  },
+];
+const initialHtml = render();
+assert.equal(swrOptions.keepPreviousData, true);
+assert.match(initialHtml, /role="group" aria-label="detail\.performanceRange"/);
+assert.match(initialHtml, /aria-pressed="true"[^>]*>detail\.range1h</);
+assert.match(initialHtml, /aria-pressed="false"[^>]*>detail\.range6h</);
+assert.match(initialHtml, /aria-pressed="false"[^>]*>detail\.range24h</);
+assert.equal(new URL(requestKey, location).searchParams.get('minutes'), '60');
+assert.equal(capturedCharts.length, 4);
+assert.equal(capturedCharts[0].data.length, 60);
+assert.equal(capturedCharts[0].data[57].value, 42.5);
+assert.equal(capturedCharts[0].data[58].value, null);
+assert.equal(capturedCharts[0].data[59].value, null);
+
+stateSlots[0] = 360;
+const html6h = render();
+assert.equal(new URL(requestKey, location).searchParams.get('minutes'), '360');
+assert.match(html6h, /aria-pressed="true"[^>]*>detail\.range6h</);
+assert.equal(capturedCharts[0].data.length, 360);
+assert.equal(capturedCharts[0].data[357].value, 42.5);
+assert.equal(capturedCharts[0].data[358].value, null);
+assert.equal(capturedCharts[0].data[359].value, null);
+
+stateSlots[0] = 1440;
+const html24h = render();
+assert.equal(new URL(requestKey, location).searchParams.get('minutes'), '1440');
+assert.match(html24h, /aria-pressed="true"[^>]*>detail\.range24h</);
+assert.equal(capturedCharts[0].data.length, 1440);
+assert.equal(capturedCharts[0].data[1437].value, 42.5);
+assert.equal(capturedCharts[0].data[1438].value, null);
+assert.equal(capturedCharts[0].data[1439].value, null);
+assert.equal(capturedCharts[2].data[1437].value, 60);
+assert.equal(capturedCharts[2].data[1438].value, null);
+console.log('PASS public Agent detail range switcher (1h / 6h / 24h) and dynamic timeline gaps');
+
+assert.doesNotMatch(initialHtml, /detail\.interfaces/);
+assert.doesNotMatch(initialHtml, /detail\.disks/);
+
+data.live = {
+  ...data.live,
+  interfaces_json: JSON.stringify([
+    { name: 'eth0', up_rate: 1024, down_rate: 2048, total_up_bytes: 4096, total_down_bytes: 8192 },
+  ]),
+  mounts_json: null,
+};
+const bothFieldsHtml = render();
+assert.match(bothFieldsHtml, /lg:grid-cols-2/);
+assert.match(bothFieldsHtml, /detail\.interfaces/);
+assert.match(bothFieldsHtml, />eth0</);
+assert.match(bothFieldsHtml, /detail\.disks/);
+assert.match(bothFieldsHtml, /detail\.noMounts/);
+
+data.live = {
+  reported_at: data.live.reported_at,
+  cpu_usage: null,
+  mounts_json: JSON.stringify([
+    { name: '/data', total_bytes: 1000, used_bytes: 500, free_bytes: 500, used_percent: 50 },
+  ]),
+};
+const mountsOnlyHtml = render();
+assert.doesNotMatch(mountsOnlyHtml, /detail\.interfaces/);
+assert.doesNotMatch(mountsOnlyHtml, /lg:grid-cols-2/);
+assert.match(mountsOnlyHtml, /detail\.disks/);
+assert.match(mountsOnlyHtml, />\/data</);
+console.log('PASS public Agent detail hardware card visibility (redacted vs empty vs populated)');
+
+state = { data, isLoading: true, isValidating: true };
+const rangeSwitchingHtml = render();
+assert.match(rangeSwitchingHtml, /Private fixture name/);
+assert.match(rangeSwitchingHtml, /opacity-60/);
+state = { data: undefined, isLoading: true, isValidating: true };
+const initialLoadingHtml = render();
+assert.doesNotMatch(initialLoadingHtml, /Private fixture name/);
+assert.match(initialLoadingHtml, /bg-default-100/);
+console.log('PASS public Agent detail keeps page mounted while switching range');

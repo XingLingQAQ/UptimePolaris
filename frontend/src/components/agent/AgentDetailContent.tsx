@@ -18,7 +18,7 @@ import {
   MemoryStick,
   RefreshCw,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { useTranslations } from 'use-intl';
 import { AvailabilityRail } from '../monitor/AvailabilityRail';
@@ -76,9 +76,9 @@ interface MachineLive {
   virtualization: string | null;
 
   transport: string | null;
-  /** Serialized interface and mount snapshots; null means no detail was supplied. / 序列化的网络接口和挂载点快照；null 表示未提供详情。 */
-  interfaces_json: string | null;
-  mounts_json: string | null;
+  /** Serialized interface and mount snapshots; omitted when redacted, null when no detail was supplied. / 序列化的网络接口和挂载点快照；脱敏时省略，null 表示未提供详情。 */
+  interfaces_json?: string | null;
+  mounts_json?: string | null;
   reported_at: number | null;
   updated_at: number;
 }
@@ -140,6 +140,15 @@ interface AgentDetailResponse {
   /** Per-day availability rows for the 90-day rail. / 90 天栏使用的每日可用率。 */
   availability?: Array<{ d: string; t: number; u: number; w: number; avg: number }>;
 }
+
+const RANGE_OPTIONS = [60, 360, 1440] as const;
+type RangeMinutes = (typeof RANGE_OPTIONS)[number];
+
+const RANGE_KEYS: Record<RangeMinutes, string> = {
+  60: 'detail.range1h',
+  360: 'detail.range6h',
+  1440: 'detail.range24h',
+};
 
 const fetcher = (url: string) => requestJson<AgentDetailResponse>(url);
 
@@ -282,10 +291,11 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
   // Top-level catalog: `detail.*` is not under the admin namespace. / 顶层词表：`detail.*` 不在 admin 命名空间。
   const t = useTranslations();
   const { pageId } = usePageConfig();
-  const { data: cachedData, error, isLoading, mutate } = useSWR<AgentDetailResponse>(
-    publicApiUrl(`/api/public/agent/detail/${numId}?minutes=60`, pageId),
+  const [minutes, setMinutes] = useState<RangeMinutes>(60);
+  const { data: cachedData, error, isLoading, isValidating, mutate } = useSWR<AgentDetailResponse>(
+    publicApiUrl(`/api/public/agent/detail/${numId}?minutes=${minutes}`, pageId),
     fetcher,
-    { refreshInterval: 15_000, revalidateOnFocus: false, dedupingInterval: 5_000, shouldRetryOnError: isRetryableApiError, errorRetryCount: 2 },
+    { refreshInterval: 15_000, revalidateOnFocus: false, dedupingInterval: 5_000, keepPreviousData: true, shouldRetryOnError: isRetryableApiError, errorRetryCount: 2 },
   );
 
   /** Tick the relative time locally; no refetch needed. / 本地刷新相对时间；无需重新请求。 */
@@ -317,8 +327,8 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
     const buckets = data?.buckets ?? [];
     const now = data?.now ?? Math.floor(Date.now() / 1000);
     const rows = new Map(buckets.map((b) => [b.bucket_ts, b]));
-    const start = Math.floor((now - 59 * 60) / 60) * 60;
-    const timeline = Array.from({ length: 60 }, (_, i) => rows.get(start + i * 60));
+    const start = Math.floor((now - (minutes - 1) * 60) / 60) * 60;
+    const timeline = Array.from({ length: minutes }, (_, i) => rows.get(start + i * 60));
     const cpu = timeline.map((b, i) => ({ ts: start + i * 60, value: b?.quality === 'aggregate' ? b.cpu_avg : null }));
     const mem = timeline.map((b, i) => ({ ts: start + i * 60, value: b?.quality === 'aggregate' ? b.mem_pct_avg : null }));
     const load = timeline.map((b, i) => ({ ts: start + i * 60, value: b?.quality === 'aggregate' ? b.load_1_avg : null }));
@@ -329,15 +339,25 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
         : null,
     }));
     return { cpu, mem, load, net };
-  }, [data?.buckets, data?.now]);
+  }, [data?.buckets, data?.now, minutes]);
 
+  const formatPercentTooltip = useCallback((v: number) => `${v.toFixed(1)}%`, []);
+  const formatNetworkTooltip = useCallback((v: number) => formatRate(v), []);
+  const formatNetworkAxis = useCallback((v: number) => formatBytes(v), []);
+  const formatLoadTooltip = useCallback((v: number) => v.toFixed(2), []);
+
+  const hasInterfacesField = live != null && Object.hasOwn(live, 'interfaces_json');
+  const hasMountsField = live != null && Object.hasOwn(live, 'mounts_json');
   const interfaces = useMemo(
-    () => parseInterfaces(live?.interfaces_json),
-    [live?.interfaces_json],
+    () => (hasInterfacesField ? parseInterfaces(live?.interfaces_json) : null),
+    [hasInterfacesField, live?.interfaces_json],
   );
-  const mounts = useMemo(() => parseMounts(live?.mounts_json), [live?.mounts_json]);
+  const mounts = useMemo(
+    () => (hasMountsField ? parseMounts(live?.mounts_json) : null),
+    [hasMountsField, live?.mounts_json],
+  );
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return (
       <div className="py-1">
         <div className="mx-auto flex max-w-6xl flex-col gap-4">
@@ -588,17 +608,49 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
             </CardBody>
           </Card>
 
-          {/* ------------------------------------------------- last hour / 最近一小时 */}
+          {/* ------------------------------------------------- performance history / 性能历史 */}
           <Card>
             <CardBody className="gap-4 px-5 py-5">
-              <h2 className="text-small font-semibold">{t('detail.lastHour')}</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-small font-semibold">{t('detail.performanceHistory')}</h2>
+                <div className="flex items-center gap-2">
+                  {isLoading || isValidating ? (
+                    <RefreshCw size={14} className="animate-spin text-default-400" aria-hidden="true" />
+                  ) : null}
+                  <div
+                    role="group"
+                    aria-label={t('detail.performanceRange')}
+                    className="inline-flex items-center gap-0.5 rounded-medium bg-default-100 p-0.5"
+                  >
+                    {RANGE_OPTIONS.map((option) => {
+                      const active = minutes === option;
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => setMinutes(option)}
+                          className={clsx(
+                            'rounded-small px-2.5 py-1 text-tiny font-medium transition-colors',
+                            active
+                              ? 'bg-content1 text-foreground shadow-small'
+                              : 'text-default-500 hover:text-foreground',
+                          )}
+                        >
+                          {t(RANGE_KEYS[option])}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
               <HistoryNotice status={error ? 'unavailable' : data.history_status} sampled={data.history_sampled} onRetry={() => void mutate()} />
               {/* `grid-cols-1` for the same reason as the identity card: a bare
                   grid's `auto` tracks cannot shrink below their content, and a
                   recharts container has a min-content width of its own.
                   与身份卡相同，使用 `grid-cols-1`：普通 grid 的 auto 轨道不能小于内容，
                   而 Recharts 容器本身有最小内容宽度。 */}
-              <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2 sm:gap-y-10">
+              <div className={clsx('grid grid-cols-1 gap-x-6 gap-y-8 transition-opacity sm:grid-cols-2 sm:gap-y-10', isLoading && 'opacity-60')}>
                 <section>
                   <p className="mb-2 flex items-center gap-2 text-tiny text-default-500">
                     <Cpu size={12} /> {t('detail.cpuUsage')}
@@ -608,7 +660,7 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
                     label={t('detail.cpuUsage')}
                     color="primary"
                     yMax={100}
-                    formatValue={(v) => `${v.toFixed(1)}%`}
+                    formatValue={formatPercentTooltip}
                   />
                 </section>
                 <section>
@@ -620,7 +672,7 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
                     label={t('detail.memory')}
                     color="success"
                     yMax={100}
-                    formatValue={(v) => `${v.toFixed(1)}%`}
+                    formatValue={formatPercentTooltip}
                   />
                 </section>
                 <section>
@@ -632,8 +684,8 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
                     label={t('detail.network')}
                     color="warning"
                     yMax="auto"
-                    formatValue={(v) => formatRate(v)}
-                    formatY={(v) => formatBytes(v)}
+                    formatValue={formatNetworkTooltip}
+                    formatY={formatNetworkAxis}
                   />
                 </section>
                 <section>
@@ -645,7 +697,7 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
                     label={t('detail.load')}
                     color="danger"
                     yMax="auto"
-                    formatValue={(v) => v.toFixed(2)}
+                    formatValue={formatLoadTooltip}
                   />
                 </section>
               </div>
@@ -665,93 +717,104 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
             还会无故将 90 天状态条推到首屏以下。它们分别回答机器与谁通信及存储什么，
             是并列问题，双列更易阅读。
           */}
-          <Card>
-            <CardBody className="grid grid-cols-1 gap-6 px-5 py-5 lg:grid-cols-2 lg:gap-8">
-              <section>
-                <h2 className="mb-3 text-small font-semibold">{t('detail.interfaces')}</h2>
-                {interfaces === null ? (
-                  <p className="text-small text-default-400">{t('detail.noInterfaces')}</p>
-                ) : interfaces.length === 0 ? (
-                  <p className="text-small text-default-400">—</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-small">
-                      <thead>
-                        <tr className="border-b border-divider text-left text-tiny text-default-500">
-                          <th className="pb-2 pr-4 font-medium">{t('detail.name')}</th>
-                          <th className="pb-2 pr-4 font-medium">{t('detail.rate')}</th>
-                          <th className="pb-2 font-medium">{t('detail.cumulative')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {interfaces.map((nic) => (
-                          <tr key={nic.name} className="border-b border-divider/50 last:border-0">
-                            <td className="py-2 pr-4 font-mono tabular-nums">{nic.name}</td>
-                            <td className="py-2 pr-4 font-mono tabular-nums">
-                              <span className="text-success">↓ {formatRate(nic.down_rate)}</span>
-                              {' '}
-                              <span className="text-warning">↑ {formatRate(nic.up_rate)}</span>
-                            </td>
-                            <td className="py-2 font-mono tabular-nums text-default-600">
-                              ↓ {formatBytes(nic.total_down_bytes)} / ↑ {formatBytes(nic.total_up_bytes)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+          {hasInterfacesField || hasMountsField ? (
+            <Card>
+              <CardBody
+                className={clsx(
+                  'grid grid-cols-1 gap-6 px-5 py-5',
+                  hasInterfacesField && hasMountsField && 'lg:grid-cols-2 lg:gap-8',
                 )}
-              </section>
-              <section>
-                <h2 className="mb-3 text-small font-semibold">{t('detail.disks')}</h2>
-                {mounts === null ? (
-                  <p className="text-small text-default-400">{t('detail.noMounts')}</p>
-                ) : mounts.length === 0 ? (
-                  <p className="text-small text-default-400">—</p>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    {/*
-                      A bar per mount rather than a third numeric column.
-                      "89.2%" beside "178 GB / 200 GB" asks the reader to do the
-                      comparison in their head; a bar makes a filling disk the
-                      thing you notice, which is the reason anyone opens this
-                      page.
+              >
+                {hasInterfacesField ? (
+                  <section>
+                    <h2 className="mb-3 text-small font-semibold">{t('detail.interfaces')}</h2>
+                    {interfaces === null ? (
+                      <p className="text-small text-default-400">{t('detail.noInterfaces')}</p>
+                    ) : interfaces.length === 0 ? (
+                      <p className="text-small text-default-400">—</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-small">
+                          <thead>
+                            <tr className="border-b border-divider text-left text-tiny text-default-500">
+                              <th className="pb-2 pr-4 font-medium">{t('detail.name')}</th>
+                              <th className="pb-2 pr-4 font-medium">{t('detail.rate')}</th>
+                              <th className="pb-2 font-medium">{t('detail.cumulative')}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {interfaces.map((nic) => (
+                              <tr key={nic.name} className="border-b border-divider/50 last:border-0">
+                                <td className="py-2 pr-4 font-mono tabular-nums">{nic.name}</td>
+                                <td className="py-2 pr-4 font-mono tabular-nums">
+                                  <span className="text-success">↓ {formatRate(nic.down_rate)}</span>
+                                  {' '}
+                                  <span className="text-warning">↑ {formatRate(nic.up_rate)}</span>
+                                </td>
+                                <td className="py-2 font-mono tabular-nums text-default-600">
+                                  ↓ {formatBytes(nic.total_down_bytes)} / ↑ {formatBytes(nic.total_up_bytes)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </section>
+                ) : null}
+                {hasMountsField ? (
+                  <section>
+                    <h2 className="mb-3 text-small font-semibold">{t('detail.disks')}</h2>
+                    {mounts === null ? (
+                      <p className="text-small text-default-400">{t('detail.noMounts')}</p>
+                    ) : mounts.length === 0 ? (
+                      <p className="text-small text-default-400">—</p>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {/*
+                          A bar per mount rather than a third numeric column.
+                          "89.2%" beside "178 GB / 200 GB" asks the reader to do the
+                          comparison in their head; a bar makes a filling disk the
+                          thing you notice, which is the reason anyone opens this
+                          page.
 
-                      每个挂载点显示进度条而非第三个数字列；单看“89.2%”和
-                      “178 GB / 200 GB”需要心算比较，进度条能突出接近满载的磁盘，
-                      而这正是用户打开页面的原因。
-                    */}
-                    {mounts.map((m) => {
-                      const pct = Math.max(0, Math.min(100, m.used_percent));
-                      const tone =
-                        pct >= 90 ? 'bg-danger' : pct >= 70 ? 'bg-warning' : 'bg-success';
-                      return (
-                        <div key={m.name} className="flex flex-col gap-1">
-                          <div className="flex items-baseline justify-between gap-3">
-                            <code className="truncate font-mono text-small">{m.name}</code>
-                            <span className="shrink-0 font-mono text-tiny tabular-nums text-default-500">
-                              {formatBytes(m.used_bytes)} / {formatBytes(m.total_bytes)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-default-100">
-                              <div
-                                className={clsx('h-full rounded-full transition-all', tone)}
-                                style={{ width: `${pct}%` }}
-                              />
+                          每个挂载点显示进度条而非第三个数字列；单看“89.2%”和
+                          “178 GB / 200 GB”需要心算比较，进度条能突出接近满载的磁盘，
+                          而这正是用户打开页面的原因。
+                        */}
+                        {mounts.map((m) => {
+                          const pct = Math.max(0, Math.min(100, m.used_percent));
+                          const tone =
+                            pct >= 90 ? 'bg-danger' : pct >= 70 ? 'bg-warning' : 'bg-success';
+                          return (
+                            <div key={m.name} className="flex flex-col gap-1">
+                              <div className="flex items-baseline justify-between gap-3">
+                                <code className="truncate font-mono text-small">{m.name}</code>
+                                <span className="shrink-0 font-mono text-tiny tabular-nums text-default-500">
+                                  {formatBytes(m.used_bytes)} / {formatBytes(m.total_bytes)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-default-100">
+                                  <div
+                                    className={clsx('h-full rounded-full transition-all', tone)}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className="w-12 shrink-0 text-right font-mono text-tiny tabular-nums">
+                                  {pct.toFixed(1)}%
+                                </span>
+                              </div>
                             </div>
-                            <span className="w-12 shrink-0 text-right font-mono text-tiny tabular-nums">
-                              {pct.toFixed(1)}%
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            </CardBody>
-          </Card>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                ) : null}
+              </CardBody>
+            </Card>
+          ) : null}
 
           {/* ----------------------------------------- 90-day availability / 90 天可用率 */}
           <Card>

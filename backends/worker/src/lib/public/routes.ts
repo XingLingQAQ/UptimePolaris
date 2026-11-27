@@ -134,6 +134,7 @@ publicRoutes.get('/api/public/agent/detail/:numId', async (c) => {
     agentSQL.live[db.type].getLive,
     [monitor.agent_id],
   );
+  const showHardware = (await readAll(c.env)).values['site.showPublicAgentHardware'] === true;
 
   const now = Math.floor(Date.now() / 1000);
   const staleAfterSec = agentStaleAfterSec(live?.report_interval_secs as number | string | null);
@@ -161,7 +162,11 @@ publicRoutes.get('/api/public/agent/detail/:numId', async (c) => {
       type: 'agent' as const,
       active: monitor.active,
     },
-    live: live ? Object.fromEntries(Object.entries(publicAgentLive(live)).filter(([key]) => key !== 'interfaces_json' && key !== 'mounts_json')) : null,
+    live: live
+      ? showHardware
+        ? publicAgentLive(live)
+        : Object.fromEntries(Object.entries(publicAgentLive(live)).filter(([key]) => key !== 'interfaces_json' && key !== 'mounts_json'))
+      : null,
     online,
     staleAfterSec,
     buckets: resourceHistory.points,

@@ -668,7 +668,15 @@ func (a *App) publicAgentDetail(w http.ResponseWriter, r *http.Request) error {
 		if e != nil {
 			return e
 		}
-		safe := project(live, []string{"os", "arch", "kernel", "cpu_model", "cpu_cores", "version", "virtualization", "transport", "report_interval_secs", "cpu_usage", "mem_used", "mem_total", "swap_used", "swap_total", "load_1", "load_5", "load_15", "disk_used", "disk_total", "net_up_rate", "net_down_rate", "net_up_total", "net_down_total", "connections_tcp", "connections_udp", "process_count", "uptime", "reported_at", "updated_at"})
+		settings, e := a.settings(r.Context())
+		if e != nil {
+			return e
+		}
+		publicFields := []string{"os", "arch", "kernel", "cpu_model", "cpu_cores", "version", "virtualization", "transport", "report_interval_secs", "cpu_usage", "mem_used", "mem_total", "swap_used", "swap_total", "load_1", "load_5", "load_15", "disk_used", "disk_total", "net_up_rate", "net_down_rate", "net_up_total", "net_down_total", "connections_tcp", "connections_udp", "process_count", "uptime", "reported_at", "updated_at"}
+		if boolean(settings["site.showPublicAgentHardware"]) {
+			publicFields = append(publicFields, "interfaces_json", "mounts_json")
+		}
+		safe := project(live, publicFields)
 		history, e := a.store.list(r.Context(), "machine_history")
 		if e != nil {
 			return e

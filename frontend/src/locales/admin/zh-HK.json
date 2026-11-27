@@ -594,6 +594,8 @@
     "usageNoTicks": "{day} · 今日尚無調度記錄",
     "syncMonitorIcons": "自動同步網站圖示",
     "syncMonitorIconsHint": "預設關閉。開啟後 Worker 會去各監控站點抓取圖示並經快取代理提供；抓不到的站點仍顯示預設圖示。",
+    "showPublicAgentHardware": "公開顯示 Agent 網卡與掛載點詳情",
+    "showPublicAgentHardwareHint": "預設關閉。開啟後公開 Agent 詳情頁會顯示網卡名稱（如 tailscale0、docker0）與磁碟掛載路徑，僅建議私有或受存取控制保護的實例啟用。",
     "loadFailed": "無法載入設定，請重試。",
     "resetFailed": "無法還原此項的預設值，請重試。",
     "eventsLoadFailed": "無法載入狀態變更記錄，請重試。",

@@ -19,7 +19,7 @@ import (
 
 func defaultSettings() Object {
 	return Object{
-		"site.title": "Uptime Polaris", "site.description": "服务可用性监控", "site.icon": "/api/public/icon", "site.syncMonitorIcons": false,
+		"site.title": "Uptime Polaris", "site.description": "服务可用性监控", "site.icon": "/api/public/icon", "site.syncMonitorIcons": false, "site.showPublicAgentHardware": false,
 		"monitor.defaultIntervalSec": 60, "monitor.defaultTimeoutMs": 10000, "monitor.defaultRetries": 3,
 		"retention.availabilityDays": 400, "retention.detailDays": 90, "retention.eventDays": 90,
 		"alerts.maintenanceWindows": []any{}, "alerts.maintenanceNote": "", "maintenance.enabled": false, "maintenance.scheduleEnabled": false, "maintenance.announcementTitle": "", "maintenance.announcementDescription": "", "maintenance.title": "", "maintenance.description": "",

@@ -401,6 +401,7 @@ try {
     // the contract that a future "make it read-only" change must not break.
     // 只读是写入规则而非可见性规则；固定此契约，防止将来改为只读时破坏读取。
     for (const key of [
+      'site.showPublicAgentHardware',
       'monitor.defaultIntervalSec',
       'monitor.defaultTimeoutMs',
       'monitor.defaultRetries',
@@ -410,6 +411,53 @@ try {
     ]) {
       check(`${key} is present in the GET payload`, key in r.body.values, Object.keys(r.body.values));
     }
+    eq('site.showPublicAgentHardware defaults to false', r.body.values['site.showPublicAgentHardware'], false);
+  }
+
+  // ------------------------------------------------------------ public agent hardware redaction
+  // 公开 Agent 硬件详情脱敏 / Public Agent hardware redaction
+  console.log('\nsite.showPublicAgentHardware\n');
+  {
+    const now = Math.floor(Date.now() / 1000);
+    await db.prepare(
+      `INSERT INTO agents (id, name, token, options_json, active, is_public, created_at, updated_at)
+       VALUES ('hw-agent', 'hw-agent', 'hw-token', '{}', 1, 1, ?, ?)`,
+    ).bind(now, now).run();
+    await db.prepare(
+      `INSERT INTO machine_live (agent_id, interfaces_json, mounts_json, reported_at, updated_at)
+       VALUES ('hw-agent', ?, ?, ?, ?)`,
+    ).bind(
+      JSON.stringify([{ name: 'tailscale0', up_rate: 10, down_rate: 20, total_up_bytes: 100, total_down_bytes: 200 }]),
+      JSON.stringify([{ name: '/srv', total_bytes: 1000, used_bytes: 400, free_bytes: 600, used_percent: 40 }]),
+      now,
+      now,
+    ).run();
+    await db.prepare(
+      `INSERT INTO monitors (id, num_id, name, type, target, method, expected_status, interval_sec, timeout_ms, warn_days, check_ssl, check_domain, options_json, push_token, agent_id, is_public, active, created_at, updated_at)
+       VALUES ('hw-monitor', 902, 'hw', 'agent', '', 'GET', '200-299', 60, 10000, 14, 0, 0, '{}', NULL, 'hw-agent', 1, 1, ?, ?)`,
+    ).bind(now, now).run();
+
+    const hidden = await req('/api/public/agent/detail/902?minutes=60');
+    eq('public detail returns 200 when hardware flag is off', hidden.status, 200);
+    eq('interfaces_json is omitted by default', Object.hasOwn(hidden.body.live, 'interfaces_json'), false);
+    eq('mounts_json is omitted by default', Object.hasOwn(hidden.body.live, 'mounts_json'), false);
+
+    // Even an authenticated session must not bypass the public redaction setting on the public endpoint.
+    const authedHidden = await req('/api/public/agent/detail/902?minutes=60', { headers: authed });
+    eq('authenticated request also omits hardware when setting is off', Object.hasOwn(authedHidden.body.live, 'interfaces_json'), false);
+
+    await putSettings({ 'site.showPublicAgentHardware': true });
+    const shown = await req('/api/public/agent/detail/902?minutes=60');
+    eq('public detail returns 200 when hardware flag is on', shown.status, 200);
+    eq('interfaces_json is included when enabled', Object.hasOwn(shown.body.live, 'interfaces_json'), true);
+    eq('mounts_json is included when enabled', Object.hasOwn(shown.body.live, 'mounts_json'), true);
+    check('interfaces_json preserves reported interface data', shown.body.live.interfaces_json?.includes('tailscale0'), shown.body.live);
+    check('mounts_json preserves reported mount data', shown.body.live.mounts_json?.includes('/srv'), shown.body.live);
+
+    await req('/api/admin/settings/site.showPublicAgentHardware', { method: 'DELETE', headers: authed });
+    await db.prepare('DELETE FROM monitors WHERE id = ?').bind('hw-monitor').run();
+    await db.prepare('DELETE FROM machine_live WHERE agent_id = ?').bind('hw-agent').run();
+    await db.prepare('DELETE FROM agents WHERE id = ?').bind('hw-agent').run();
   }
   // 读取失败与未配置是不同状态；缓存清空后不得返回默认维护状态。
   // A read failure is distinct from unset values; do not return default maintenance state.

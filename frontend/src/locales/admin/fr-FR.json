@@ -594,6 +594,8 @@
     "usageNoTicks": "{day} · aucun cycle enregistré",
     "syncMonitorIcons": "Récupérer le favicon de chaque site",
     "syncMonitorIconsHint": "Désactivé par défaut. Une fois activé, le Worker récupère l'icône de chaque site surveillé et la sert via un proxy mis en cache. Les sites sans icône gardent la marque générique.",
+    "showPublicAgentHardware": "Afficher publiquement les interfaces réseau et points de montage des agents",
+    "showPublicAgentHardwareHint": "Désactivé par défaut. Une fois activé, les pages publiques de détail d’agent affichent les noms d’interfaces (tels que tailscale0 ou docker0) et les chemins de montage. À n’activer que sur des instances privées ou protégées par un contrôle d’accès.",
     "loadFailed": "Impossible de charger les paramètres. Réessayez.",
     "resetFailed": "Impossible de rétablir ce paramètre. Réessayez.",
     "eventsLoadFailed": "Impossible de charger les changements d’état. Réessayez.",

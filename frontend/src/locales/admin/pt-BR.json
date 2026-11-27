@@ -594,6 +594,8 @@
     "usageNoTicks": "{day} · nenhum ciclo registrado",
     "syncMonitorIcons": "Buscar o favicon de cada site",
     "syncMonitorIconsHint": "Desativado por padrão. Quando ativado, o Worker busca o ícone de cada site monitorado e o serve por um proxy em cache. Sites sem ícone mantêm a marca genérica.",
+    "showPublicAgentHardware": "Exibir interfaces de rede e pontos de montagem do Agent publicamente",
+    "showPublicAgentHardwareHint": "Desativado por padrão. Quando ativado, as páginas públicas de detalhes do Agent mostram nomes de interfaces (como tailscale0 ou docker0) e caminhos de montagem. Ative apenas em instâncias privadas ou protegidas por controle de acesso.",
     "loadFailed": "Não foi possível carregar as configurações. Tente novamente.",
     "resetFailed": "Não foi possível restaurar este padrão. Tente novamente.",
     "eventsLoadFailed": "Não foi possível carregar as mudanças de estado. Tente novamente.",

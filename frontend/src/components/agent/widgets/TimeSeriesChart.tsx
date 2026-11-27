@@ -1,6 +1,5 @@
-
 import { useLocale } from '@/i18n/IntlProvider';
-import { useMemo } from 'react';
+import { memo, useId, useMemo } from 'react';
 import { useReducedMotion } from '@/lib/useReducedMotion';
 import {
   Area,
@@ -65,7 +64,7 @@ function defaultTick(v: number): string {
   return v >= 100 ? String(Math.round(v)) : v.toFixed(v < 1 ? 1 : 0);
 }
 
-export function TimeSeriesChart({
+export const TimeSeriesChart = memo(function TimeSeriesChart({
   data,
   label,
   color = 'primary',
@@ -91,10 +90,27 @@ export function TimeSeriesChart({
     return m > 0 ? m * 1.1 : 1;
   }, [rows, yMax]);
 
-  const gradientId = useMemo(
-    () => `tsg-${color}-${Math.random().toString(36).slice(2, 8)}`,
-    [color],
+  const spanMs = rows.length >= 2 ? rows[rows.length - 1].ts - rows[0].ts : 0;
+  const xTickFormatter = useMemo(
+    () => (ms: number) =>
+      new Date(ms).toLocaleTimeString(locale, {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    [locale],
   );
+  const tooltipLabelFormatter = useMemo(
+    () => (ms: unknown) => {
+      const date = new Date(Number(ms));
+      return spanMs > 6 * 3600 * 1000
+        ? date.toLocaleString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    },
+    [locale, spanMs],
+  );
+
+  const rawId = useId();
+  const gradientId = `tsg-${color}-${rawId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
   if (rows.length === 0) {
     return (
@@ -123,16 +139,11 @@ export function TimeSeriesChart({
             type="number"
             scale="time"
             domain={['dataMin', 'dataMax']}
-            tickFormatter={(ms) =>
-              new Date(ms as number).toLocaleTimeString(undefined, {
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-            }
+            tickFormatter={xTickFormatter}
             axisLine={false}
             tickLine={false}
-            minTickGap={48}
-            interval="preserveStartEnd"
+            minTickGap={56}
+            tickCount={5}
             style={{ fontSize: 'var(--heroui-font-size-tiny)' }}
           />
           <YAxis
@@ -144,12 +155,13 @@ export function TimeSeriesChart({
             tickFormatter={formatY}
           />
           <Tooltip
+            isAnimationActive={false}
             formatter={(v) => [formatValue ? formatValue(Number(v)) : Number(v), label]}
             /* `locale`, not the default: the tooltip would otherwise use the
                browser's language while every axis label beside it used the
                console's.
                使用控制台的 `locale` 而非浏览器默认语言，避免提示框时间与坐标轴语言不同。 */
-            labelFormatter={(ms) => new Date(ms as number).toLocaleTimeString(locale)}
+            labelFormatter={tooltipLabelFormatter}
             cursor={{ stroke: 'hsl(var(--heroui-default-300))', strokeWidth: 1 }}
             contentStyle={{
               background: 'hsl(var(--heroui-content1))',
@@ -161,7 +173,7 @@ export function TimeSeriesChart({
           <Area
             type="monotone"
             dataKey="value"
-              isAnimationActive={!reduced}
+            isAnimationActive={!reduced}
             stroke={`hsl(var(--heroui-${color}))`}
             strokeWidth={1.6}
             fill={`url(#${gradientId})`}
@@ -172,4 +184,4 @@ export function TimeSeriesChart({
       </ResponsiveContainer>
     </div>
   );
-}
+});
