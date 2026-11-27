@@ -182,7 +182,13 @@ Do not delete `install.json` next to your configuration file.
 ### Service management & global command
 
 ```sh
-pa status | pa start | pa stop | pa restart [--dry-run] | pa logs [-f | -n 200]
+pa status            # show service status
+pa start             # start the service
+pa stop              # stop the service
+pa restart           # restart the service (--dry-run previews)
+pa logs              # last 50 log lines
+pa logs -f           # follow logs
+pa logs -n 200       # print a given number of lines (1–10000)
 ```
 
 If `pa` is missing from `PATH`, reopen the shell or run `/path/to/polaris-agent command status --config ...` and `command register --scope user --config ...`. `command unregister` removes only the wrapper.
@@ -198,7 +204,7 @@ Key fields: `endpoint`, `token`, `sample_interval` (default `5`), `report_interv
 Requires **Settings → Security → Allow remote Agent commands** enabled and an online Agent.
 
 - Syncs intervals, NIC/mount filters, and `auto_update` (CLI/env overrides on the host reject conflicting remote updates).
-- Supported commands: `re_report`, `restart`, and `upgrade` (`restart`/`upgrade` require supervised `service_tier: A`; arbitrary shell commands are not supported).
+- Supported commands: `re_report`, `restart`, and `upgrade` (`restart`/`upgrade` require a supervised install; arbitrary shell commands are not supported).
 
 ### Update, rollback, and uninstall
 

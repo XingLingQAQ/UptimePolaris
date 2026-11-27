@@ -189,6 +189,18 @@ const baseClaims = () => {
       headers: { origin: ORIGIN, 'cf-access-jwt-assertion': validJwt },
     });
     assert.equal(preSetupExternal.res.status, 404);
+
+    // A trusted-but-unprovisioned identity must not reach the management API before
+    // `/setup` completes, matching Go's `setupReady` gate.
+    // 初始化未完成时，验签通过的外部身份也不得进入管理 API（对齐 Go 的 setupReady）。
+    for (const [method, path] of [['GET', '/api/monitors'], ['GET', '/api/admin/settings']]) {
+      assert.equal((await req(mf, path, { headers: { 'cf-access-jwt-assertion': validJwt } })).res.status, 401, `${method} ${path}`);
+    }
+    assert.equal((await req(mf, '/api/monitors', {
+      method: 'POST',
+      headers: { origin: ORIGIN, 'content-type': 'application/json', 'cf-access-jwt-assertion': validJwt },
+      body: JSON.stringify({ name: 'pre-setup-probe', type: 'http', target: 'https://example.com' }),
+    })).res.status, 401);
     console.log('PASS Worker external auth config validation and pre-setup gate');
 
     // Complete setup

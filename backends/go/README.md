@@ -92,7 +92,7 @@ Docker 托管更新要求固定宿主机端口，并关闭容器自动删除。�
 
 ## 部署配置
 
-反向代理或 Cloudflare Access 登录见[外部认证](../../docs/external-auth.md)。默认关闭，仅 Go 后端支持。
+反向代理或 Cloudflare Access 登录见[外部认证](../../docs/external-auth.md)。默认关闭；Go 支持 `trusted-header` 与 `cloudflare-access` 两种模式。
 
 程序读取进程当前工作目录里的 `.env`。优先级从高到低：命令行参数 > 进程环境变量 > `.env` > 默认值。服务管理器或容器仍可以直接传环境变量。
 

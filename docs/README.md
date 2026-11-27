@@ -12,7 +12,7 @@
 | [部署指南](deployment.md) | Cloudflare Worker 部署、域名、PostgreSQL 与迁移 |
 | [Go 后端说明](../backends/go/README.md) | Go 二进制、Docker、后台更新与离线迁移 |
 | [配置参考](configuration.md) | 绑定资源、环境变量与站点设置 |
-| [外部认证](external-auth.md) | Go 后端的反向代理头与 Cloudflare Access 登录 |
+| [外部认证](external-auth.md) | 反向代理头与 Cloudflare Access 登录（Go 支持两种，Worker 仅支持 Cloudflare Access） |
 | [使用手册](usage.md) | 监控配置、Push 心跳、分组、公开页与维护模式 |
 | [Agent 手册](agents.md) | `polaris-agent`（`pa`）安装、管理、配置与卸载 |
 | [AI 模型监控](ai-monitoring.md) | 模型渠道、自定义参数、展示页与密钥管理 |
@@ -42,7 +42,7 @@ This documentation covers deploying, configuring, using, and operating Uptime Po
 | [Deployment](deployment.md#english) | Cloudflare Worker setup, domains, PostgreSQL, and migration |
 | [Go backend](../backends/go/README.md#english) | Binary, Docker, managed updates, and offline migration |
 | [Configuration](configuration.md#english) | Bindings, environment variables, and site settings |
-| [External authentication](external-auth.md#english) | Trusted proxy headers and Cloudflare Access for Go |
+| [External authentication](external-auth.md#english) | Trusted proxy headers and Cloudflare Access (both on Go; Cloudflare Access only on Worker) |
 | [Usage](usage.md#english) | Monitors, Push heartbeats, groups, public pages, and maintenance |
 | [Agent](agents.md#english) | Installing, managing, configuring, and removing `polaris-agent` (`pa`) |
 | [AI monitoring](ai-monitoring.md#english) | AI channels, custom payloads, public pages, and key backup |

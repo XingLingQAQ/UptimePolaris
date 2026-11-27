@@ -98,10 +98,46 @@ export interface AuthenticatedPrincipal {
 
 const externalRequestCache = new WeakMap<Request, Promise<AuthenticatedPrincipal | null>>();
 
-function resolveExternalUserOnce(request: Request, env: Env): Promise<AuthenticatedPrincipal | null> {
+/**
+ * Setup gate for external identities.
+ *
+ * A verified Access JWT is a *trusted* identity, not a *provisioned* one: before
+ * `/setup` finishes there is no administrator yet, and Go blocks the same case by
+ * waiting on its `setupReady` channel. Reuse the session endpoint's definition of
+ * "needs setup" so the gate cannot drift between the two.
+ *
+ * 外部身份的初始化门闸。验签通过的身份在 `/setup` 完成前不应获得任何管理权限，
+ * 与 Go 端的 `setupReady` 保持一致，并复用会话端点对“需要初始化”的判定。
+ */
+const SETUP_GATE_TTL_MS = 60_000;
+let setupGateReadyAt: number | null = null;
+
+async function setupBlocksExternalAuth(env: Env): Promise<boolean> {
+  if (!databaseConfigured(env)) return true;
+  // Setup only moves one way (uninitialized → initialized), so a completed answer is
+  // safe to reuse briefly and keeps the management gate from paying two queries per
+  // external-auth request. Uninitialized answers are never cached: the first request
+  // after `/setup` must see the new state immediately.
+  // 初始化只会单向推进，故只缓存“已完成”；未完成不缓存，`/setup` 后的首个请求立即生效。
+  if (setupGateReadyAt !== null && Date.now() - setupGateReadyAt < SETUP_GATE_TTL_MS) return false;
+  try {
+    if (await pendingDatabase(env) || await isSetupRequired(env)) return true;
+  } catch {
+    // A transient database error must fail closed: no external identity until setup is provable.
+    // 数据库临时故障时按未就绪处理，不能因此放行外部身份。
+    return true;
+  }
+  setupGateReadyAt = Date.now();
+  return false;
+}
+
+async function resolveExternalUserOnce(request: Request, env: Env): Promise<AuthenticatedPrincipal | null> {
   let pending = externalRequestCache.get(request);
   if (!pending) {
-    pending = verifyCloudflareAccessRequest(request, env);
+    pending = (async () => {
+      if (await setupBlocksExternalAuth(env)) return null;
+      return verifyCloudflareAccessRequest(request, env);
+    })();
     externalRequestCache.set(request, pending);
   }
   return pending;

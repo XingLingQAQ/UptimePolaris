@@ -31,7 +31,7 @@ Content-Type: application/json
 Cookie 按域名隔离（跨展示域名访问 `/admin` 需分别登录）。监控 `id` 为管理用 UUID，`num_id` 为公开路径数字 ID；Push 与 Agent Token 为各对象独立凭据。
 
 - `GET /api/auth/session`、`POST /api/auth/login`、`POST /api/auth/logout`、`POST /api/auth/setup`（不开放公开注册）。
-- **Go 外部认证**：`/api/auth/session` 另返回 `authentication`（`local`、`bearer`、`trusted-header`、`cloudflare-access`、`null`）和 `externalAuth`（`{ mode }` 或 `null`）；`POST /api/auth/external` 在退出后重新验证上游凭据并恢复外部登录（禁用返回 `404`，无效凭据 `401`，跨源 `403`）；外部会话改本地密码返回 `403 external_account_managed`。详见[外部认证](external-auth.md)。
+- **外部认证**（Go 与 Worker 均支持）：`/api/auth/session` 另返回 `authentication`（`local`、`bearer`、`trusted-header`、`cloudflare-access`、`null`）和 `externalAuth`（`{ mode }` 或 `null`）；`POST /api/auth/external` 在退出后重新验证上游凭据并恢复外部登录（禁用返回 `404`，无效凭据 `401`，跨源 `403`）；外部会话改本地密码返回 `403 external_account_managed`。`/setup` 完成前外部身份一律不生效，管理路由返回 `401`。详见[外部认证](external-auth.md)。
 
 ## 初始化数据库契约
 
@@ -56,9 +56,10 @@ Cookie 按域名隔离（跨展示域名访问 `/admin` 需分别登录）。监
 匿名 `GET /api/capabilities` 返回 `runtime`、`probeSource`、支持的监控类型、间隔/超时边界与主题存储支持。
 
 公开 GET 端点（机器页关闭时机器接口返回 `404`；维护状态 `no-store`，其余符合条件的 Worker 响应缓存 15 秒）：
-- `/api/public/health`、`/status`、`/status/detail`、`/config`、`/maintenance`
-- `/api/public/monitors`、`/monitors/:numId`、`/agent/detail/:numId`
-- `/api/public/servers`、`/servers/:id`、`/theme`、`/icon`、`/monitor-icon?id=:numId`
+- `/api/public/health`、`/api/public/status`、`/api/public/status/detail`、`/api/public/config`、`/api/public/maintenance`
+- `/api/public/monitors`、`/api/public/monitors/:numId`、`/api/public/agent/detail/:numId`
+- `/api/public/servers`、`/api/public/servers/:id`、`/api/public/theme`、`/api/public/icon`、`/api/public/monitor-icon?id=:numId`
+- `/api/public/ai/models`、`/api/public/ai/models/:id`、`/api/public/subscriptions/items`、`/api/public/subscriptions/items/:id`
 
 ```sh
 curl --fail-with-body 'https://status.example.com/api/public/status'
@@ -132,7 +133,8 @@ Cookie 写请求要求同源，AI 功能关闭时手动调用返回 `409 ai_disa
 | `GET / PUT /api/admin/agents/:id/config` | 读写 7 字段运行配置（提交 `expected_revision`，冲突 `409 agent_config_conflict`） |
 | `POST / GET /api/admin/agents/:id/commands` | 下发指令（`re_report`、`restart`、`upgrade`；Worker 202 / Go 200）/ 查记录 |
 | `POST /api/admin/agents/batch-commands` | 批量指令（Worker 上限 100，Go 上限 500） |
-| `GET/POST/PUT/DELETE /api/admin/agent-groups` & `agent-tags` | 独立 Agent 分组标签；`PUT /api/admin/agents/:id/taxonomy` 绑定 |
+| `/api/admin/agent-groups`、`/api/admin/agent-tags` | `GET` 列表；`POST` 新建；`PUT /:id` 修改；`DELETE /:id` 删除（机器页关闭返回 `409 agent_page_disabled`，重名 `409 name_exists`） |
+| `PUT /api/admin/agents/:id/taxonomy` | 绑定分组与标签（`{ group_id, tag_ids }`，标签 ≤50 个） |
 
 ## 统一分组管理
 
@@ -162,13 +164,13 @@ Reference for primary HTTP endpoints, authentication, payload fields, and error 
 
 Management endpoints accept a session cookie or Bearer token (`ADMIN_TOKEN` on Worker; `POLARIS_ADMIN_TOKEN` on Go). Sessions are per-hostname. Monitor `id` is a UUID for admin writes; `num_id` is the numeric public ID.
 
-- Auth routes: `GET /api/auth/session`, `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/setup` (no open registration). On Go with external auth, `POST /api/auth/external` restores external sign-in (`404` disabled, `401` invalid, `403` cross-origin; local edits return `403 external_account_managed`). See [External authentication](external-auth.md#english).
+- Auth routes: `GET /api/auth/session`, `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/setup` (no open registration). With external auth enabled (Go or Worker), `POST /api/auth/external` restores external sign-in (`404` disabled, `401` invalid, `403` cross-origin; local edits return `403 external_account_managed`). External identities stay inactive until `/setup` completes and management routes return `401` before then. See [External authentication](external-auth.md#english).
 - **Setup contract**: when `needsSetup: true`, `/api/auth/session` includes `setupDatabase` (never exposing URLs) and, on Worker, `setupRequirements`. Worker runs `POST /api/auth/setup/database` (poll `/api/auth/session` until `configurationId` matches) before `POST /api/auth/setup` (10-minute max lease). Errors: `400` (`invalid_database_type`, `invalid_database_url`), `409` (`setup_in_progress`, `setup_complete`), `503` (`deployment_incomplete`, `credential_unconfigured`, `database_connection_failed`, `database_initialization_failed`, `database_configuration_failed`).
 
 ### Public, presentation, and themes
 
 - `GET /api/capabilities` exposes runtime, probe sources, monitor types, limits, and theme support.
-- Public GET routes: `/api/public/health`, `/status`, `/status/detail`, `/config`, `/maintenance` (`no-store`), `/monitors`, `/monitors/:numId`, `/agent/detail/:numId`, `/servers`, `/servers/:id` (`404` when machine page disabled), `/theme`, `/icon`, `/monitor-icon?id=:numId`. Status codes: `0` DOWN, `1` UP, `2` WARN, `4` PENDING (`ping: null` when absent). Uncollected Agent metrics (`load.*`, `connections.*`, `process`) are `null`. Worker history carries `history_status` and `history_sampled`.
+- Public GET routes: `/api/public/health`, `/api/public/status`, `/api/public/status/detail`, `/api/public/config`, `/api/public/maintenance` (`no-store`), `/api/public/monitors`, `/api/public/monitors/:numId`, `/api/public/agent/detail/:numId`, `/api/public/servers`, `/api/public/servers/:id` (`404` when machine page disabled), `/api/public/theme`, `/api/public/icon`, `/api/public/monitor-icon?id=:numId`, `/api/public/ai/models`, `/api/public/ai/models/:id`, `/api/public/subscriptions/items`, `/api/public/subscriptions/items/:id`. Status codes: `0` DOWN, `1` UP, `2` WARN, `4` PENDING (`ping: null` when absent). Uncollected Agent metrics (`load.*`, `connections.*`, `process`) are `null`. Worker history carries `history_status` and `history_sampled`.
 - Presentation & themes: `GET / PUT /api/admin/presentation` (`revision` concurrency, `409 presentation_conflict`; `headCode` ≤16 KiB, `contentHtml` ≤32 KiB); `GET /api/themes`, `POST /api/themes/install`, `GET /api/themes/:short/preview`, `GET /api/themes/:short/update-check`, `DELETE /api/themes/:short`.
 
 ### Monitors, Push, and AI
@@ -180,7 +182,7 @@ Management endpoints accept a session cookie or Bearer token (`ADMIN_TOKEN` on W
 ### Queue, Agents, groups, and subscriptions
 
 - **Worker Queue**: `GET /api/admin/check-queue`, `POST .../probe` (`202`), `PUT /api/admin/check-queue` (`{ revision, enabled }`).
-- **Agents**: public `/api/public/agent/manifest`, `/download/:file`, `/capabilities`; admin `GET / POST /api/admin/agents`, `POST /check-update`, `POST /visibility` (≤500), `POST /:id/rename|active|probe`, `DELETE /:id` (`409 agent_in_use`), `GET /:id/detail`, `GET / PUT /:id/config` (`expected_revision`), `POST / GET /:id/commands` (Worker `202` / Go `200`), `POST /batch-commands` (100 Worker / 500 Go), `/api/admin/agent-groups`, `/agent-tags`, `/agents/:id/taxonomy`.
+- **Agents**: public `/api/public/agent/manifest`, `/api/public/agent/download/:file`, `/api/public/agent/capabilities`; admin `GET / POST /api/admin/agents`, `POST /api/admin/agents/check-update`, `POST /api/admin/agents/visibility` (≤500), `POST /api/admin/agents/:id/rename`, `/active`, `/probe`, `DELETE /api/admin/agents/:id` (`409 agent_in_use`), `GET /api/admin/agents/:id/detail`, `GET / PUT /api/admin/agents/:id/config` (`expected_revision`), `POST` / `GET /api/admin/agents/:id/commands` (Worker `202` / Go `200`), `POST /api/admin/agents/batch-commands` (100 Worker / 500 Go), `/api/admin/agent-groups`, `/api/admin/agent-tags`, `PUT /api/admin/agents/:id/taxonomy`.
 - **Groups**: `GET / POST /api/admin/groups`, `PUT /api/admin/groups/:key` (`confirm_membership_reset: true` on destructive conversions), `DELETE /api/admin/groups/:key?scope=all`, `PUT /api/admin/groups/:key/members` (`≤500`).
 - **Subscriptions** (`offset`, `limit` max 200; `website` | `model`): `/api/admin/subscription-catalog` (`/refresh`), `/subscription-repositories`, `/subscription-configs/import`, `/preview` (`202` + poll), `/api/admin/subscriptions` (`/:id`, `/:id/items`, `/:id/sync`, `/:id/runs`, `/:id/config`, `/export`, `/check-update`, `/preview`, `PUT .../config`), public `/api/public/subscriptions/items`, `/:id/history`, `/icons/:id`.
 
