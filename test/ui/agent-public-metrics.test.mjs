@@ -248,6 +248,10 @@ assert.match(rangeSwitchingHtml, /cursor-pointer/);
 assert.match(rangeSwitchingHtml, /focus-visible:ring-2/);
 assert.equal(capturedCharts[0].data.length, 360);
 
+state = { data, error: new ApiError(500), isLoading: false, isValidating: false };
+render();
+assert.equal(capturedCharts[0].data.length, 360);
+
 const settled24h = { ...data, buckets: [...data.buckets] };
 state = { data: settled24h, isLoading: false, isValidating: false };
 render();

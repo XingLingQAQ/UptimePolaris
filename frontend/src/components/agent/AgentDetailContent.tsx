@@ -339,7 +339,7 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
   // 记录当前 `data` 实际对应的时间窗口；切换范围加载期间保持旧轴，避免曲线被压缩到右侧细条。
   const settledDataRef = useRef<AgentDetailResponse | undefined>(undefined);
   const settledMinutesRef = useRef<RangeMinutes>(minutes);
-  const settledNow = data !== undefined && !isLoading;
+  const settledNow = data !== undefined && !isLoading && !error;
   if (settledNow) {
     settledDataRef.current = data;
     settledMinutesRef.current = minutes;
