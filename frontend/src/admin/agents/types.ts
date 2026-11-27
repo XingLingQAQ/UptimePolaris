@@ -119,6 +119,8 @@ export interface AgentProbeJobRow {
 
 export interface AgentDetailResponse {
   agent: FleetAgent;
+  gpus_json?: string | null;
+  sensors_json?: string | null;
   /** This agent's own credential, shown once at install time. / 该 Agent 自身的凭据，仅在安装时显示一次。 */
   install?: { token: string } | null;
   mounts?: AgentMount[];

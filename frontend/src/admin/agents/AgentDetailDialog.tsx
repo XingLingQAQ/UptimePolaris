@@ -34,6 +34,7 @@ import { formatBytes, formatClock, formatRate } from '../format';
 import { StatusPill } from '../monitors/MonitorIndicators';
 import { useConsoleRefreshInterval } from '../useConsoleData';
 import { agentsApi } from './api';
+import { AgentHardwareCards } from './AgentHardwareCards';
 import type { AgentAlertRule, AgentDetailResponse, AgentInterface, AgentMount, FleetAgent } from './types';
 
 function formatPercent(value: number | null): string {
@@ -222,6 +223,10 @@ export function AgentDetailDialog({
                   <AlertTriangle size={14} className="shrink-0" />
                   {t('detailFailed')}
                 </p>
+              ) : null}
+
+              {currentDetail?.gpus_json || currentDetail?.sensors_json ? (
+                <AgentHardwareCards gpusJson={currentDetail.gpus_json} sensorsJson={currentDetail.sensors_json} />
               ) : null}
 
               {currentDetail ? (

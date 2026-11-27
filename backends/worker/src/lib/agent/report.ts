@@ -150,6 +150,8 @@ async function persistReport(
     mountsJson,
     observedAt,
     now, // updated_at / 更新时间
+    p.gpus == null ? null : JSON.stringify(p.gpus),
+    p.sensors == null ? null : JSON.stringify(p.sensors),
   ]);
 
   writeAgentHistory(env, monitorId, p, now);

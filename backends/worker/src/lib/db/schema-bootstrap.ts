@@ -499,4 +499,11 @@ export const BOOTSTRAP_FILES: readonly BootstrapFile[] = [
       "ALTER TABLE notifications ADD COLUMN subscription_ids TEXT NOT NULL DEFAULT '[]'",
     ],
   },
+  {
+    name: "0054_agent_hardware.sql",
+    statements: [
+      "ALTER TABLE machine_live ADD COLUMN gpus_json TEXT",
+      "ALTER TABLE machine_live ADD COLUMN sensors_json TEXT",
+    ],
+  },
 ];

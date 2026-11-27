@@ -92,4 +92,5 @@ func TestPostgresMigrationAndRuntime(t *testing.T) {
 	if str(object(object(result["runtime"])["database"]), "type") != "postgres" {
 		t.Fatal(result)
 	}
+	testAgentHardwareTelemetry(t, pg)
 }

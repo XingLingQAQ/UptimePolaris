@@ -146,6 +146,12 @@ func validFrame(frame Object) bool {
 		}
 		return true
 	case "report":
+		if _, ok := normalizedGPUs(params["gpus"]); !ok {
+			return false
+		}
+		if _, ok := normalizedSensors(params["sensors"]); !ok {
+			return false
+		}
 		fields := map[string][]string{"cpu": {"usage"}, "ram": {"total", "used"}, "swap": {"total", "used"}, "load": {"load1", "load5", "load15"}, "disk": {"total", "used"}, "network": {"up", "down", "totalUp", "totalDown"}, "connections": {"tcp", "udp"}}
 		for key, keys := range fields {
 			row := object(params[key])
@@ -269,6 +275,14 @@ func (a *App) dispatchFrame(ctx context.Context, agent, frame Object) (Object, e
 				live["mounts_json"] = encode(live["mounts"])
 			}
 			live["reported_at"] = observed
+			if p["gpus"] != nil {
+				gpus, _ := normalizedGPUs(p["gpus"])
+				live["gpus_json"] = encode(gpus)
+			}
+			if p["sensors"] != nil {
+				sensors, _ := normalizedSensors(p["sensors"])
+				live["sensors_json"] = encode(sensors)
+			}
 			for _, v := range array(p["summaries"]) {
 				summary := object(v)
 				ts := integer(summary, "bucket_ts")

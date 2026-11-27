@@ -43,6 +43,7 @@ const EXPECTED_PG_MIGRATIONS = [
   '0032_ai_check_revisions.postgres.sql',
   '0033_notification_routing.postgres.sql',
   '0034_subscriptions.postgres.sql',
+  '0035_agent_hardware.postgres.sql',
 ] as const;
 
 export interface MigrateProbeResult {
@@ -101,7 +102,7 @@ export async function probeSchema(
     ...['agent_id', 'tag_id'].map(column => `agent_tag_links.${column}`),
     ...['id', 'owner', 'lease_until', 'completed_minute'].map((column) => `cron_tick_lease.${column}`),
     ...['key_hash', 'attempts', 'window_started', 'locked_until'].map((column) => `auth_login_limits.${column}`),
-    ...['agent_id', 'version', 'public_ipv6', 'report_interval_secs', 'probe_capabilities'].map((column) => `machine_live.${column}`),
+    ...['agent_id', 'version', 'public_ipv6', 'report_interval_secs', 'probe_capabilities', 'gpus_json', 'sensors_json'].map((column) => `machine_live.${column}`),
     ...['agent_id', 'days_json', 'updated_at'].map(column => `agent_history_daily.${column}`),
     ...['agent_id', 'sample_count', 'duration_sec', 'quality', 'net_up_bytes', 'net_down_bytes', 'network_duration_sec'].map((column) => `machine_history.${column}`),
   ];

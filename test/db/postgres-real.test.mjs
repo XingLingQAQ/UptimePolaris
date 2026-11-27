@@ -28,6 +28,8 @@ import { removeTheme } from '../../backends/worker/src/lib/theme/registry.ts';
 import { submitCommandResult } from '../../backends/worker/src/lib/agent/commands.ts';
 import { commandsSQL } from '../../backends/worker/src/lib/db/sql/commands.ts';
 import { defaultPresentation } from '../../shared/presentation.ts';
+import { dispatchRpc } from '../../backends/worker/src/lib/agent/report.ts';
+import { loadAgentDetail } from '../../backends/worker/src/lib/agent/detail.ts';
 
 const url = process.env.TEST_DATABASE_URL;
 const owner = process.env.UPTIME_PG_OWNER;
@@ -193,6 +195,31 @@ try {
 
   const summaryTs = 1_800_000_120;
   await db.execute("INSERT INTO agents(id,name,token,created_at,updated_at) VALUES('pg-insert-fixture','History machine','pg-history-token',1,1)");
+  const hardware = JSON.parse(readFileSync('test/fixtures/agent-hardware.json', 'utf8')).find(row => row.name === 'valid');
+  const hardwareAt = Math.floor(Date.now() / 1000) - 5;
+  const hardwareReport = (extra, at) => ({ method: 'report', params: {
+    observed_at: at, summaries: [], interfaces: null, mounts: null, message: '',
+    cpu: { usage: 5 }, ram: { total: 100, used: 10 }, swap: { total: 0, used: 0 },
+    load: { load1: 0, load5: 0, load15: 0 }, disk: { total: 100, used: 10 },
+    network: { up: 0, down: 0, totalUp: 0, totalDown: 0 }, connections: { tcp: 0, udp: 0 },
+    uptime: 1, process: 1, ...extra,
+  } });
+  const hardwareEnv = { DATABASE_TYPE: 'postgres', DATABASE_URL: url };
+  const sendHardware = frame => dispatchRpc(hardwareEnv, { id: 'pg-insert-fixture' }, frame);
+  await sendHardware(hardwareReport({}, hardwareAt));
+  assert.deepEqual(await db.queryOne("SELECT gpus_json,sensors_json FROM machine_live WHERE agent_id='pg-insert-fixture'"), { gpus_json: null, sensors_json: null });
+  await sendHardware(hardwareReport(hardware.input, hardwareAt + 1));
+  const hardwareDetail = await withDBScope(hardwareEnv, env => loadAgentDetail(env, 'pg-insert-fixture', hardwareAt + 1));
+  assert.deepEqual(JSON.parse(hardwareDetail.gpus_json), hardware.expected.gpus);
+  assert.deepEqual(JSON.parse(hardwareDetail.sensors_json), hardware.expected.sensors);
+  await sendHardware(hardwareReport({ gpus: null, sensors: null }, hardwareAt + 2));
+  await sendHardware(hardwareReport({}, hardwareAt + 3));
+  const retainedHardware = await db.queryOne("SELECT gpus_json,sensors_json FROM machine_live WHERE agent_id='pg-insert-fixture'");
+  assert.equal(retainedHardware.gpus_json, hardwareDetail.gpus_json);
+  assert.equal(retainedHardware.sensors_json, hardwareDetail.sensors_json);
+  await sendHardware(hardwareReport({ gpus: [], sensors: [] }, hardwareAt + 4));
+  assert.deepEqual(await db.queryOne("SELECT gpus_json,sensors_json FROM machine_live WHERE agent_id='pg-insert-fixture'"), { gpus_json: '[]', sensors_json: '[]' });
+  console.log('PASS Postgres optional hardware reports, private detail, null preservation and clearing');
   const commandNow = 1_800_000_000;
   await db.execute(commandsSQL.postgres.insert, ['pg-lease-fixture', 'pg-insert-fixture', 're_report', commandNow, null]);
   await db.execute("UPDATE agent_commands SET state='leased', lease_token='lease', lease_until=$1 WHERE id='pg-lease-fixture'", [commandNow - 5]);

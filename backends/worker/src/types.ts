@@ -95,6 +95,8 @@ export interface MachineLive {
   /** Serialized per-interface and per-mount details for the Agent detail view. / Agent 详情页使用的序列化网卡和挂载点明细。 */
   interfaces_json: string | null;
   mounts_json: string | null;
+  gpus_json?: string | null;
+  sensors_json?: string | null;
 
   /** Unix seconds of the last `report` frame, NULL until one arrives. / 最近 `report` 帧的 Unix 秒数；收到前为 NULL。 */
   reported_at: number | null;

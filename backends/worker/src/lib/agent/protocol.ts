@@ -1,5 +1,7 @@
 /** Wire fields must match agent/src/rpc/protocol.rs. basicReport carries identity, report carries metrics; request IDs receive a persistence ACK. / 传输字段须与 agent/src/rpc/protocol.rs 一致。basicReport 传身份，report 传指标；带请求 ID 的消息收到持久化 ACK。 */
 
+import { asGpuStats, asSensorStats, type AgentGpu, type AgentSensor } from '../../../../../shared/agent-hardware';
+
 export interface BasicReportParams {
   /** Human label; the agent sends its hostname. / 供人识别的名称；Agent 发送主机名。 */
   name: string;
@@ -79,6 +81,8 @@ export interface ReportParams {
   interfaces: AgentInterfaceStat[] | null;
   /** Null means no mount details were collected. / null 表示未采集挂载点明细。 */
   mounts: AgentMountStat[] | null;
+  gpus?: AgentGpu[] | null;
+  sensors?: AgentSensor[] | null;
 }
 
 export interface AgentMinuteSummary {
@@ -199,6 +203,9 @@ export function asReportParams(p: unknown): ReportParams | null {
   const summaries = asMinuteSummaries(o.summaries);
   const interfaces = asInterfaceArray(o.interfaces);
   const mounts = asMountArray(o.mounts);
+  const gpus = asGpuStats(o.gpus);
+  const sensors = asSensorStats(o.sensors);
+  if (gpus === undefined || sensors === undefined) return null;
   if (observedAt === null || !Number.isInteger(observedAt) || summaries === undefined ||
       interfaces === undefined || mounts === undefined || typeof o.message !== 'string') return null;
 
@@ -229,6 +236,8 @@ export function asReportParams(p: unknown): ReportParams | null {
     summaries,
     interfaces,
     mounts,
+    ...(gpus === null ? {} : { gpus }),
+    ...(sensors === null ? {} : { sensors }),
   };
 }
 

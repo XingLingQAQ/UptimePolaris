@@ -324,7 +324,13 @@ func (a *App) agentDetail(w http.ResponseWriter, r *http.Request) error {
 	if e != nil {
 		return e
 	}
-	respond(w, 200, Object{"agent": a.fleetRow(r.Context(), agent), "install": Object{"token": agent["token"]}, "mounts": mounts, "interfaces": interfaces, "alerts": alerts, "history": history, "probe_targets": targets, "probe_jobs": agentJobs})
+	detail := Object{"agent": a.fleetRow(r.Context(), agent), "install": Object{"token": agent["token"]}, "mounts": mounts, "interfaces": interfaces, "alerts": alerts, "history": history, "probe_targets": targets, "probe_jobs": agentJobs}
+	for _, key := range []string{"gpus_json", "sensors_json"} {
+		if machine[key] != nil {
+			detail[key] = machine[key]
+		}
+	}
+	respond(w, 200, detail)
 	return nil
 }
 func project(o Object, keys []string) Object {

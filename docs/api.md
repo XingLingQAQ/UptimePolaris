@@ -136,6 +136,22 @@ Cookie 写请求要求同源，AI 功能关闭时手动调用返回 `409 ai_disa
 | `/api/admin/agent-groups`、`/api/admin/agent-tags` | `GET` 列表；`POST` 新建；`PUT /:id` 修改；`DELETE /:id` 删除（机器页关闭返回 `409 agent_page_disabled`，重名 `409 name_exists`） |
 | `PUT /api/admin/agents/:id/taxonomy` | 绑定分组与标签（`{ group_id, tag_ids }`，标签 ≤50 个） |
 
+### GPU 与硬件温度上报
+
+`report.params` 可选携带 `gpus` 和 `sensors` 数组。字段缺省或为 `null` 时忽略，保留此前读数；传 `[]` 清空该项。旧版 Agent 不需要增加字段。管理详情响应在有记录时返回顶层 `gpus_json`、`sensors_json`（JSON 字符串），无记录时省略。
+
+| 字段 | 范围与格式 |
+| --- | --- |
+| `gpus` | 最多 16 项。每项必填 `index`（唯一整数，0–65535）和 `name`；可选 `vendor` |
+| `util_pct` | 0–100 |
+| `mem_used_bytes` / `mem_total_bytes` | 0–9007199254740991 的整数；同时提供时，已用量不得超过总量 |
+| GPU `temp_c` / `power_w` | −100–250 °C / 0–10000 W |
+| `sensors` | 最多 64 项。每项必填 `name`、`temp_c`（−100–250 °C）；可选 `kind` 为 `cpu`、`disk`、`gpu` 或 `other` |
+
+名称与厂商最多 128 个 Unicode 字符，不能为空或包含控制字符。所有数值必须有限；GPU 指标可缺省或为 `null`。非法类型、数值或超限数组会使整帧上报被拒绝，额外属性不保存。后台仅在数组非空时显示对应卡片，温度达到 85 °C 时标黄。
+
+这两项始终仅供管理员查看。`/api/public/agent/detail/:numId` 和 `/api/public/servers/:id` 均省略它们，开启 `site.showPublicAgentHardware` 也不会公开。
+
 ## 统一分组管理
 
 `GET /api/admin/groups`、`POST /api/admin/groups`（`{ name, weight, type }`，`type` 为 `monitor`/`agent`/`common`）、`PUT /api/admin/groups/:key`（`:key` 为 `monitor:UUID` 或 `agent:UUID`；有损改型须带 `confirm_membership_reset: true`）、`DELETE /api/admin/groups/:key?scope=all`、`PUT /api/admin/groups/:key/members`（`≤500` 个未归属 ID，已归属返回 `409 group_members_assigned`）。
@@ -180,6 +196,10 @@ Management endpoints accept a session cookie or Bearer token (`ADMIN_TOKEN` on W
 - AI (`409 ai_disabled` when off): `GET / POST /api/admin/ai/channels`, `GET / PUT / DELETE /api/admin/ai/channels/:id`, `POST .../test`, `GET .../models`; `GET / POST /api/admin/ai/models`, `GET / PUT / DELETE /api/admin/ai/models/:id`, `POST .../check` (`{ revision, channelRevision, confirmPaid: true }`), `GET .../history?days=7` (`1–90`); public `GET /api/public/ai/models`, `/:id`, `/:id/history`. Use `revision` for writes (never `live.revision`).
 
 ### Queue, Agents, groups, and subscriptions
+
+Optional hardware telemetry in `report.params`: `gpus` accepts up to 16 entries with a unique integer `index` (0–65535), required `name`, optional `vendor`, and optional nullable metrics `util_pct` (0–100), `mem_used_bytes` / `mem_total_bytes` (safe nonnegative integers, used ≤ total), `temp_c` (−100–250 °C), and `power_w` (0–10000 W). `sensors` accepts up to 64 entries with required `name` and `temp_c` (−100–250 °C), plus optional `kind`: `cpu`, `disk`, `gpu`, or `other`. Names and vendors contain 1–128 Unicode characters, cannot be blank, and cannot contain control characters. All numbers must be finite. Invalid values reject the report; unknown properties are discarded.
+
+Omitted or `null` arrays leave stored readings unchanged; `[]` clears them. Existing Agents need no new fields. The admin detail response includes top-level `gpus_json` / `sensors_json` strings only when stored. Nonempty arrays appear in admin hardware cards; temperatures ≥85 °C receive a warning color. Both public detail endpoints omit this telemetry, including when `site.showPublicAgentHardware` is enabled.
 
 - **Worker Queue**: `GET /api/admin/check-queue`, `POST .../probe` (`202`), `PUT /api/admin/check-queue` (`{ revision, enabled }`).
 - **Agents**: public `/api/public/agent/manifest`, `/api/public/agent/download/:file`, `/api/public/agent/capabilities`; admin `GET / POST /api/admin/agents`, `POST /api/admin/agents/check-update`, `POST /api/admin/agents/visibility` (≤500), `POST /api/admin/agents/:id/rename`, `/active`, `/probe`, `DELETE /api/admin/agents/:id` (`409 agent_in_use`), `GET /api/admin/agents/:id/detail`, `GET / PUT /api/admin/agents/:id/config` (`expected_revision`), `POST` / `GET /api/admin/agents/:id/commands` (Worker `202` / Go `200`), `POST /api/admin/agents/batch-commands` (100 Worker / 500 Go), `/api/admin/agent-groups`, `/api/admin/agent-tags`, `PUT /api/admin/agents/:id/taxonomy`.

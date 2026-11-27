@@ -35,8 +35,8 @@ const d1 = {
         connections_tcp, connections_udp,
         process_count, uptime, message,
         interfaces_json, mounts_json,
-        reported_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        reported_at, updated_at, gpus_json, sensors_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(agent_id) DO UPDATE SET
        cpu_usage        = excluded.cpu_usage,
        mem_used         = excluded.mem_used,
@@ -59,6 +59,8 @@ const d1 = {
        message          = excluded.message,
        interfaces_json  = excluded.interfaces_json,
        mounts_json      = excluded.mounts_json,
+       gpus_json        = COALESCE(excluded.gpus_json, machine_live.gpus_json),
+       sensors_json     = COALESCE(excluded.sensors_json, machine_live.sensors_json),
        reported_at      = excluded.reported_at,
        updated_at       = excluded.updated_at
      WHERE machine_live.reported_at IS NULL OR excluded.reported_at >= machine_live.reported_at`,
@@ -166,8 +168,8 @@ const postgresLive: AgentLiveSQL = {
         connections_tcp, connections_udp,
         process_count, uptime, message,
         interfaces_json, mounts_json,
-        reported_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        reported_at, updated_at, gpus_json, sensors_json)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
      ON CONFLICT(agent_id) DO UPDATE SET
        cpu_usage        = EXCLUDED.cpu_usage,
        mem_used         = EXCLUDED.mem_used,
@@ -190,6 +192,8 @@ const postgresLive: AgentLiveSQL = {
        message          = EXCLUDED.message,
        interfaces_json  = EXCLUDED.interfaces_json,
        mounts_json      = EXCLUDED.mounts_json,
+       gpus_json        = COALESCE(EXCLUDED.gpus_json, machine_live.gpus_json),
+       sensors_json     = COALESCE(EXCLUDED.sensors_json, machine_live.sensors_json),
        reported_at      = EXCLUDED.reported_at,
        updated_at       = EXCLUDED.updated_at
      WHERE machine_live.reported_at IS NULL OR EXCLUDED.reported_at >= machine_live.reported_at`,
