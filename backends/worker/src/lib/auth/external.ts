@@ -45,6 +45,7 @@ export type JwksFetch = (input: RequestInfo | URL, init?: RequestInit) => Promis
 interface KeySetCacheEntry {
   keys: Map<string, CryptoKey>;
   lastFetchAt: number;
+  inFlight?: Promise<void>;
 }
 
 const jwksCache = new Map<string, KeySetCacheEntry>();
@@ -271,19 +272,24 @@ async function verificationKeyForKid(issuer: string, kid: string, nowMs = Date.n
   const cachedKey = existing?.keys.get(kid);
   if (cachedKey) return cachedKey;
 
-  if (existing && nowMs - existing.lastFetchAt < JWKS_REFRESH_COOLDOWN_MS) {
-    return null;
+  const entry: KeySetCacheEntry = existing ?? { keys: new Map(), lastFetchAt: 0 };
+  if (!entry.inFlight) {
+    if (existing && nowMs - existing.lastFetchAt < JWKS_REFRESH_COOLDOWN_MS) return null;
+
+    entry.lastFetchAt = nowMs;
+    jwksCache.set(issuer, entry);
+    entry.inFlight = fetchAccessKeys(issuer)
+      .then((freshKeys) => {
+        if (freshKeys.size > 0) entry.keys = freshKeys;
+      })
+      .finally(() => {
+        entry.inFlight = undefined;
+      });
   }
 
-  // Record cooldown before fetching so repeated forged kids cannot trigger a stampede.
-  const entry: KeySetCacheEntry = existing ?? { keys: new Map(), lastFetchAt: 0 };
-  entry.lastFetchAt = nowMs;
-  jwksCache.set(issuer, entry);
-
   try {
-    const freshKeys = await fetchAccessKeys(issuer);
-    entry.keys = freshKeys;
-    return freshKeys.get(kid) ?? null;
+    await entry.inFlight;
+    return entry.keys.get(kid) ?? null;
   } catch {
     return null;
   }

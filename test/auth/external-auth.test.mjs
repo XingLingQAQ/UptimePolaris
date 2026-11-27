@@ -14,11 +14,13 @@ const watchdog = setTimeout(() => {
 
 const HARNESS = `
 import { api } from './backends/worker/src/api';
-import { setExternalAuthJwksFetch, parseExternalAuthConfig, resetExternalAuthCache } from './backends/worker/src/lib/auth/external';
+import { setExternalAuthJwksFetch, parseExternalAuthConfig, resetExternalAuthCache, verifyCloudflareAccessRequest } from './backends/worker/src/lib/auth/external';
 import { finishSetup } from './backends/worker/src/lib/auth/service';
+import { loadLiveFresh } from './backends/worker/src/lib/monitor/store';
 
 let jwksCalls = 0;
 let jwksUnavailable = false;
+let jwksDelayMs = 0;
 let activeKeys = [];
 
 setExternalAuthJwksFetch(async (url) => {
@@ -26,6 +28,7 @@ setExternalAuthJwksFetch(async (url) => {
   if (!String(url).endsWith('/cdn-cgi/access/certs')) {
     return new Response('not found', { status: 404 });
   }
+  if (jwksDelayMs) await new Promise((resolve) => setTimeout(resolve, jwksDelayMs));
   if (jwksUnavailable) {
     return new Response('unavailable', { status: 503 });
   }
@@ -44,6 +47,7 @@ export default {
         const body = await request.json();
         if (body.keys !== undefined) activeKeys = body.keys;
         if (body.unavailable !== undefined) jwksUnavailable = body.unavailable;
+        if (body.delayMs !== undefined) jwksDelayMs = body.delayMs;
         if (body.reset) {
           jwksCalls = 0;
           resetExternalAuthCache();
@@ -55,6 +59,14 @@ export default {
       const body = await request.json();
       return Response.json(parseExternalAuthConfig(body));
     }
+    if (url.pathname === '/__verify-batch') {
+      const { tokens, nowSec } = await request.json();
+      const users = await Promise.all(tokens.map((token) => verifyCloudflareAccessRequest(
+        new Request(request.url, { headers: { 'cf-access-jwt-assertion': token } }), env, nowSec,
+      )));
+      return Response.json(users.map(Boolean));
+    }
+    if (url.pathname === '/__live') return Response.json(await loadLiveFresh(env));
     return api.fetch(request, env, ctx);
   },
 };
@@ -207,6 +219,15 @@ const baseClaims = () => {
     const seeded = await req(mf, '/__setup-owner');
     assert.equal(seeded.body.ok, true);
 
+    await req(mf, '/__jwks', { method: 'POST', body: JSON.stringify({ delayMs: 100 }) });
+    const concurrent = await Promise.all(['/api/auth/session', '/api/overview', '/api/monitors'].map((path) =>
+      req(mf, path, { headers: { 'cf-access-jwt-assertion': validJwt } }),
+    ));
+    for (const result of concurrent) assert.equal(result.res.status, 200);
+    assert.equal(concurrent[0].body.authenticated, true, 'cold-start session must await the shared JWKS fetch');
+    assert.equal((await req(mf, '/__jwks')).body.calls, 1);
+    await req(mf, '/__jwks', { method: 'POST', body: JSON.stringify({ delayMs: 0 }) });
+
     // Valid JWT signs in without setting any local session cookie
     const session = await req(mf, '/api/auth/session', {
       headers: { 'cf-access-jwt-assertion': validJwt },
@@ -261,6 +282,15 @@ const baseClaims = () => {
     });
     assert.equal(avatarUp.res.status, 200);
     assert.equal(avatarUp.body.uploaded, true);
+    const db = await mf.getD1Database('DB');
+    const liveState = { 'avatar-test-monitor': { status: 'up', ts: 100 } };
+    const avatarId = 'external-avatar:' + session.body.user.id;
+    await db.prepare('INSERT INTO live_state (id, json, updated_at) VALUES (?, ?, ?)')
+      .bind('all', JSON.stringify(liveState), 100).run();
+    await db.prepare('INSERT INTO live_state (id, json, updated_at) VALUES (?, ?, ?)')
+      .bind('external-avatar:external:other-user', '{"version":"other"}', 100).run();
+    assert.deepEqual((await req(mf, '/__live')).body, liveState);
+    assert.ok(await db.prepare('SELECT json FROM live_state WHERE id = ?').bind(avatarId).first());
     const avatarRead = await req(mf, '/api/auth/avatar', { headers: { 'cf-access-jwt-assertion': validJwt } });
     assert.equal(avatarRead.body.uploaded, true);
     const avatarDel = await req(mf, '/api/auth/avatar', {
@@ -268,6 +298,9 @@ const baseClaims = () => {
       headers: { origin: ORIGIN, 'cf-access-jwt-assertion': validJwt },
     });
     assert.equal(avatarDel.res.status, 200);
+    assert.equal(await db.prepare('SELECT json FROM live_state WHERE id = ?').bind(avatarId).first(), null);
+    assert.ok(await db.prepare('SELECT json FROM live_state WHERE id = ?').bind('external-avatar:external:other-user').first());
+    assert.deepEqual((await req(mf, '/__live')).body, liveState);
 
     // Reject invalid claims, wrong signature, alg:none, service token, non-allowlisted email, and duplicate headers
     const now = Math.floor(Date.now() / 1000);
@@ -371,14 +404,44 @@ const baseClaims = () => {
     assert.equal(bearerSession.body.authentication, 'bearer');
     assert.equal(bearerSession.body.user, null);
 
-    // Key rotation after cache reset works; JWKS outage rejects unknown kid
-    await req(mf, '/__jwks', { method: 'POST', body: JSON.stringify({ keys: [key2.jwk], reset: true }) });
+    const configureJwks = (body) => req(mf, '/__jwks', { method: 'POST', body: JSON.stringify(body) });
+    const verifyBatch = async (tokens, nowSec) => (await req(mf, '/__verify-batch', {
+      method: 'POST', body: JSON.stringify({ tokens, nowSec }),
+    })).body;
+    const fetchedAt = Math.floor(Date.now() / 1000);
     const rotatedJwt = await signJwt(baseClaims(), key2.privateKey, { kid: 'kid-2' });
-    assert.equal((await req(mf, '/api/monitors', { headers: { 'cf-access-jwt-assertion': rotatedJwt } })).res.status, 200);
+    const unknownJwt = await signJwt(baseClaims(), key1.privateKey, { kid: 'missing-kid' });
+    await configureJwks({ keys: [key1.jwk], reset: true, delayMs: 25 });
+    assert.deepEqual(await verifyBatch([validJwt, validJwt, unknownJwt], fetchedAt), [true, true, false]);
+    assert.equal((await req(mf, '/__jwks')).body.calls, 1);
 
-    await req(mf, '/__jwks', { method: 'POST', body: JSON.stringify({ unavailable: true, reset: true }) });
-    assert.equal((await req(mf, '/api/monitors', { headers: { 'cf-access-jwt-assertion': rotatedJwt } })).res.status, 401);
-    console.log('PASS Worker Cloudflare Access JWT, logout suppression, local fallback and key rotation');
+    await configureJwks({ keys: [key2.jwk] });
+    assert.deepEqual(await verifyBatch([rotatedJwt, rotatedJwt], fetchedAt + 1), [false, false]);
+    assert.equal((await req(mf, '/__jwks')).body.calls, 1, 'cooldown must still reject unknown kids');
+    assert.deepEqual(await verifyBatch([rotatedJwt, rotatedJwt, validJwt, unknownJwt], fetchedAt + 10), [true, true, true, false]);
+    assert.equal((await req(mf, '/__jwks')).body.calls, 2, 'rotation must share one fetch');
+    assert.deepEqual(await verifyBatch([validJwt], fetchedAt + 11), [false], 'nonempty JWKS replaces removed keys');
+
+    await configureJwks({ keys: [] });
+    assert.deepEqual(await verifyBatch([validJwt, validJwt], fetchedAt + 20), [false, false]);
+    assert.deepEqual(await verifyBatch([rotatedJwt], fetchedAt + 21), [true], 'empty JWKS must retain cached keys');
+    assert.equal((await req(mf, '/__jwks')).body.calls, 3);
+
+    await configureJwks({ unavailable: true });
+    assert.deepEqual(await verifyBatch([validJwt, validJwt], fetchedAt + 30), [false, false]);
+    assert.deepEqual(await verifyBatch([rotatedJwt], fetchedAt + 30), [true], 'failed JWKS must retain cached keys');
+    assert.equal((await req(mf, '/__jwks')).body.calls, 4, 'failed refresh must be shared');
+
+    await configureJwks({ unavailable: false, keys: [key1.jwk, key2.jwk] });
+    assert.deepEqual(await verifyBatch([validJwt], fetchedAt + 31), [false]);
+    assert.equal((await req(mf, '/__jwks')).body.calls, 4, 'failed refresh must keep cooldown');
+    assert.deepEqual(await verifyBatch([validJwt, rotatedJwt, validJwt], fetchedAt + 40), [true, true, true]);
+    assert.equal((await req(mf, '/__jwks')).body.calls, 5, 'failed in-flight fetch must clear for recovery');
+
+    await configureJwks({ unavailable: true, reset: true });
+    assert.deepEqual(await verifyBatch([rotatedJwt, rotatedJwt], fetchedAt + 50), [false, false]);
+    assert.equal((await req(mf, '/__jwks')).body.calls, 1);
+    console.log('PASS Worker Cloudflare Access JWT, concurrent cold start/rotation, JWKS recovery, avatar isolation, logout and local fallback');
   } finally {
     await mf.dispose();
   }

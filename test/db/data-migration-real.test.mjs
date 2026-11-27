@@ -22,6 +22,12 @@ export async function testDataMigration(url) {
   local.exec("INSERT INTO agents(id,name,token,created_at,updated_at) VALUES('machine','Machine','machine-token',100,100)");
   local.exec("INSERT INTO monitors(id,num_id,name,type,target,agent_id,is_public,created_at,updated_at) VALUES('private',1,'Private monitor','agent','','machine',0,100,100)");
   local.exec("INSERT INTO machine_live(agent_id,cpu_usage,updated_at) VALUES('machine',42,100)");
+  const avatarId = 'external-avatar:external:cloudflare-access:migration-user';
+  const avatarJson = JSON.stringify({ data_url: 'data:image/png;base64,AQID', version: 'migration-avatar' });
+  const liveJson = JSON.stringify({ private: { status: 'up', ts: 100 } });
+  const insertLive = local.prepare('INSERT INTO live_state (id, json, updated_at) VALUES (?, ?, ?)');
+  insertLive.run('all', liveJson, 100);
+  insertLive.run(avatarId, avatarJson, 100);
   const d1 = {
     prepare(query) {
       return { all: async () => ({ results: local.prepare(query).all() }), query };
@@ -49,9 +55,12 @@ export async function testDataMigration(url) {
     assert.equal((await target`SELECT name FROM monitors WHERE id='private'`)[0].name, 'Private monitor');
     assert.equal((await target`SELECT is_public FROM monitors WHERE id='private'`)[0].is_public, 0);
     assert.equal((await target`SELECT cpu_usage FROM machine_live WHERE agent_id='machine'`)[0].cpu_usage, 42);
+    assert.equal((await target`SELECT json FROM live_state WHERE id=${avatarId}`)[0].json, avatarJson);
+    assert.equal((await target`SELECT json FROM live_state WHERE id='all'`)[0].json, liveJson);
     await target`DELETE FROM monitors`;
     await target`DELETE FROM agents`;
     await target`DELETE FROM site_icon`;
+    await target`DELETE FROM live_state WHERE id IN ('all', ${avatarId})`;
     await target`DELETE FROM schema_migrations WHERE name = '0017_agent_runtime_config.postgres.sql'`;
     await assert.rejects(() => migrateDataWithConnection(d1, target, false), (error) => error.code === 'schema_mismatch');
     await target`INSERT INTO schema_migrations (name, applied_at) VALUES ('0017_agent_runtime_config.postgres.sql', 1)`;
@@ -61,6 +70,7 @@ export async function testDataMigration(url) {
     const preview = await migrateDataWithConnection(d1, target, false);
     assert.equal(preview.targetNeedsInitialization, false);
     assert.equal(preview.tables.find((table) => table.name === 'site_icon').rows, 1);
+    assert.equal(preview.tables.find((table) => table.name === 'live_state').rows, 2);
     local.exec('UPDATE site_icon SET byte_size = 2147483648 WHERE singleton = 1');
     await assert.rejects(() => migrateDataWithConnection(d1, target, true));
     assert.equal((await target`SELECT COUNT(*)::int AS n FROM monitors`)[0].n, 0);
@@ -70,6 +80,8 @@ export async function testDataMigration(url) {
     assert.equal(copied.copied, true);
     assert.equal((await target`SELECT COUNT(*)::int AS n FROM monitors`)[0].n, 1);
     assert.deepEqual([...((await target`SELECT bytes FROM site_icon`)[0].bytes)], [1, 2, 3]);
+    assert.equal((await target`SELECT json FROM live_state WHERE id=${avatarId}`)[0].json, avatarJson);
+    assert.equal((await target`SELECT json FROM live_state WHERE id='all'`)[0].json, liveJson);
     await assert.rejects(() => migrateDataWithConnection(d1, target, true), (error) => error.code === 'target_not_empty');
     console.log('PASS D1 to PostgreSQL migration: preflight, complete copy, binary data and populated target rejection');
   } finally {
