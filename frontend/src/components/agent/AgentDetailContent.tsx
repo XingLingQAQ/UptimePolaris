@@ -18,7 +18,8 @@ import {
   MemoryStick,
   RefreshCw,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import useSWR from 'swr';
 import { useTranslations } from 'use-intl';
 import { AvailabilityRail } from '../monitor/AvailabilityRail';
@@ -149,6 +150,18 @@ const RANGE_KEYS: Record<RangeMinutes, string> = {
   360: 'detail.range6h',
   1440: 'detail.range24h',
 };
+
+const RANGE_QUERY_BY_MINUTES: Record<RangeMinutes, '1h' | '6h' | '24h'> = {
+  60: '1h',
+  360: '6h',
+  1440: '24h',
+};
+
+function parseRangeMinutes(raw: string | null): RangeMinutes {
+  if (raw === '6h' || raw === '360') return 360;
+  if (raw === '24h' || raw === '1440') return 1440;
+  return 60;
+}
 
 const fetcher = (url: string) => requestJson<AgentDetailResponse>(url);
 
@@ -291,8 +304,23 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
   // Top-level catalog: `detail.*` is not under the admin namespace. / 顶层词表：`detail.*` 不在 admin 命名空间。
   const t = useTranslations();
   const { pageId } = usePageConfig();
-  const [minutes, setMinutes] = useState<RangeMinutes>(60);
-  const { data: cachedData, error, isLoading, isValidating, mutate } = useSWR<AgentDetailResponse>(
+  const [searchParams, setSearchParams] = useSearchParams();
+  const minutes = parseRangeMinutes(searchParams.get('range'));
+  const setMinutes = useCallback(
+    (next: RangeMinutes) => {
+      setSearchParams(
+        (prev) => {
+          const updated = new URLSearchParams(prev);
+          if (next === 60) updated.delete('range');
+          else updated.set('range', RANGE_QUERY_BY_MINUTES[next]);
+          return updated;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+  const { data: cachedData, error, isLoading, mutate } = useSWR<AgentDetailResponse>(
     publicApiUrl(`/api/public/agent/detail/${numId}?minutes=${minutes}`, pageId),
     fetcher,
     { refreshInterval: 15_000, revalidateOnFocus: false, dedupingInterval: 5_000, keepPreviousData: true, shouldRetryOnError: isRetryableApiError, errorRetryCount: 2 },
@@ -306,6 +334,24 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
   }, []);
 
   const data = error instanceof ApiError && [401, 403, 404].includes(error.status) ? undefined : cachedData;
+  // Track which `minutes` window the currently displayed `data` actually belongs to,
+  // so `keepPreviousData` never stretches 1h buckets across a 24h axis while loading.
+  // 记录当前 `data` 实际对应的时间窗口；切换范围加载期间保持旧轴，避免曲线被压缩到右侧细条。
+  const settledDataRef = useRef<AgentDetailResponse | undefined>(undefined);
+  const settledMinutesRef = useRef<RangeMinutes>(minutes);
+  const settledNow = data !== undefined && !isLoading;
+  if (settledNow) {
+    settledDataRef.current = data;
+    settledMinutesRef.current = minutes;
+  } else if (data !== undefined && settledDataRef.current === undefined) {
+    settledDataRef.current = data;
+    settledMinutesRef.current = minutes;
+  }
+  const chartMinutes =
+    data !== undefined && (settledNow || data === settledDataRef.current)
+      ? settledMinutesRef.current
+      : minutes;
+  const switchingRange = isLoading && data !== undefined;
   const live = data?.live ?? null;
   const resolvedName = monitorName ?? data?.monitor.name ?? '';
   const paused = data?.monitor.active === 0;
@@ -327,8 +373,8 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
     const buckets = data?.buckets ?? [];
     const now = data?.now ?? Math.floor(Date.now() / 1000);
     const rows = new Map(buckets.map((b) => [b.bucket_ts, b]));
-    const start = Math.floor((now - (minutes - 1) * 60) / 60) * 60;
-    const timeline = Array.from({ length: minutes }, (_, i) => rows.get(start + i * 60));
+    const start = Math.floor((now - (chartMinutes - 1) * 60) / 60) * 60;
+    const timeline = Array.from({ length: chartMinutes }, (_, i) => rows.get(start + i * 60));
     const cpu = timeline.map((b, i) => ({ ts: start + i * 60, value: b?.quality === 'aggregate' ? b.cpu_avg : null }));
     const mem = timeline.map((b, i) => ({ ts: start + i * 60, value: b?.quality === 'aggregate' ? b.mem_pct_avg : null }));
     const load = timeline.map((b, i) => ({ ts: start + i * 60, value: b?.quality === 'aggregate' ? b.load_1_avg : null }));
@@ -339,7 +385,7 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
         : null,
     }));
     return { cpu, mem, load, net };
-  }, [data?.buckets, data?.now, minutes]);
+  }, [data?.buckets, data?.now, chartMinutes]);
 
   const formatPercentTooltip = useCallback((v: number) => `${v.toFixed(1)}%`, []);
   const formatNetworkTooltip = useCallback((v: number) => formatRate(v), []);
@@ -614,9 +660,15 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-small font-semibold">{t('detail.performanceHistory')}</h2>
                 <div className="flex items-center gap-2">
-                  {isLoading || isValidating ? (
-                    <RefreshCw size={14} className="animate-spin text-default-400" aria-hidden="true" />
-                  ) : null}
+                  <span
+                    className={clsx(
+                      'inline-flex h-4 w-4 items-center justify-center transition-opacity',
+                      switchingRange ? 'opacity-100' : 'opacity-0',
+                    )}
+                    aria-hidden="true"
+                  >
+                    <RefreshCw size={14} className={clsx('text-default-400', switchingRange && 'animate-spin')} />
+                  </span>
                   <div
                     role="group"
                     aria-label={t('detail.performanceRange')}
@@ -631,7 +683,7 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
                           aria-pressed={active}
                           onClick={() => setMinutes(option)}
                           className={clsx(
-                            'rounded-small px-2.5 py-1 text-tiny font-medium transition-colors',
+                            'cursor-pointer rounded-small px-2.5 py-1 text-tiny font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                             active
                               ? 'bg-content1 text-foreground shadow-small'
                               : 'text-default-500 hover:text-foreground',
@@ -650,7 +702,7 @@ export function AgentDetailContent({ numId, monitorName, target }: AgentDetailCo
                   recharts container has a min-content width of its own.
                   与身份卡相同，使用 `grid-cols-1`：普通 grid 的 auto 轨道不能小于内容，
                   而 Recharts 容器本身有最小内容宽度。 */}
-              <div className={clsx('grid grid-cols-1 gap-x-6 gap-y-8 transition-opacity sm:grid-cols-2 sm:gap-y-10', isLoading && 'opacity-60')}>
+              <div className={clsx('grid grid-cols-1 gap-x-6 gap-y-8 transition-opacity sm:grid-cols-2 sm:gap-y-10', switchingRange && 'opacity-60')}>
                 <section>
                   <p className="mb-2 flex items-center gap-2 text-tiny text-default-500">
                     <Cpu size={12} /> {t('detail.cpuUsage')}

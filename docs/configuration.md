@@ -64,7 +64,7 @@ Go 默认读取当前工作目录的 `.env`（示例见 [`backends/go/.env.examp
 | `site.description` | `服务可用性监控` | 非空字符串，最多 300 字符 |
 | `site.icon` | `/api/public/icon` | 站内路径或 HTTP(S) URL，最多 2048 字符 |
 | `site.syncMonitorIcons` | `false` | 是否同步监控网站与订阅图标 |
-| `site.showPublicAgentHardware` | `false` | 是否在公开 Agent 详情页展示网卡名与磁盘挂载路径；会暴露主机网络接口与挂载信息，仅建议私有或受访问控制保护的实例启用 |
+| `site.showPublicAgentHardware` | `false` | 是否在监控详情页（`/monitor/:id`）的公开 Agent 展示中返回网卡名与磁盘挂载路径（不影响 `/servers` 机器页）；会暴露主机网络接口与挂载信息，仅建议私有或受访问控制保护的实例启用 |
 | `monitor.defaultIntervalSec` | `60` | 新建监控默认间隔（Worker：`60–86400` 秒；Go：`5–86400` 秒） |
 | `monitor.defaultTimeoutMs` | `10000` | 新建监控默认超时（Worker：`1000–60000` ms；Go：`100–120000` ms） |
 | `monitor.defaultRetries` | `3` | `0–10`；运行时失败确认次数，对所有监控生效 |
@@ -152,7 +152,7 @@ Manage settings in `/admin` or via `GET / PUT /api/admin/settings` (`DELETE /api
 | `site.description` | `服务可用性监控` | Non-empty, max 300 chars |
 | `site.icon` | `/api/public/icon` | Site path or HTTP(S) URL, max 2048 chars |
 | `site.syncMonitorIcons` | `false` | Sync website and subscription icons |
-| `site.showPublicAgentHardware` | `false` | Expose Agent network interface names and disk mount paths on public Agent detail pages (enable only on private or access-controlled instances) |
+| `site.showPublicAgentHardware` | `false` | Expose Agent network interface names and disk mount paths on public monitor detail pages (`/monitor/:id`, without affecting `/servers`); enable only on private or access-controlled instances |
 | `monitor.defaultIntervalSec` | `60` | New-monitor default interval (Worker: `60–86400` s; Go: `5–86400` s) |
 | `monitor.defaultTimeoutMs` | `10000` | New-monitor default timeout (Worker: `1000–60000` ms; Go: `100–120000` ms) |
 | `monitor.defaultRetries` | `3` | `0–10`; runtime failure confirmation threshold across monitors |

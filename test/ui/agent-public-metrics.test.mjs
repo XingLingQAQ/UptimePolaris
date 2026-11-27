@@ -44,8 +44,11 @@ let pageId = 'default';
 let requestKey;
 let swrOptions;
 let capturedCharts = [];
+let searchParams = new URLSearchParams();
 const stateSlots = [];
+const refSlots = [];
 let stateIndex = 0;
+let refIndex = 0;
 const location = new URL('https://status.example/monitor/1');
 const empty = () => null;
 const AgentDetailContent = compile('AgentDetailContent.tsx', 'AgentDetailContent', {
@@ -54,9 +57,21 @@ const AgentDetailContent = compile('AgentDetailContent.tsx', 'AgentDetailContent
   usePageConfig: () => ({ pageId }),
   publicApiUrl: (path, pageId) => publicApiUrl(path, pageId, location),
   useTranslations: () => key => key,
+  useSearchParams: () => [
+    searchParams,
+    updater => {
+      const next = typeof updater === 'function' ? updater(new URLSearchParams(searchParams)) : new URLSearchParams(updater);
+      searchParams = next;
+    },
+  ],
   useEffect: () => {},
   useMemo: fn => fn(),
   useCallback: fn => fn,
+  useRef: init => {
+    const idx = refIndex++;
+    if (!(idx in refSlots)) refSlots[idx] = { current: init };
+    return refSlots[idx];
+  },
   useState: init => {
     const idx = stateIndex++;
     if (!(idx in stateSlots)) stateSlots[idx] = typeof init === 'function' ? init() : init;
@@ -68,10 +83,12 @@ const AgentDetailContent = compile('AgentDetailContent.tsx', 'AgentDetailContent
   AvailabilityRail: empty,
   Card: 'section', CardBody: 'div', CardHeader: 'header',
   Chip: ({ children, className }) => React.createElement('span', { className }, children),
-  ...Object.fromEntries(['Activity', 'AlertTriangle', 'Check', 'Clock', 'Cpu', 'HardDrive', 'Layers', 'MemoryStick', 'RefreshCw'].map(key => [key, empty])),
+  ...Object.fromEntries(['Activity', 'AlertTriangle', 'Check', 'Clock', 'Cpu', 'HardDrive', 'Layers', 'MemoryStick'].map(key => [key, empty])),
+  RefreshCw: ({ className }) => React.createElement('svg', { className }),
 });
 const render = () => {
   stateIndex = 0;
+  refIndex = 0;
   capturedCharts = [];
   return renderToStaticMarkup(React.createElement(AgentDetailContent, { numId: 1 }));
 };
@@ -157,7 +174,7 @@ assert.equal(capturedCharts[0].data[57].value, 42.5);
 assert.equal(capturedCharts[0].data[58].value, null);
 assert.equal(capturedCharts[0].data[59].value, null);
 
-stateSlots[0] = 360;
+searchParams = new URLSearchParams('range=6h');
 const html6h = render();
 assert.equal(new URL(requestKey, location).searchParams.get('minutes'), '360');
 assert.match(html6h, /aria-pressed="true"[^>]*>detail\.range6h</);
@@ -166,7 +183,7 @@ assert.equal(capturedCharts[0].data[357].value, 42.5);
 assert.equal(capturedCharts[0].data[358].value, null);
 assert.equal(capturedCharts[0].data[359].value, null);
 
-stateSlots[0] = 1440;
+searchParams = new URLSearchParams('range=24h');
 const html24h = render();
 assert.equal(new URL(requestKey, location).searchParams.get('minutes'), '1440');
 assert.match(html24h, /aria-pressed="true"[^>]*>detail\.range24h</);
@@ -209,12 +226,42 @@ assert.match(mountsOnlyHtml, /detail\.disks/);
 assert.match(mountsOnlyHtml, />\/data</);
 console.log('PASS public Agent detail hardware card visibility (redacted vs empty vs populated)');
 
+state = { data, isLoading: false, isValidating: true };
+const backgroundPollHtml = render();
+assert.doesNotMatch(backgroundPollHtml, /animate-spin/);
+assert.doesNotMatch(backgroundPollHtml, /opacity-60/);
+
+// Simulate clicking 24h while `data` still holds the previous 60-minute payload:
+// the timeline must stay at 60 points until the 1440-minute payload settles.
+searchParams = new URLSearchParams('range=6h');
+state = { data, isLoading: false, isValidating: false };
+render();
+assert.equal(capturedCharts[0].data.length, 360);
+
+searchParams = new URLSearchParams('range=24h');
 state = { data, isLoading: true, isValidating: true };
 const rangeSwitchingHtml = render();
 assert.match(rangeSwitchingHtml, /Private fixture name/);
 assert.match(rangeSwitchingHtml, /opacity-60/);
+assert.match(rangeSwitchingHtml, /animate-spin/);
+assert.match(rangeSwitchingHtml, /cursor-pointer/);
+assert.match(rangeSwitchingHtml, /focus-visible:ring-2/);
+assert.equal(capturedCharts[0].data.length, 360);
+
+const settled24h = { ...data, buckets: [...data.buckets] };
+state = { data: settled24h, isLoading: false, isValidating: false };
+render();
+assert.equal(capturedCharts[0].data.length, 1440);
+
+// Switching back to a previously cached 6h key: SWR yields `isLoading: false`
+// and the cached `data` object reference immediately without a loading pass.
+searchParams = new URLSearchParams('range=6h');
+state = { data, isLoading: false, isValidating: true };
+render();
+assert.equal(capturedCharts[0].data.length, 360);
+
 state = { data: undefined, isLoading: true, isValidating: true };
 const initialLoadingHtml = render();
 assert.doesNotMatch(initialLoadingHtml, /Private fixture name/);
 assert.match(initialLoadingHtml, /bg-default-100/);
-console.log('PASS public Agent detail keeps page mounted while switching range');
+console.log('PASS public Agent detail keeps settled timeline, avoids poll flicker, and stays mounted while switching range');

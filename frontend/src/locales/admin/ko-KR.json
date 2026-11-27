@@ -595,7 +595,7 @@
     "syncMonitorIcons": "사이트 favicon 가져오기",
     "syncMonitorIconsHint": "기본값은 꺼짐입니다. 켜면 Worker가 모니터링 대상 사이트에서 아이콘을 가져와 캐시된 프록시로 제공합니다. 없는 사이트는 기본 아이콘을 유지합니다.",
     "showPublicAgentHardware": "공개 페이지에 Agent 네트워크 인터페이스 및 마운트 정보 표시",
-    "showPublicAgentHardwareHint": "기본값은 꺼짐입니다. 켜면 공개 Agent 상세 페이지에 인터페이스 이름(예: tailscale0, docker0)과 디스크 마운트 경로가 표시됩니다. 비공개 또는 접근 제어가 적용된 인스턴스에서만 활성화하세요.",
+    "showPublicAgentHardwareHint": "기본값은 꺼짐입니다. 켜면 모니터 상세 페이지(/monitor/:id)의 Agent 화면에 인터페이스 이름(예: tailscale0, docker0)과 디스크 마운트 경로가 표시됩니다(/servers 페이지에는 영향 없음). 비공개 또는 접근 제어가 적용된 인스턴스에서만 활성화하세요.",
     "loadFailed": "설정을 불러오지 못했습니다. 다시 시도하세요.",
     "resetFailed": "이 설정을 기본값으로 되돌리지 못했습니다. 다시 시도하세요.",
     "eventsLoadFailed": "상태 변경 이력을 불러오지 못했습니다. 다시 시도하세요.",

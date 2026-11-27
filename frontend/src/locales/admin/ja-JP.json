@@ -595,7 +595,7 @@
     "syncMonitorIcons": "各サイトの favicon を取得",
     "syncMonitorIconsHint": "既定ではオフです。オンにすると Worker が監視対象サイトからアイコンを取得し、キャッシュしたプロキシ経由で配信します。取得できないサイトは既定のアイコンのままです。",
     "showPublicAgentHardware": "公開ページで Agent の NIC とマウント情報を表示",
-    "showPublicAgentHardwareHint": "既定ではオフです。オンにすると公開の Agent 詳細ページに NIC 名（tailscale0 や docker0 など）とマウントパスが表示されます。非公開またはアクセス制限されたインスタンスでのみ有効にしてください。",
+    "showPublicAgentHardwareHint": "既定ではオフです。オンにすると監視詳細ページ（/monitor/:id）の Agent 表示に NIC 名（tailscale0 や docker0 など）とマウントパスが表示されます（/servers ページには影響しません）。非公開またはアクセス制限されたインスタンスでのみ有効にしてください。",
     "loadFailed": "設定を読み込めませんでした。もう一度お試しください。",
     "resetFailed": "この設定を初期値に戻せませんでした。もう一度お試しください。",
     "eventsLoadFailed": "状態の変更履歴を読み込めませんでした。もう一度お試しください。",

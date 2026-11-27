@@ -107,7 +107,7 @@ curl --fail-with-body -X POST \
 ## 账号、站点图标与安全
 
 - **站点图标**：在 **设置 → 站点** 可直接上传图标（最大 256 KB），优先级高于配置项中的图标路径。
-- **公开 Agent 网卡与挂载点**：在 **设置 → 站点** 提供“公开展示 Agent 网卡与挂载点详情”开关（默认关闭），避免公开页面泄露 `tailscale0`、`docker0` 等接口名或磁盘挂载路径；仅建议私有或受访问控制保护的实例开启。
+- **公开 Agent 网卡与挂载点**：在 **设置 → 站点** 提供“公开展示 Agent 网卡与挂载点详情”开关（默认关闭），控制监控详情页（`/monitor/:id`）中的 Agent 视图是否展示 `tailscale0`、`docker0` 等网卡名与磁盘挂载路径（不影响 `/servers` 机器页）；仅建议私有或受访问控制保护的实例开启。
 - **账号管理**：在 **设置 → 账户** 修改用户名（`2–32` 位小写字母、数字或 `._-`）、密码（修改后其他设备会话立即失效）及个人头像（PNG/JPEG/WebP，最大 5 MB）。
 - **安全与限流**：在 **设置 → 安全** 调整会话有效期、登录失败限流及“允许远程 Agent 指令”开关。忘记密码处理见[常见问题](troubleshooting.md#忘记管理密码)。
 
@@ -213,7 +213,7 @@ Groups organize status pages and notification scope; tags classify items. Enabli
 ### Account, site icon, and security
 
 - **Site icon**: upload an icon (up to 256 KB) under **Settings → Site**, overriding the path setting.
-- **Public Agent interfaces & mounts**: under **Settings → Site**, **Show Agent network interfaces and disk mounts publicly** defaults to off to avoid exposing interface names (`tailscale0`, `docker0`) or mount paths; enable only on private or access-controlled instances.
+- **Public Agent interfaces & mounts**: under **Settings → Site**, **Show Agent network interfaces and disk mounts publicly** defaults to off to avoid exposing interface names (`tailscale0`, `docker0`) or mount paths on monitor detail pages (`/monitor/:id`, without affecting `/servers`); enable only on private or access-controlled instances.
 - **Account**: update username (`2–32` lowercase letters, digits, or `._-`), password (invalidates other sessions), and avatar (`PNG`/`JPEG`/`WebP`, up to 5 MB) under **Settings → Account**.
 - **Security**: adjust session TTL, login throttling, and `Allow remote Agent commands` under **Settings → Security**. See [Troubleshooting](troubleshooting.md#english) for lost passwords.
 
