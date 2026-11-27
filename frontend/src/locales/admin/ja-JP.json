@@ -881,6 +881,16 @@
     "cores": "{n} コア",
     "sectionIdentity": "基本情報",
     "sectionNetwork": "ネットワーク",
+    "gpuMemoryFor": "GPU メモリ：{name}",
+    "hardwarePeakTemperature": "最高",
+    "hardwareShowAll": "全 {count} 件を表示",
+    "hardwareShowLess": "折りたたむ",
+    "sensorKind": {
+      "cpu": "CPU",
+      "disk": "ディスク",
+      "gpu": "GPU",
+      "other": "その他"
+    },
     "sectionGpus": "GPU",
     "sectionSensors": "ハードウェア温度",
     "gpuIndex": "GPU {index}",

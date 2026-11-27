@@ -881,6 +881,16 @@
     "cores": "{n, plural, one {# ядро} few {# ядра} many {# ядер} other {# ядра}}",
     "sectionIdentity": "Идентификация",
     "sectionNetwork": "Сеть",
+    "gpuMemoryFor": "Память GPU: {name}",
+    "hardwarePeakTemperature": "Максимум",
+    "hardwareShowAll": "Показать все: {count}",
+    "hardwareShowLess": "Свернуть",
+    "sensorKind": {
+      "cpu": "CPU",
+      "disk": "Диск",
+      "gpu": "GPU",
+      "other": "Другое"
+    },
     "sectionGpus": "Видеокарты",
     "sectionSensors": "Температуры оборудования",
     "gpuIndex": "GPU {index}",

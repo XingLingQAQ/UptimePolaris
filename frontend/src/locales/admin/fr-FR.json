@@ -881,6 +881,16 @@
     "cores": "{n, plural, =0 {# cœurs} one {# cœur} other {# cœurs}}",
     "sectionIdentity": "Identité",
     "sectionNetwork": "Réseau",
+    "gpuMemoryFor": "Mémoire GPU : {name}",
+    "hardwarePeakTemperature": "Maximum",
+    "hardwareShowAll": "Afficher les {count} capteurs",
+    "hardwareShowLess": "Réduire",
+    "sensorKind": {
+      "cpu": "CPU",
+      "disk": "Disque",
+      "gpu": "GPU",
+      "other": "Autre"
+    },
     "sectionGpus": "GPU",
     "sectionSensors": "Températures matérielles",
     "gpuIndex": "GPU {index}",

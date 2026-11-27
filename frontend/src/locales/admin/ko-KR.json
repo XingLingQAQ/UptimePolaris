@@ -881,6 +881,16 @@
     "cores": "{n} 코어",
     "sectionIdentity": "기본 정보",
     "sectionNetwork": "네트워크",
+    "gpuMemoryFor": "GPU 메모리: {name}",
+    "hardwarePeakTemperature": "최고",
+    "hardwareShowAll": "전체 {count}개 표시",
+    "hardwareShowLess": "접기",
+    "sensorKind": {
+      "cpu": "CPU",
+      "disk": "디스크",
+      "gpu": "GPU",
+      "other": "기타"
+    },
     "sectionGpus": "GPU",
     "sectionSensors": "하드웨어 온도",
     "gpuIndex": "GPU {index}",

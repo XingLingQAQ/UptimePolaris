@@ -225,10 +225,6 @@ export function AgentDetailDialog({
                 </p>
               ) : null}
 
-              {currentDetail?.gpus_json || currentDetail?.sensors_json ? (
-                <AgentHardwareCards gpusJson={currentDetail.gpus_json} sensorsJson={currentDetail.sensors_json} />
-              ) : null}
-
               {currentDetail ? (
                 <TrendCard detail={currentDetail} t={t} onRetry={() => { if (agent) void refresh(agent.id); }} />
               ) : detailState === 'loading' ? (
@@ -307,6 +303,9 @@ export function AgentDetailDialog({
               */}
               {currentDetail ? (
                 <div className="flex flex-col gap-4">
+                  {currentDetail.gpus_json || currentDetail.sensors_json ? (
+                    <AgentHardwareCards key={agent.id} gpusJson={currentDetail.gpus_json} sensorsJson={currentDetail.sensors_json} />
+                  ) : null}
                   <Disclosure
                     key={`mounts-${agent.id}`}
                     icon={<HardDrive />}

@@ -881,6 +881,16 @@
     "cores": "{n} 核",
     "sectionIdentity": "基本信息",
     "sectionNetwork": "网络",
+    "gpuMemoryFor": "GPU 显存：{name}",
+    "hardwarePeakTemperature": "最高",
+    "hardwareShowAll": "展开全部 {count} 项",
+    "hardwareShowLess": "收起",
+    "sensorKind": {
+      "cpu": "CPU",
+      "disk": "磁盘",
+      "gpu": "GPU",
+      "other": "其他"
+    },
     "sectionGpus": "GPU",
     "sectionSensors": "硬件温度",
     "gpuIndex": "GPU {index}",
