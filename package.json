@@ -72,7 +72,7 @@
     "test:pg-real": "node test/helpers/run-postgres-real.mjs",
     "test:go-postgres": "node test/helpers/run-go-postgres.mjs",
     "test:db-lifecycle": "node test/helpers/build.mjs test/db/db-lifecycle.test.mjs artifacts/tmp/db-lifecycle.mjs && node artifacts/tmp/db-lifecycle.mjs",
-    "test:schema-bootstrap": "node test/db/schema-bootstrap.test.mjs",
+    "test:schema-bootstrap": "node test/db/bootstrap-ledger.test.mjs && node test/db/schema-bootstrap.test.mjs",
     "test:site-icon": "node test/ui/site-icon.test.mjs",
     "test:agent": "node test/agents/agent.test.mjs && node test/agents/agent-hardware.test.mjs && node test/ui/agent-hardware.test.mjs && npm run test:agent-registry && npm run test:agent-addons && npm run test:agent-network-probes && npm run test:agent-metrics && node test/agents/agent-containers.test.mjs && node test/ui/agent-containers.test.mjs",
     "test:agent-metrics": "node test/helpers/build.mjs test/agents/agent-metrics.test.ts artifacts/tmp/agent-metrics.mjs && node artifacts/tmp/agent-metrics.mjs && node test/ui/agent-public-metrics.test.mjs",

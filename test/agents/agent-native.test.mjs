@@ -365,7 +365,8 @@ try {
   await waitFor('blocked WebSocket reconnect', () => state(origin), (current) => current.upgradeBlocked >= 1, 10_000);
   const fallback = await waitFor('HTTP transport fallback', () => state(origin), (current) =>
     current.pushAttempts > 0 && current.live.some((row) => row.agent_id === agentMonitor.id && row.transport === 'http' && row.reported_at > oldReportedAt), 60_000);
-  assert(fallback.upgradeBlocked >= 3, 'fixture must refuse the native agent WebSocket reconnects');
+  assert.equal(fallback.upgradeBlocked - cronState.upgradeBlocked, 2,
+    'the failed report session and two refused reconnects must trigger HTTP fallback');
   assert.equal(proxyForwards, 0, 'NO_PROXY must keep local HTTP fallback traffic off the proxy');
   assert(fallback.live.find((row) => row.agent_id === agentMonitor.id).reported_at > oldReportedAt);
   console.log('PASS database write failure closed the socket; queued report replayed and HTTP transport advanced reported_at');

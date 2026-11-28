@@ -51,15 +51,14 @@ export async function bootstrapSchema(env: Env): Promise<BootstrapResult> {
         AND name <> 'd1_migrations'
       LIMIT 1`,
   );
-  if (foreignTable) {
-    const ledger = await db.queryOne<{ n: number }>('SELECT COUNT(*) AS n FROM d1_migrations');
-    if ((ledger?.n ?? 0) === 0) {
-      throw new Error('Database has tables without a migration ledger; initialize a fresh development database.');
-    }
+  const ledger = new Set((await db.query<{ name: string }>('SELECT name FROM d1_migrations')).map(row => row.name));
+  if (foreignTable && ledger.size === 0) {
+    throw new Error('Database has tables without a migration ledger; initialize a fresh development database.');
   }
 
   const applied: string[] = [];
   for (const file of BOOTSTRAP_FILES) {
+    if (ledger.has(file.name)) continue;
     /*
       Claim the file and apply it in one batch, so a file can never be recorded
       as applied without its statements having run. The insert is first on
