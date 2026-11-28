@@ -19,7 +19,7 @@ import (
 
 var Version = "dev"
 var Repository = "XingLingQAQ/UptimePolaris"
-var ImageRepository = "ghcr.io/xinglingqaq/uptimepolaris"
+var ImageRepository = "ghcr.io/XingLingQAQ/uptimepolaris"
 
 var stable = regexp.MustCompile(`^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 var checksumLine = regexp.MustCompile(`^([0-9a-fA-F]{64}) [ *](\S+)$`)

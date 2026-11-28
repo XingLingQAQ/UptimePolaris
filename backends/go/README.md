@@ -32,7 +32,7 @@ Windows PowerShell：
 docker run -d --name uptime-polaris --restart unless-stopped \
   -p 127.0.0.1:8080:8080 \
   -v uptime-polaris-data:/data \
-  ghcr.io/xinglingqaq/uptimepolaris:latest
+  ghcr.io/XingLingQAQ/uptimepolaris:latest
 
 docker logs uptime-polaris
 ```
@@ -79,7 +79,7 @@ Linux 上由 `0700` 的父目录限制宿主机访问；文件自身允许容器
 | 变量 | 默认值 |
 | --- | --- |
 | `POLARIS_UPDATE_CONTAINER` | `uptime-polaris` |
-| `POLARIS_UPDATE_IMAGE` | `ghcr.io/xinglingqaq/uptimepolaris` |
+| `POLARIS_UPDATE_IMAGE` | `ghcr.io/XingLingQAQ/uptimepolaris` |
 | `POLARIS_UPDATE_HEALTH_URL` | `http://uptime-polaris:8080/api/public/health` |
 | `POLARIS_UPDATE_DATA_DIR` | `/updates` |
 | `POLARIS_UPDATER_ADDR` | `0.0.0.0:8091` |
@@ -228,7 +228,7 @@ The image supports `linux/amd64` and `linux/arm64`:
 docker run -d --name uptime-polaris --restart unless-stopped \
   -p 127.0.0.1:8080:8080 \
   -v uptime-polaris-data:/data \
-  ghcr.io/xinglingqaq/uptimepolaris:latest
+  ghcr.io/XingLingQAQ/uptimepolaris:latest
 
 docker logs uptime-polaris
 ```

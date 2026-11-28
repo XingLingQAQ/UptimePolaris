@@ -1,6 +1,6 @@
 services:
   polaris:
-    image: ${POLARIS_IMAGE:-ghcr.io/xinglingqaq/uptimepolaris}:${POLARIS_TAG:-latest}
+    image: ${POLARIS_IMAGE:-ghcr.io/XingLingQAQ/uptimepolaris}:${POLARIS_TAG:-latest}
     container_name: uptime-polaris
     restart: unless-stopped
     ports:
@@ -17,7 +17,7 @@ services:
         aliases: [uptime-polaris]
 
   updater:
-    image: ${POLARIS_IMAGE:-ghcr.io/xinglingqaq/uptimepolaris}:${POLARIS_TAG:-latest}
+    image: ${POLARIS_IMAGE:-ghcr.io/XingLingQAQ/uptimepolaris}:${POLARIS_TAG:-latest}
     entrypoint: [/polaris-updater]
     user: "0:0"
     restart: unless-stopped
@@ -29,7 +29,7 @@ services:
       - updater-token
     environment:
       POLARIS_UPDATE_CONTAINER: uptime-polaris
-      POLARIS_UPDATE_IMAGE: ${POLARIS_IMAGE:-ghcr.io/xinglingqaq/uptimepolaris}
+      POLARIS_UPDATE_IMAGE: ${POLARIS_IMAGE:-ghcr.io/XingLingQAQ/uptimepolaris}
       POLARIS_UPDATE_HEALTH_URL: http://uptime-polaris:8080/api/public/health
 
 secrets:
