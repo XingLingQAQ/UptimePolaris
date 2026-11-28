@@ -506,4 +506,10 @@ export const BOOTSTRAP_FILES: readonly BootstrapFile[] = [
       "ALTER TABLE machine_live ADD COLUMN sensors_json TEXT",
     ],
   },
+  {
+    name: "0055_agent_containers.sql",
+    statements: [
+      "ALTER TABLE machine_live ADD COLUMN containers_json TEXT",
+    ],
+  },
 ];

@@ -891,6 +891,34 @@
       "gpu": "GPU",
       "other": "Other"
     },
+    "sectionContainers": "Containers",
+    "containersRunning": "Running {count}",
+    "containersIssues": "Issues {count}",
+    "containerFilter": "Filter containers",
+    "containerFilters": {
+      "all": "All",
+      "running": "Running",
+      "issues": "Issues"
+    },
+    "containerCpu": "CPU {value}%",
+    "containerMemory": "Memory {value}",
+    "containerRestarts": "Restarts {count}",
+    "containersNoMatches": "No containers match this filter.",
+    "containerState": {
+      "running": "Running",
+      "exited": "Exited",
+      "restarting": "Restarting",
+      "paused": "Paused",
+      "dead": "Dead",
+      "created": "Created",
+      "unknown": "Unknown"
+    },
+    "containerHealth": {
+      "healthy": "Healthy",
+      "unhealthy": "Unhealthy",
+      "starting": "Starting",
+      "none": "No health check"
+    },
     "sectionGpus": "GPUs",
     "sectionSensors": "Hardware temperatures",
     "gpuIndex": "GPU {index}",

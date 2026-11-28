@@ -220,6 +220,17 @@ try {
   await sendHardware(hardwareReport({ gpus: [], sensors: [] }, hardwareAt + 4));
   assert.deepEqual(await db.queryOne("SELECT gpus_json,sensors_json FROM machine_live WHERE agent_id='pg-insert-fixture'"), { gpus_json: '[]', sensors_json: '[]' });
   console.log('PASS Postgres optional hardware reports, private detail, null preservation and clearing');
+  const containers = JSON.parse(readFileSync('test/fixtures/agent-containers.json', 'utf8')).find(row => row.name === 'valid');
+  await sendHardware(hardwareReport(containers.input, hardwareAt + 5));
+  const containerDetail = await withDBScope(hardwareEnv, env => loadAgentDetail(env, 'pg-insert-fixture', hardwareAt + 5));
+  assert.deepEqual(JSON.parse(containerDetail.containers_json), containers.expected.containers);
+  for (const [extra, at] of [[{containers:null}, hardwareAt + 6], [{}, hardwareAt + 7], [{containers:[]}, hardwareAt + 1]]) {
+    await sendHardware(hardwareReport(extra, at));
+    assert.equal((await db.queryOne("SELECT containers_json FROM machine_live WHERE agent_id='pg-insert-fixture'")).containers_json, containerDetail.containers_json);
+  }
+  await sendHardware(hardwareReport({containers:[]}, hardwareAt + 8));
+  assert.equal((await db.queryOne("SELECT containers_json FROM machine_live WHERE agent_id='pg-insert-fixture'")).containers_json, '[]');
+  console.log('PASS Postgres containers: persistence, private detail, omission, null, stale writes and clearing');
   const commandNow = 1_800_000_000;
   await db.execute(commandsSQL.postgres.insert, ['pg-lease-fixture', 'pg-insert-fixture', 're_report', commandNow, null]);
   await db.execute("UPDATE agent_commands SET state='leased', lease_token='lease', lease_until=$1 WHERE id='pg-lease-fixture'", [commandNow - 5]);

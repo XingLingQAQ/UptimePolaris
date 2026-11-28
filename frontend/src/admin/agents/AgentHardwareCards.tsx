@@ -4,14 +4,9 @@ import { AlertTriangle, ChevronDown, Monitor, Thermometer, Zap } from 'lucide-re
 import { asGpuStats, asSensorStats } from '../../../../shared/agent-hardware';
 import { Meter } from '../../components/ui/MetricMeters';
 import { IconTile } from '../components/IconTile';
-import { formatBytes, formatPercent } from '../format';
+import { formatBytes, formatPercent, formatOneDecimal } from '../format';
 
 const SENSOR_PREVIEW_LIMIT = 6;
-
-function formatOneDecimal(value: number): string {
-  const rounded = Math.round(value * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
-}
 
 function TemperatureReading({ value }: { value: number | null | undefined }) {
   const t = useTranslations('admin.agents');

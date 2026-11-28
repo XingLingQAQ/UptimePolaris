@@ -325,7 +325,7 @@ func (a *App) agentDetail(w http.ResponseWriter, r *http.Request) error {
 		return e
 	}
 	detail := Object{"agent": a.fleetRow(r.Context(), agent), "install": Object{"token": agent["token"]}, "mounts": mounts, "interfaces": interfaces, "alerts": alerts, "history": history, "probe_targets": targets, "probe_jobs": agentJobs}
-	for _, key := range []string{"gpus_json", "sensors_json"} {
+	for _, key := range []string{"gpus_json", "sensors_json", "containers_json"} {
 		if machine[key] != nil {
 			detail[key] = machine[key]
 		}

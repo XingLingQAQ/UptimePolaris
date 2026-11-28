@@ -146,6 +146,9 @@ func validFrame(frame Object) bool {
 		}
 		return true
 	case "report":
+		if _, ok := normalizedContainers(params["containers"]); !ok {
+			return false
+		}
 		if _, ok := normalizedGPUs(params["gpus"]); !ok {
 			return false
 		}
@@ -282,6 +285,10 @@ func (a *App) dispatchFrame(ctx context.Context, agent, frame Object) (Object, e
 			if p["sensors"] != nil {
 				sensors, _ := normalizedSensors(p["sensors"])
 				live["sensors_json"] = encode(sensors)
+			}
+			if p["containers"] != nil {
+				containers, _ := normalizedContainers(p["containers"])
+				live["containers_json"] = encode(containers)
 			}
 			for _, v := range array(p["summaries"]) {
 				summary := object(v)

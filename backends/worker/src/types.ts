@@ -97,6 +97,7 @@ export interface MachineLive {
   mounts_json: string | null;
   gpus_json?: string | null;
   sensors_json?: string | null;
+  containers_json?: string | null;
 
   /** Unix seconds of the last `report` frame, NULL until one arrives. / 最近 `report` 帧的 Unix 秒数；收到前为 NULL。 */
   reported_at: number | null;

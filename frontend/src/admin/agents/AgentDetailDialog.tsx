@@ -35,6 +35,7 @@ import { StatusPill } from '../monitors/MonitorIndicators';
 import { useConsoleRefreshInterval } from '../useConsoleData';
 import { agentsApi } from './api';
 import { AgentHardwareCards } from './AgentHardwareCards';
+import { AgentContainersCard } from './AgentContainersCard';
 import type { AgentAlertRule, AgentDetailResponse, AgentInterface, AgentMount, FleetAgent } from './types';
 
 function formatPercent(value: number | null): string {
@@ -306,6 +307,7 @@ export function AgentDetailDialog({
                   {currentDetail.gpus_json || currentDetail.sensors_json ? (
                     <AgentHardwareCards key={agent.id} gpusJson={currentDetail.gpus_json} sensorsJson={currentDetail.sensors_json} />
                   ) : null}
+                  <AgentContainersCard key={agent.id} containersJson={currentDetail.containers_json} />
                   <Disclosure
                     key={`mounts-${agent.id}`}
                     icon={<HardDrive />}

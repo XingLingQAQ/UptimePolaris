@@ -891,6 +891,34 @@
       "gpu": "GPU",
       "other": "その他"
     },
+    "sectionContainers": "コンテナー",
+    "containersRunning": "実行中 {count}",
+    "containersIssues": "異常 {count}",
+    "containerFilter": "コンテナーを絞り込む",
+    "containerFilters": {
+      "all": "すべて",
+      "running": "実行中",
+      "issues": "異常"
+    },
+    "containerCpu": "CPU {value}%",
+    "containerMemory": "メモリ {value}",
+    "containerRestarts": "再起動 {count} 回",
+    "containersNoMatches": "条件に一致するコンテナーはありません。",
+    "containerState": {
+      "running": "実行中",
+      "exited": "終了",
+      "restarting": "再起動中",
+      "paused": "一時停止",
+      "dead": "異常終了",
+      "created": "作成済み",
+      "unknown": "不明"
+    },
+    "containerHealth": {
+      "healthy": "正常",
+      "unhealthy": "異常",
+      "starting": "起動中",
+      "none": "ヘルスチェックなし"
+    },
     "sectionGpus": "GPU",
     "sectionSensors": "ハードウェア温度",
     "gpuIndex": "GPU {index}",

@@ -93,4 +93,5 @@ func TestPostgresMigrationAndRuntime(t *testing.T) {
 		t.Fatal(result)
 	}
 	testAgentHardwareTelemetry(t, pg)
+	testAgentContainersTelemetry(t, pg)
 }

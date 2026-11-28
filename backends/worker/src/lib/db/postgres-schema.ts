@@ -127,5 +127,9 @@ export const POSTGRES_MIGRATIONS: readonly { name: string; sql: string }[] = [
   {
     "name": "0035_agent_hardware.postgres.sql",
     "sql": "ALTER TABLE machine_live ADD COLUMN gpus_json TEXT;\nALTER TABLE machine_live ADD COLUMN sensors_json TEXT;\n"
+  },
+  {
+    "name": "0036_agent_containers.postgres.sql",
+    "sql": "ALTER TABLE machine_live ADD COLUMN IF NOT EXISTS containers_json TEXT;\n"
   }
 ];

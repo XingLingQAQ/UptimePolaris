@@ -152,6 +152,31 @@ Cookie 写请求要求同源，AI 功能关闭时手动调用返回 `409 ai_disa
 
 这两项始终仅供管理员查看。`/api/public/agent/detail/:numId` 和 `/api/public/servers/:id` 均省略它们，开启 `site.showPublicAgentHardware` 也不会公开。
 
+### Docker / Podman 容器上报 / Container telemetry
+
+`report.params.containers` 为可选数组，最多 256 项。缺省或 `null` 保留此前读数，`[]` 显式清空。超限、重复 ID 或非法元素使整帧返回 `400`，未知属性不保存。旧版 Agent 无需增加字段。
+
+| 字段 / Field | 范围与格式 / Validation |
+| --- | --- |
+| `id` | 必填，同帧唯一，1–64 个 Unicode 码点 / Required, unique per frame, 1–64 Unicode code points |
+| `name` | 必填，1–128 个 Unicode 码点 / Required, 1–128 Unicode code points |
+| `image` | 可选，1–256 个 Unicode 码点，不接受 `null` / Optional, 1–256 Unicode code points; not nullable |
+| `runtime` | 必填 / Required: `docker`、`podman` |
+| `state` | 必填 / Required: `running`、`exited`、`restarting`、`paused`、`dead`、`created`、`unknown` |
+| `health` | 可选 / Optional: `healthy`、`unhealthy`、`starting`、`none`；不接受 `null` / not nullable |
+| `cpu_pct` | 有限数，0–100000，多核允许超过 100% / Finite number, 0–100000; multicore values may exceed 100% |
+| `mem_used_bytes` / `mem_limit_bytes` | 安全整数，0–9007199254740991 / Safe integers, 0–9007199254740991 |
+| `restart_count` | 整数，0–1000000 / Integer, 0–1000000 |
+| `uptime_sec` | 整数，0–3153600000 / Integer, 0–3153600000 |
+
+字符串不得为空白或包含控制字符。所有数值指标可缺省或为 `null`，未知值不会作为零显示。管理详情 `GET /api/admin/agents/:id/detail` 在有记录时返回顶层 `containers_json`（JSON 字符串）。容器卡片仅在数据非空且有效时出现，支持筛选，默认显示前 8 项。
+
+The optional `containers` array preserves stored readings when omitted or `null`; an empty array clears them. Invalid elements, duplicate IDs or more than 256 entries reject the entire frame with `400`. Unknown properties are discarded. Strings must be nonblank and contain no control characters. Numeric metrics may be omitted or `null`.
+
+容器信息始终仅供管理员查看。公开接口 `/api/public/agent/detail/:numId` 和 `/api/public/servers/:id` 永远省略 `containers_json`，即使开启 `site.showPublicAgentHardware` 也不会公开。
+
+Only the administrator detail endpoint returns the top-level JSON string `containers_json` when stored. Both public detail endpoints always omit container data, including when `site.showPublicAgentHardware` is enabled.
+
 ## 统一分组管理
 
 `GET /api/admin/groups`、`POST /api/admin/groups`（`{ name, weight, type }`，`type` 为 `monitor`/`agent`/`common`）、`PUT /api/admin/groups/:key`（`:key` 为 `monitor:UUID` 或 `agent:UUID`；有损改型须带 `confirm_membership_reset: true`）、`DELETE /api/admin/groups/:key?scope=all`、`PUT /api/admin/groups/:key/members`（`≤500` 个未归属 ID，已归属返回 `409 group_members_assigned`）。

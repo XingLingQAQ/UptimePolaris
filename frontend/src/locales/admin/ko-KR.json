@@ -891,6 +891,34 @@
       "gpu": "GPU",
       "other": "기타"
     },
+    "sectionContainers": "컨테이너",
+    "containersRunning": "실행 중 {count}",
+    "containersIssues": "문제 {count}",
+    "containerFilter": "컨테이너 필터",
+    "containerFilters": {
+      "all": "전체",
+      "running": "실행 중",
+      "issues": "문제"
+    },
+    "containerCpu": "CPU {value}%",
+    "containerMemory": "메모리 {value}",
+    "containerRestarts": "재시작 {count}회",
+    "containersNoMatches": "필터에 해당하는 컨테이너가 없습니다.",
+    "containerState": {
+      "running": "실행 중",
+      "exited": "종료됨",
+      "restarting": "재시작 중",
+      "paused": "일시 중지됨",
+      "dead": "비정상 종료",
+      "created": "생성됨",
+      "unknown": "알 수 없음"
+    },
+    "containerHealth": {
+      "healthy": "정상",
+      "unhealthy": "비정상",
+      "starting": "시작 중",
+      "none": "상태 확인 없음"
+    },
     "sectionGpus": "GPU",
     "sectionSensors": "하드웨어 온도",
     "gpuIndex": "GPU {index}",

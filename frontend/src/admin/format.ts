@@ -38,6 +38,11 @@ export function formatPercent(value: number | null | undefined, digits = 1): str
   return `${value.toFixed(digits)}%`;
 }
 
+export function formatOneDecimal(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
 /**
  * Availability with as many decimals as it needs to say something.
  *

@@ -891,6 +891,34 @@
       "gpu": "GPU",
       "other": "Outro"
     },
+    "sectionContainers": "Contêineres",
+    "containersRunning": "Em execução {count}",
+    "containersIssues": "Problemas {count}",
+    "containerFilter": "Filtrar contêineres",
+    "containerFilters": {
+      "all": "Todos",
+      "running": "Em execução",
+      "issues": "Problemas"
+    },
+    "containerCpu": "CPU {value}%",
+    "containerMemory": "Memória {value}",
+    "containerRestarts": "Reinícios {count}",
+    "containersNoMatches": "Nenhum contêiner corresponde a este filtro.",
+    "containerState": {
+      "running": "Em execução",
+      "exited": "Encerrado",
+      "restarting": "Reiniciando",
+      "paused": "Pausado",
+      "dead": "Inativo",
+      "created": "Criado",
+      "unknown": "Desconhecido"
+    },
+    "containerHealth": {
+      "healthy": "Saudável",
+      "unhealthy": "Não saudável",
+      "starting": "Iniciando",
+      "none": "Sem verificação de saúde"
+    },
     "sectionGpus": "GPUs",
     "sectionSensors": "Temperaturas do hardware",
     "gpuIndex": "GPU {index}",

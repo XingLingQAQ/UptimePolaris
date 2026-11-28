@@ -16,7 +16,7 @@ const compiled = await build({
 const hardware = await build({ entryPoints: ['shared/agent-hardware.ts'], bundle: true, write: false, format: 'esm' });
 const { asGpuStats, asSensorStats } = await import(`data:text/javascript;base64,${Buffer.from(hardware.outputFiles[0].text).toString('base64')}`);
 const formats = await build({ entryPoints: ['frontend/src/admin/format.ts'], bundle: true, write: false, format: 'esm' });
-const { formatBytes, formatPercent } = await import(`data:text/javascript;base64,${Buffer.from(formats.outputFiles[0].text).toString('base64')}`);
+const { formatBytes, formatPercent, formatOneDecimal } = await import(`data:text/javascript;base64,${Buffer.from(formats.outputFiles[0].text).toString('base64')}`);
 const catalogs = Object.fromEntries(['en-US','zh-CN','zh-HK','zh-TW','ja-JP','ko-KR','fr-FR','pt-BR','ru-RU'].map(locale =>
   [locale, JSON.parse(readFileSync(`frontend/src/locales/admin/${locale}.json`, 'utf8'))]));
 let locale = 'en-US';
@@ -24,7 +24,7 @@ let expandedSensors = false;
 const icon = () => null;
 const bindings = { React, useMemo: fn => fn(), useTranslations: () => createTranslator({ locale, messages: { admin: catalogs[locale] }, namespace: 'admin.agents' }),
   useState: initial => [expandedSensors ?? initial, update => { expandedSensors = typeof update === 'function' ? update(expandedSensors) : update; }],
-  Monitor: icon, Zap: icon, ChevronDown: icon, Thermometer: icon, AlertTriangle: icon, IconTile: icon, asGpuStats, asSensorStats, formatBytes, formatPercent,
+  Monitor: icon, Zap: icon, ChevronDown: icon, Thermometer: icon, AlertTriangle: icon, IconTile: icon, asGpuStats, asSensorStats, formatBytes, formatPercent, formatOneDecimal,
   Meter: ({ value, label, tone }) => React.createElement('meter', { value, min: 0, max: 100, 'aria-label': label, 'data-tone': tone }),
 };
 const module = { exports: {} };

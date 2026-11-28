@@ -891,6 +891,34 @@
       "gpu": "GPU",
       "other": "Другое"
     },
+    "sectionContainers": "Контейнеры",
+    "containersRunning": "Работают: {count}",
+    "containersIssues": "Проблемы: {count}",
+    "containerFilter": "Фильтр контейнеров",
+    "containerFilters": {
+      "all": "Все",
+      "running": "Работают",
+      "issues": "Проблемы"
+    },
+    "containerCpu": "ЦП {value}%",
+    "containerMemory": "Память {value}",
+    "containerRestarts": "Перезапуски: {count}",
+    "containersNoMatches": "Нет контейнеров, соответствующих фильтру.",
+    "containerState": {
+      "running": "Работает",
+      "exited": "Завершён",
+      "restarting": "Перезапускается",
+      "paused": "Приостановлен",
+      "dead": "Сбой",
+      "created": "Создан",
+      "unknown": "Неизвестно"
+    },
+    "containerHealth": {
+      "healthy": "Исправен",
+      "unhealthy": "Неисправен",
+      "starting": "Запускается",
+      "none": "Без проверки здоровья"
+    },
     "sectionGpus": "Видеокарты",
     "sectionSensors": "Температуры оборудования",
     "gpuIndex": "GPU {index}",

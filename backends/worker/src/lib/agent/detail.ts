@@ -32,6 +32,7 @@ export interface AgentDetail {
   agent: FleetAgent;
   gpus_json?: string;
   sensors_json?: string;
+  containers_json?: string;
   mounts: FleetAgent['mounts'];
   interfaces: FleetAgent['interfaces'];
   alerts: AgentAlertRule[];
@@ -80,8 +81,8 @@ function alertRules(options: AgentOptions, liveState: LiveState, monitor: { id: 
 /** Null when the id is not an agent monitor. / ID 不是 Agent 监控时返回 null。 */
 export async function loadAgentDetail(env: Env, agentId: string, now: number): Promise<AgentDetail | null> {
   const db = getDB(env);
-  const monitor = await db.queryOne<{ id: string; options_json: string | null; token: string; gpus_json: string | null; sensors_json: string | null }>(
-    `SELECT a.id, a.options_json, a.token, ml.gpus_json, ml.sensors_json
+  const monitor = await db.queryOne<{ id: string; options_json: string | null; token: string; gpus_json: string | null; sensors_json: string | null; containers_json: string | null }>(
+    `SELECT a.id, a.options_json, a.token, ml.gpus_json, ml.sensors_json, ml.containers_json
        FROM agents a LEFT JOIN machine_live ml ON ml.agent_id = a.id
       WHERE a.id = ${db.type === 'postgres' ? '$1' : '?'}`,
     [agentId],
@@ -111,6 +112,7 @@ export async function loadAgentDetail(env: Env, agentId: string, now: number): P
     agent,
     ...(monitor.gpus_json == null ? {} : { gpus_json: monitor.gpus_json }),
     ...(monitor.sensors_json == null ? {} : { sensors_json: monitor.sensors_json }),
+    ...(monitor.containers_json == null ? {} : { containers_json: monitor.containers_json }),
     mounts: agent.mounts,
     interfaces: agent.interfaces,
     alerts: monitors.flatMap(row => alertRules(parseOptions<AgentOptions>(row.options_json), liveState, row)),

@@ -891,6 +891,34 @@
       "gpu": "GPU",
       "other": "其他"
     },
+    "sectionContainers": "容器",
+    "containersRunning": "執行中 {count}",
+    "containersIssues": "異常 {count}",
+    "containerFilter": "篩選容器",
+    "containerFilters": {
+      "all": "全部",
+      "running": "執行中",
+      "issues": "異常"
+    },
+    "containerCpu": "CPU {value}%",
+    "containerMemory": "記憶體 {value}",
+    "containerRestarts": "重新啟動 {count} 次",
+    "containersNoMatches": "沒有符合篩選條件的容器。",
+    "containerState": {
+      "running": "執行中",
+      "exited": "已結束",
+      "restarting": "重新啟動中",
+      "paused": "已暫停",
+      "dead": "已失效",
+      "created": "已建立",
+      "unknown": "未知"
+    },
+    "containerHealth": {
+      "healthy": "健康",
+      "unhealthy": "不健康",
+      "starting": "啟動中",
+      "none": "未設定健康檢查"
+    },
     "sectionGpus": "GPU",
     "sectionSensors": "硬體溫度",
     "gpuIndex": "GPU {index}",
