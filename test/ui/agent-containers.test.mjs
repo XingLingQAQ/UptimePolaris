@@ -36,6 +36,12 @@ assert.ok(html.indexOf('title="&lt;Private&gt;"')<html.indexOf('title="Running 0
 assert.equal((html.match(/class="polaris-well px-3 py-2.5"/g)||[]).length,8);
 assert.match(html,/CPU 250.3%/);assert.match(html,/Memory 0 B \/ 1.0 KB/);assert.match(html,/Restarts 2/);
 assert.match(html,/Issues 3/);assert.match(html,/Running 10/);assert.match(html,/aria-expanded="false"/);
+const filterLabels=raw=>buttons(tree(raw)).filter(button=>button.props['aria-pressed']!==undefined).map(button=>renderToStaticMarkup(button).replace(/<[^>]+>/g,''));
+assert.deepEqual(filterLabels(raw),['All 13','Running 10','Issues 3']);
+assert.match(html,/rounded-medium bg-default-100 p-0.5/);
+assert.match(html,/bg-content1 text-foreground shadow-small/);
+assert.match(html,/font-mono text-default-400" title="registry\/app:v1"/);
+assert.match(html,/class="text-default-600">CPU 250.3%/);
 buttons(tree(raw)).find(button=>button.props['aria-expanded']!==undefined).props.onClick();
 assert.equal((render(raw).match(/class="polaris-well px-3 py-2.5"/g)||[]).length,13);
 buttons(tree(raw)).find(button=>button.props['aria-expanded']!==undefined).props.onClick();
@@ -46,12 +52,32 @@ buttons(tree(raw))[1].props.onClick();
 html=render(raw);assert.doesNotMatch(html,/title="Dead"|title="Restart"/);assert.match(html,/aria-expanded="false"/);
 buttons(tree(raw))[0].props.onClick();
 const noIssues=JSON.stringify([{...base,id:'up'},{...base,id:'off',state:'exited'}]);
-buttons(tree(noIssues))[2].props.onClick();
-assert.match(render(noIssues),/role="status"[^>]*>No containers match this filter/);
+assert.deepEqual(filterLabels(noIssues),['All 2','Running 1']);
+buttons(tree(raw))[2].props.onClick();
+html=render(noIssues);
+assert.doesNotMatch(html,/No containers match this filter/);
+assert.equal((html.match(/class="polaris-well px-3 py-2.5"/g)||[]).length,2);
+assert.equal(buttons(tree(noIssues))[0].props['aria-pressed'],true);
 buttons(tree(noIssues))[0].props.onClick();
 assert.doesNotMatch(render(JSON.stringify([base])),/role="group"|mt-1.5|aria-expanded/);
 const zero=render(JSON.stringify([{...base,cpu_pct:0,mem_used_bytes:0,restart_count:0}]));
 assert.match(zero,/CPU 0%/);assert.match(zero,/Memory 0 B/);assert.doesNotMatch(zero,/Restarts|—/);
+for(const [row,tone] of [
+  [{state:'restarting'},'warning'],
+  [{health:'starting'},'warning'],
+  [{health:'unhealthy'},'danger'],
+  [{state:'dead'},'danger'],
+  [{state:'restarting',health:'unhealthy'},'danger'],
+  [{state:'dead',health:'starting'},'danger'],
+  [{health:'healthy'},'success'],
+]) {
+  html=render(JSON.stringify([{...base,...row}]));
+  assert.match(html,new RegExp(`bg-${tone}-500`));
+  assert.match(html,new RegExp(`text-${tone}-(600|700) dark:text-${tone}-400`));
+  if(tone==='warning')assert.doesNotMatch(html,/text-danger-/);
+}
+const noRunning=JSON.stringify([{...base,id:'off',state:'exited'},{...base,id:'dead',state:'dead'}]);
+assert.deepEqual(filterLabels(noRunning),['All 2','Issues 1']);
 const allStates=['running','exited','restarting','paused','dead','created','unknown'].map((s,i)=>({...base,id:`s${i}`,state:s,name:`State ${s}`}));
 const allHealth=['healthy','unhealthy','starting','none'].map((health,i)=>({...base,id:`h${i}`,name:`Health ${health}`,health}));
 for(locale of Object.keys(catalogs)) {
