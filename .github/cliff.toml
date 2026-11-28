@@ -2,10 +2,10 @@
 # Release notes are generated from commit messages, grouped by Conventional Commits type.
 
 [changelog]
-header = """
-## {{ version }} - {{ timestamp | date(format="%Y-%m-%d") }}
-"""
+header = ""
 body = """
+## {{ version }} - {{ timestamp | date(format="%Y-%m-%d") }}
+
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group }}
 
